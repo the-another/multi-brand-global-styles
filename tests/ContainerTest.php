@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace TheAnother\Plugin\MultiDomainGlobalStyles\Tests;
 
 use Brain\Monkey;
+use Brain\Monkey\Functions;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
@@ -16,6 +17,8 @@ class ContainerTest extends TestCase {
 	protected function setUp(): void {
 		parent::setUp();
 		Monkey\setUp();
+
+		Functions\when( 'esc_html' )->returnArg();
 
 		$reflection = new \ReflectionClass( Container::class );
 		$instance   = $reflection->getProperty( 'instance' );
