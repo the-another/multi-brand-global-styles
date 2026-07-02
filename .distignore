@@ -13,10 +13,15 @@
 
 # Tests, docs, tooling
 /tests/
+/e2e/
 /docs/
 /scripts/
 /Makefile
 /Dockerfile
+/playwright.config.ts
+/artifacts/
+/test-results/
+/playwright-report/
 
 # Build output (zips must never nest a previous zip)
 /build/
