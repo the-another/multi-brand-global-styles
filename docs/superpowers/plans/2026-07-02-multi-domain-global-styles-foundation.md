@@ -602,11 +602,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'MDGS_VERSION', '0.1.0' );
-define( 'MDGS_PLUGIN_FILE', __FILE__ );
-define( 'MDGS_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
-define( 'MDGS_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
-define( 'MDGS_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
+define( 'THE_ANOTHER_MULTI_DOMAIN_GLOBAL_STYLES_VERSION', '0.1.0' );
+define( 'THE_ANOTHER_MULTI_DOMAIN_GLOBAL_STYLES_PLUGIN_FILE', __FILE__ );
+define( 'THE_ANOTHER_MULTI_DOMAIN_GLOBAL_STYLES_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
+define( 'THE_ANOTHER_MULTI_DOMAIN_GLOBAL_STYLES_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
+define( 'THE_ANOTHER_MULTI_DOMAIN_GLOBAL_STYLES_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
 
 if ( version_compare( PHP_VERSION, '8.3', '<' ) ) {
 	add_action(
@@ -636,8 +636,8 @@ if ( version_compare( get_bloginfo( 'version' ), '6.9', '<' ) ) {
 	return;
 }
 
-if ( file_exists( MDGS_PLUGIN_DIR . 'vendor/autoload.php' ) ) {
-	require_once MDGS_PLUGIN_DIR . 'vendor/autoload.php';
+if ( file_exists( THE_ANOTHER_MULTI_DOMAIN_GLOBAL_STYLES_PLUGIN_DIR . 'vendor/autoload.php' ) ) {
+	require_once THE_ANOTHER_MULTI_DOMAIN_GLOBAL_STYLES_PLUGIN_DIR . 'vendor/autoload.php';
 }
 
 add_action(
