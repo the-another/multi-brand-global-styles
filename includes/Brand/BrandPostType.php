@@ -206,7 +206,7 @@ class BrandPostType {
 	 * @return void
 	 */
 	private function save_rules( int $post_id ): void {
-		$raw   = isset( $_POST['mdgs_rules'] ) ? sanitize_textarea_field( wp_unslash( $_POST['mdgs_rules'] ) ) : '';
+		$raw   = isset( $_POST['mdgs_rules'] ) ? sanitize_textarea_field( wp_unslash( $_POST['mdgs_rules'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in save() before delegation.
 		$rules = $this->url_rule_registry->parse_rules_input( $raw );
 
 		$accepted = array();
@@ -234,7 +234,7 @@ class BrandPostType {
 	 * @return void
 	 */
 	private function save_variables( int $post_id ): void {
-		$raw = isset( $_POST['mdgs_variables'] ) ? sanitize_textarea_field( wp_unslash( $_POST['mdgs_variables'] ) ) : '';
+		$raw = isset( $_POST['mdgs_variables'] ) ? sanitize_textarea_field( wp_unslash( $_POST['mdgs_variables'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in save() before delegation.
 
 		update_post_meta( $post_id, '_mdgs_variables', $this->variable_parser->parse( $raw ) );
 	}
@@ -246,7 +246,7 @@ class BrandPostType {
 	 * @return void
 	 */
 	private function save_default_flag( int $post_id ): void {
-		$is_default = ! empty( $_POST['mdgs_is_default'] ) ? '1' : '';
+		$is_default = ! empty( $_POST['mdgs_is_default'] ) ? '1' : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in save() before delegation.
 
 		if ( '1' === $is_default ) {
 			$others = get_posts(
@@ -275,7 +275,7 @@ class BrandPostType {
 	 * @return void
 	 */
 	private function save_styles( int $post_id ): void {
-		$raw = isset( $_POST['mdgs_styles_json'] ) ? wp_unslash( $_POST['mdgs_styles_json'] ) : '';
+		$raw = isset( $_POST['mdgs_styles_json'] ) ? wp_unslash( $_POST['mdgs_styles_json'] ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in save() before delegation.
 
 		$decoded = json_decode( $raw, true );
 
