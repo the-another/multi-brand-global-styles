@@ -1,8 +1,9 @@
-FROM alpine:latest
+FROM alpine:3.24.1
 
-# PHP 8.3 toolchain for composer/phpcs/phpunit (php83 packages are pinned to
-# match the plugin's production PHP target even as the base image moves),
-# Node for the npm-based release pipeline (wp-scripts plugin-zip + version
+# Base is pinned to the current latest Alpine release (bump deliberately, not
+# via :latest). PHP 8.3 toolchain for composer/phpcs/phpunit — php83 packages
+# match the plugin's production PHP target regardless of the distro default.
+# Node is for the npm-based release pipeline (wp-scripts plugin-zip + version
 # scripts).
 RUN apk add --no-cache \
 	php83 \
