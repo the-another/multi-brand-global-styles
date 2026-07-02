@@ -62,9 +62,9 @@ Undefined tokens are left as the literal `%%token%%` string rather than silently
 
 Follows the house style seen in `aucteeno-nexus` / `globalag-router`:
 - PHP 8.3+, WordPress 6.9+
-- Namespace: `The_Another\Plugin\Multi_Domain_Global_Styles`
+- Namespace: `TheAnother\Plugin\MultiDomainGlobalStyles`
 - Composer-managed, PSR-4 autoload (`includes/`)
-- Container-based DI (`Container` singleton + `HookManager`) rather than scattered `add_action` calls; plugin-internal class/file names use StudlyCaps without underscores (the shared root namespace keeps the sibling plugins' underscored convention)
+- Container-based DI (`Container` singleton + `HookManager`) rather than scattered `add_action` calls; all namespaces, class names, and file names use StudlyCaps without underscores
 - Standalone plugin — no dependency on the other Aucteeno plugins
 
 ## Error handling & edge cases

@@ -12,7 +12,7 @@
 
 - PHP 8.3+ (spec: "PHP 8.3+, WP 6.9+" — Code conventions section)
 - WordPress 6.9+
-- Namespace root: `The_Another\Plugin\Multi_Domain_Global_Styles` (spec: "Code conventions")
+- Namespace root: `TheAnother\Plugin\MultiDomainGlobalStyles` (spec: "Code conventions")
 - Standalone plugin — no dependency on other Aucteeno plugins (spec: "Code conventions")
 - Container-based DI (`Container` singleton + `HookManager`), not scattered `add_action` calls (spec: "Code conventions")
 - Duplicate domain registration across Websites must be rejected at save time with an admin-visible error (spec: "Error handling & edge cases")
@@ -86,9 +86,9 @@ Each bounded context maps 1:1 onto a domain concept from the spec, not a technic
 - Test: `tests/ContainerTest.php`
 
 **Interfaces:**
-- Produces: `The_Another\Plugin\Multi_Domain_Global_Styles\Container::get_instance(): Container`, `->register(string $key, callable $factory, bool $singleton = true): void`, `->get(string $key): mixed`, `->has(string $key): bool`, `->get_hook_manager(): HookManager`
-- Produces: `The_Another\Plugin\Multi_Domain_Global_Styles\HookManager::register_action(string $hook, callable $callback, int $priority = 10, int $accepted_args = 1): void`, `->register_filter(...)` (same signature)
-- Produces: `The_Another\Plugin\Multi_Domain_Global_Styles\Plugin::get_instance(): Plugin`, `->start(): void` (body filled in as later tasks wire services in; empty for this task)
+- Produces: `TheAnother\Plugin\MultiDomainGlobalStyles\Container::get_instance(): Container`, `->register(string $key, callable $factory, bool $singleton = true): void`, `->get(string $key): mixed`, `->has(string $key): bool`, `->get_hook_manager(): HookManager`
+- Produces: `TheAnother\Plugin\MultiDomainGlobalStyles\HookManager::register_action(string $hook, callable $callback, int $priority = 10, int $accepted_args = 1): void`, `->register_filter(...)` (same signature)
+- Produces: `TheAnother\Plugin\MultiDomainGlobalStyles\Plugin::get_instance(): Plugin`, `->start(): void` (body filled in as later tasks wire services in; empty for this task)
 
 - [ ] **Step 1: Create composer.json**
 
@@ -110,7 +110,7 @@ Each bounded context maps 1:1 onto a domain concept from the spec, not a technic
     "multi-domain",
     "global-styles"
   ],
-  "homepage": "https://theanother.org/plugin/the-another-multi-domain-global-styles/",
+  "homepage": "https://theanother.org/plugin/multi-domain-global-styles/",
   "require": {
     "php": ">=8.3"
   },
@@ -126,12 +126,12 @@ Each bounded context maps 1:1 onto a domain concept from the spec, not a technic
   },
   "autoload": {
     "psr-4": {
-      "The_Another\\Plugin\\Multi_Domain_Global_Styles\\": "includes/"
+      "TheAnother\\Plugin\\MultiDomainGlobalStyles\\": "includes/"
     }
   },
   "autoload-dev": {
     "psr-4": {
-      "The_Another\\Plugin\\Multi_Domain_Global_Styles\\Tests\\": "tests/"
+      "TheAnother\\Plugin\\MultiDomainGlobalStyles\\Tests\\": "tests/"
     }
   },
   "config": {
@@ -232,11 +232,11 @@ Each bounded context maps 1:1 onto a domain concept from the spec, not a technic
  *
  * Dependency injection container with lazy loading and hook management.
  *
- * @package The_Another_Multi_Domain_Global_Styles
+ * @package MultiDomainGlobalStyles
  * @since 1.0.0
  */
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles;
 
 use Exception;
 
@@ -410,11 +410,11 @@ class Container {
  *
  * Manages WordPress hook registration and deregistration with tracking.
  *
- * @package The_Another_Multi_Domain_Global_Styles
+ * @package MultiDomainGlobalStyles
  * @since 1.0.0
  */
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles;
 
 /**
  * Class HookManager
@@ -514,11 +514,11 @@ class HookManager {
 /**
  * Plugin Orchestrator Class
  *
- * @package The_Another_Multi_Domain_Global_Styles
+ * @package MultiDomainGlobalStyles
  * @since 1.0.0
  */
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles;
 
 /**
  * Class Plugin
@@ -579,7 +579,7 @@ class Plugin {
 <?php
 /**
  * Plugin Name: The Another Multi-Domain Global Styles
- * Plugin URI: https://theanother.org/plugin/the-another-multi-domain-global-styles/
+ * Plugin URI: https://theanother.org/plugin/multi-domain-global-styles/
  * Description: Manage additional domains, per-domain global style overrides, and content variables from a single WordPress install.
  * Version: 0.1.0
  * Author: The Another
@@ -590,11 +590,11 @@ class Plugin {
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  *
- * @package The_Another_Multi_Domain_Global_Styles
+ * @package MultiDomainGlobalStyles
  * @since 1.0.0
  */
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles;
 
 use Exception;
 
@@ -663,7 +663,7 @@ add_action(
 /**
  * PHPUnit bootstrap file for Multi-Domain Global Styles plugin tests.
  *
- * @package The_Another\Plugin\Multi_Domain_Global_Styles\Tests
+ * @package TheAnother\Plugin\MultiDomainGlobalStyles\Tests
  */
 
 declare(strict_types=1);
@@ -707,13 +707,13 @@ if ( ! function_exists( 'is_wp_error' ) ) {
 <?php
 declare(strict_types=1);
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles\Tests;
 
 use Brain\Monkey;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Container;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Container;
 
 #[CoversClass( Container::class )]
 class ContainerTest extends TestCase {
@@ -787,7 +787,7 @@ class ContainerTest extends TestCase {
 		$container = Container::get_instance();
 
 		$this->assertInstanceOf(
-			\The_Another\Plugin\Multi_Domain_Global_Styles\HookManager::class,
+			\TheAnother\Plugin\MultiDomainGlobalStyles\HookManager::class,
 			$container->get_hook_manager()
 		);
 	}
@@ -821,7 +821,7 @@ git commit -m "feat: scaffold plugin with DI container and hook manager"
 
 **Interfaces:**
 - Consumes: nothing (pure logic + WP core functions `wp_parse_url`)
-- Produces: `The_Another\Plugin\Multi_Domain_Global_Styles\Website\DomainRegistry::normalize(string $raw): string`, `->parse_domains_input(string $raw): array` (returns `array<int, string>` of normalized, deduped, non-empty hostnames)
+- Produces: `TheAnother\Plugin\MultiDomainGlobalStyles\Website\DomainRegistry::normalize(string $raw): string`, `->parse_domains_input(string $raw): array` (returns `array<int, string>` of normalized, deduped, non-empty hostnames)
 
 - [ ] **Step 1: Write the failing test**
 
@@ -829,7 +829,7 @@ git commit -m "feat: scaffold plugin with DI container and hook manager"
 <?php
 declare(strict_types=1);
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\Website;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles\Tests\Website;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
@@ -837,7 +837,7 @@ use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\DomainRegistry;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Website\DomainRegistry;
 
 #[CoversClass( DomainRegistry::class )]
 class DomainRegistryTest extends TestCase {
@@ -909,11 +909,11 @@ Expected: FAIL with "Class ... DomainRegistry not found" (class doesn't exist ye
 /**
  * Domain Registry Service
  *
- * @package The_Another_Multi_Domain_Global_Styles
+ * @package MultiDomainGlobalStyles
  * @since 1.0.0
  */
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Website;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles\Website;
 
 /**
  * Class DomainRegistry
@@ -1204,14 +1204,14 @@ git commit -m "feat: add cached domain map and conflict detection"
 <?php
 declare(strict_types=1);
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\Website;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles\Tests\Website;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\WebsiteRepository;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Website\WebsiteRepository;
 
 #[CoversClass( WebsiteRepository::class )]
 class WebsiteRepositoryTest extends TestCase {
@@ -1314,11 +1314,11 @@ Expected: FAIL with "Class ... WebsiteRepository not found".
 /**
  * Website Repository Service
  *
- * @package The_Another_Multi_Domain_Global_Styles
+ * @package MultiDomainGlobalStyles
  * @since 1.0.0
  */
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Website;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles\Website;
 
 /**
  * Class WebsiteRepository
@@ -1415,7 +1415,7 @@ git commit -m "feat: add WebsiteRepository read helpers"
 <?php
 declare(strict_types=1);
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\Website;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles\Tests\Website;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
@@ -1423,9 +1423,9 @@ use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\DomainRegistry;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\DomainResolver;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\WebsiteRepository;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Website\DomainRegistry;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Website\DomainResolver;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Website\WebsiteRepository;
 
 #[CoversClass( DomainResolver::class )]
 class DomainResolverTest extends TestCase {
@@ -1523,11 +1523,11 @@ Expected: FAIL with "Class ... DomainResolver not found".
 /**
  * Domain Resolver Service
  *
- * @package The_Another_Multi_Domain_Global_Styles
+ * @package MultiDomainGlobalStyles
  * @since 1.0.0
  */
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Website;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles\Website;
 
 /**
  * Class DomainResolver
@@ -1626,13 +1626,13 @@ git commit -m "feat: add DomainResolver for HTTP_HOST to Website ID lookup"
 <?php
 declare(strict_types=1);
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\ContentVariables;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles\Tests\ContentVariables;
 
 use Brain\Monkey;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use The_Another\Plugin\Multi_Domain_Global_Styles\ContentVariables\VariableParser;
+use TheAnother\Plugin\MultiDomainGlobalStyles\ContentVariables\VariableParser;
 
 #[CoversClass( VariableParser::class )]
 class VariableParserTest extends TestCase {
@@ -1706,11 +1706,11 @@ Expected: FAIL with "Class ... VariableParser not found".
 /**
  * Variable Parser Service
  *
- * @package The_Another_Multi_Domain_Global_Styles
+ * @package MultiDomainGlobalStyles
  * @since 1.0.0
  */
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\ContentVariables;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles\ContentVariables;
 
 /**
  * Class VariableParser
@@ -1780,7 +1780,7 @@ git commit -m "feat: add VariableParser for key=value textarea input"
 <?php
 declare(strict_types=1);
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\GlobalStyles;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles\Tests\GlobalStyles;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
@@ -1788,7 +1788,7 @@ use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use The_Another\Plugin\Multi_Domain_Global_Styles\GlobalStyles\GlobalStylesPostService;
+use TheAnother\Plugin\MultiDomainGlobalStyles\GlobalStyles\GlobalStylesPostService;
 
 #[CoversClass( GlobalStylesPostService::class )]
 class GlobalStylesPostServiceTest extends TestCase {
@@ -1889,11 +1889,11 @@ Expected: FAIL with "Class ... GlobalStylesPostService not found".
 /**
  * Global Styles Post Service
  *
- * @package The_Another_Multi_Domain_Global_Styles
+ * @package MultiDomainGlobalStyles
  * @since 1.0.0
  */
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\GlobalStyles;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles\GlobalStyles;
 
 use RuntimeException;
 
@@ -2007,7 +2007,7 @@ git commit -m "feat: add GlobalStylesPostService to manage per-Website styles po
 <?php
 declare(strict_types=1);
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\GlobalStyles;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles\Tests\GlobalStyles;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
@@ -2015,10 +2015,10 @@ use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\DomainResolver;
-use The_Another\Plugin\Multi_Domain_Global_Styles\GlobalStyles\GlobalStylesOverride;
-use The_Another\Plugin\Multi_Domain_Global_Styles\GlobalStyles\GlobalStylesPostService;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\WebsiteRepository;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Website\DomainResolver;
+use TheAnother\Plugin\MultiDomainGlobalStyles\GlobalStyles\GlobalStylesOverride;
+use TheAnother\Plugin\MultiDomainGlobalStyles\GlobalStyles\GlobalStylesPostService;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Website\WebsiteRepository;
 
 /**
  * Minimal stand-in for WP_Theme_JSON_Data, which isn't available outside a
@@ -2159,11 +2159,11 @@ Expected: FAIL with "Class ... GlobalStylesOverride not found".
 /**
  * Global Styles Override Service
  *
- * @package The_Another_Multi_Domain_Global_Styles
+ * @package MultiDomainGlobalStyles
  * @since 1.0.0
  */
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\GlobalStyles;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles\GlobalStyles;
 
 /**
  * Class GlobalStylesOverride
@@ -2284,7 +2284,7 @@ git commit -m "feat: add GlobalStylesOverride frontend theme.json merge"
 <?php
 declare(strict_types=1);
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\ContentVariables;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles\Tests\ContentVariables;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
@@ -2292,9 +2292,9 @@ use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\DomainResolver;
-use The_Another\Plugin\Multi_Domain_Global_Styles\ContentVariables\VariableSubstitutionService;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\WebsiteRepository;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Website\DomainResolver;
+use TheAnother\Plugin\MultiDomainGlobalStyles\ContentVariables\VariableSubstitutionService;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Website\WebsiteRepository;
 
 #[CoversClass( VariableSubstitutionService::class )]
 class VariableSubstitutionServiceTest extends TestCase {
@@ -2401,11 +2401,11 @@ Expected: FAIL with "Class ... VariableSubstitutionService not found".
 /**
  * Variable Substitution Service
  *
- * @package The_Another_Multi_Domain_Global_Styles
+ * @package MultiDomainGlobalStyles
  * @since 1.0.0
  */
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\ContentVariables;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles\ContentVariables;
 
 /**
  * Class VariableSubstitutionService
@@ -2523,7 +2523,7 @@ This task's test coverage focuses on `save()`'s branching logic (the part with r
 <?php
 declare(strict_types=1);
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\Website;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles\Tests\Website;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
@@ -2531,10 +2531,10 @@ use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\WebsitePostType;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\DomainRegistry;
-use The_Another\Plugin\Multi_Domain_Global_Styles\GlobalStyles\GlobalStylesPostService;
-use The_Another\Plugin\Multi_Domain_Global_Styles\ContentVariables\VariableParser;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Website\WebsitePostType;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Website\DomainRegistry;
+use TheAnother\Plugin\MultiDomainGlobalStyles\GlobalStyles\GlobalStylesPostService;
+use TheAnother\Plugin\MultiDomainGlobalStyles\ContentVariables\VariableParser;
 
 #[CoversClass( WebsitePostType::class )]
 class WebsitePostTypeTest extends TestCase {
@@ -2716,14 +2716,14 @@ Expected: FAIL with "Class ... WebsitePostType not found".
 /**
  * Website Post Type
  *
- * @package The_Another_Multi_Domain_Global_Styles
+ * @package MultiDomainGlobalStyles
  * @since 1.0.0
  */
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Website;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles\Website;
 
-use The_Another\Plugin\Multi_Domain_Global_Styles\GlobalStyles\GlobalStylesPostService;
-use The_Another\Plugin\Multi_Domain_Global_Styles\ContentVariables\VariableParser;
+use TheAnother\Plugin\MultiDomainGlobalStyles\GlobalStyles\GlobalStylesPostService;
+use TheAnother\Plugin\MultiDomainGlobalStyles\ContentVariables\VariableParser;
 use WP_Post;
 
 /**
@@ -3045,14 +3045,14 @@ git commit -m "feat: add WebsitePostType with domains, variables, default flag, 
 <?php
 declare(strict_types=1);
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\Website;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles\Tests\Website;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\AdminNotices;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Website\AdminNotices;
 
 #[CoversClass( AdminNotices::class )]
 class AdminNoticesTest extends TestCase {
@@ -3112,11 +3112,11 @@ Expected: FAIL with "Class ... AdminNotices not found".
 /**
  * Admin Notices
  *
- * @package The_Another_Multi_Domain_Global_Styles
+ * @package MultiDomainGlobalStyles
  * @since 1.0.0
  */
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Website;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles\Website;
 
 /**
  * Class AdminNotices
@@ -3185,21 +3185,21 @@ git commit -m "feat: add AdminNotices for domain conflict rejection"
 /**
  * Plugin Orchestrator Class
  *
- * @package The_Another_Multi_Domain_Global_Styles
+ * @package MultiDomainGlobalStyles
  * @since 1.0.0
  */
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles;
 
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\AdminNotices;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\WebsitePostType;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\DomainRegistry;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\DomainResolver;
-use The_Another\Plugin\Multi_Domain_Global_Styles\GlobalStyles\GlobalStylesOverride;
-use The_Another\Plugin\Multi_Domain_Global_Styles\GlobalStyles\GlobalStylesPostService;
-use The_Another\Plugin\Multi_Domain_Global_Styles\ContentVariables\VariableParser;
-use The_Another\Plugin\Multi_Domain_Global_Styles\ContentVariables\VariableSubstitutionService;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\WebsiteRepository;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Website\AdminNotices;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Website\WebsitePostType;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Website\DomainRegistry;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Website\DomainResolver;
+use TheAnother\Plugin\MultiDomainGlobalStyles\GlobalStyles\GlobalStylesOverride;
+use TheAnother\Plugin\MultiDomainGlobalStyles\GlobalStyles\GlobalStylesPostService;
+use TheAnother\Plugin\MultiDomainGlobalStyles\ContentVariables\VariableParser;
+use TheAnother\Plugin\MultiDomainGlobalStyles\ContentVariables\VariableSubstitutionService;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Website\WebsiteRepository;
 
 /**
  * Class Plugin
