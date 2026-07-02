@@ -6,7 +6,7 @@
 
 **Architecture:** Container-based DI (mirrors `aucteeno-nexus`/`globalag-router` house style) with a single `mdgs_website` custom post type as the entity for domains, variables, and a pointer to a dedicated `wp_global_styles` post per Website. Domain routing resolves `HTTP_HOST` → Website via a cached map. Frontend rendering hooks `wp_theme_json_data_user` (style override) and a `template_redirect`-started output buffer (text variable substitution).
 
-**Tech Stack:** PHP 8.3+, WordPress 6.9+, Composer (classmap autoload for `includes/`, PSR-4 for `tests/`), PHPUnit 11 + Brain Monkey + Mockery (unit tests only, no WP test suite / DB).
+**Tech Stack:** PHP 8.3+, WordPress 6.9+, Composer (PSR-4 autoload for both `includes/` and `tests/`), PHPUnit 11 + Brain Monkey + Mockery (unit tests only, no WP test suite / DB).
 
 ## Global Constraints
 
@@ -36,21 +36,21 @@ the-another-multi-domain-global-styles/
 ├── phpunit.xml.dist
 ├── .phpcs.xml.dist
 ├── includes/
-│   ├── class-container.php                       # DI container (copied pattern from aucteeno-nexus)
-│   ├── class-hook-manager.php                     # Hook registration/tracking (copied pattern)
-│   ├── class-plugin.php                           # Orchestrator: registers services + hooks
-│   ├── post-types/
-│   │   └── class-website-post-type.php            # `mdgs_website` CPT, meta boxes, save glue
-│   ├── services/
-│   │   ├── class-domain-registry.php              # normalize/parse/dedupe domains, conflict detection, cached map
-│   │   ├── class-website-repository.php           # read helpers: domains, variables, default, global-styles-post-id
-│   │   ├── class-domain-resolver.php              # HTTP_HOST → Website ID
-│   │   ├── class-variable-parser.php               # "key = value" textarea → assoc array
-│   │   ├── class-global-styles-post-service.php    # create/read the per-Website wp_global_styles post
-│   │   ├── class-global-styles-override.php        # wp_theme_json_data_user filter (frontend)
-│   │   └── class-variable-substitution-service.php # output buffer + %%website.*%% substitution
-│   └── admin/
-│       └── class-admin-notices.php                 # duplicate-domain rejection notice
+│   ├── Container.php                       # DI container (copied pattern from aucteeno-nexus)
+│   ├── Hook_Manager.php                     # Hook registration/tracking (copied pattern)
+│   ├── Plugin.php                           # Orchestrator: registers services + hooks
+│   ├── Post_Types/
+│   │   └── Website_Post_Type.php            # `mdgs_website` CPT, meta boxes, save glue
+│   ├── Services/
+│   │   ├── Domain_Registry.php              # normalize/parse/dedupe domains, conflict detection, cached map
+│   │   ├── Website_Repository.php           # read helpers: domains, variables, default, global-styles-post-id
+│   │   ├── Domain_Resolver.php              # HTTP_HOST → Website ID
+│   │   ├── Variable_Parser.php               # "key = value" textarea → assoc array
+│   │   ├── Global_Styles_Post_Service.php    # create/read the per-Website wp_global_styles post
+│   │   ├── Global_Styles_Override.php        # wp_theme_json_data_user filter (frontend)
+│   │   └── Variable_Substitution_Service.php # output buffer + %%website.*%% substitution
+│   └── Admin/
+│       └── Admin_Notices.php                 # duplicate-domain rejection notice
 └── tests/
     ├── bootstrap.php
     ├── ContainerTest.php
@@ -77,9 +77,9 @@ the-another-multi-domain-global-styles/
 - Create: `phpunit.xml.dist`
 - Create: `.phpcs.xml.dist`
 - Create: `the-another-multi-domain-global-styles.php`
-- Create: `includes/class-container.php`
-- Create: `includes/class-hook-manager.php`
-- Create: `includes/class-plugin.php`
+- Create: `includes/Container.php`
+- Create: `includes/Hook_Manager.php`
+- Create: `includes/Plugin.php`
 - Test: `tests/bootstrap.php`
 - Test: `tests/ContainerTest.php`
 
@@ -123,9 +123,9 @@ the-another-multi-domain-global-styles/
     "wp-coding-standards/wpcs": "^3.0"
   },
   "autoload": {
-    "classmap": [
-      "includes/"
-    ]
+    "psr-4": {
+      "The_Another\\Plugin\\Multi_Domain_Global_Styles\\": "includes/"
+    }
   },
   "autoload-dev": {
     "psr-4": {
@@ -221,7 +221,7 @@ the-another-multi-domain-global-styles/
 </ruleset>
 ```
 
-- [ ] **Step 4: Create includes/class-container.php**
+- [ ] **Step 4: Create includes/Container.php**
 
 ```php
 <?php
@@ -399,7 +399,7 @@ class Container {
 }
 ```
 
-- [ ] **Step 5: Create includes/class-hook-manager.php**
+- [ ] **Step 5: Create includes/Hook_Manager.php**
 
 ```php
 <?php
@@ -505,7 +505,7 @@ class Hook_Manager {
 }
 ```
 
-- [ ] **Step 6: Create includes/class-plugin.php (empty start(), filled in by later tasks)**
+- [ ] **Step 6: Create includes/Plugin.php (empty start(), filled in by later tasks)**
 
 ```php
 <?php
@@ -805,7 +805,7 @@ Expected: No errors (warnings acceptable) against the files created in this task
 - [ ] **Step 12: Commit**
 
 ```bash
-git add composer.json phpunit.xml.dist .phpcs.xml.dist the-another-multi-domain-global-styles.php includes/class-container.php includes/class-hook-manager.php includes/class-plugin.php tests/bootstrap.php tests/ContainerTest.php
+git add composer.json phpunit.xml.dist .phpcs.xml.dist the-another-multi-domain-global-styles.php includes/Container.php includes/Hook_Manager.php includes/Plugin.php tests/bootstrap.php tests/ContainerTest.php
 git commit -m "feat: scaffold plugin with DI container and hook manager"
 ```
 
@@ -814,7 +814,7 @@ git commit -m "feat: scaffold plugin with DI container and hook manager"
 ### Task 2: Domain_Registry — normalization and input parsing
 
 **Files:**
-- Create: `includes/services/class-domain-registry.php`
+- Create: `includes/Services/Domain_Registry.php`
 - Test: `tests/Services/DomainRegistryTest.php`
 
 **Interfaces:**
@@ -990,7 +990,7 @@ Expected: PASS (all data provider cases + both parse_domains_input tests).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/services/class-domain-registry.php tests/Services/DomainRegistryTest.php
+git add includes/Services/Domain_Registry.php tests/Services/DomainRegistryTest.php
 git commit -m "feat: add domain normalization and input parsing"
 ```
 
@@ -999,7 +999,7 @@ git commit -m "feat: add domain normalization and input parsing"
 ### Task 3: Domain_Registry — cached map and conflict detection
 
 **Files:**
-- Modify: `includes/services/class-domain-registry.php`
+- Modify: `includes/Services/Domain_Registry.php`
 - Modify: `tests/Services/DomainRegistryTest.php`
 
 **Interfaces:**
@@ -1099,7 +1099,7 @@ Expected: FAIL — `Call to undefined method Domain_Registry::get_domain_map()` 
 
 - [ ] **Step 3: Add methods to Domain_Registry**
 
-Add to `includes/services/class-domain-registry.php`, inside the `Domain_Registry` class:
+Add to `includes/Services/Domain_Registry.php`, inside the `Domain_Registry` class:
 
 ```php
 	/**
@@ -1180,7 +1180,7 @@ Expected: PASS (all tests in the file, including Task 2's).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/services/class-domain-registry.php tests/Services/DomainRegistryTest.php
+git add includes/Services/Domain_Registry.php tests/Services/DomainRegistryTest.php
 git commit -m "feat: add cached domain map and conflict detection"
 ```
 
@@ -1189,7 +1189,7 @@ git commit -m "feat: add cached domain map and conflict detection"
 ### Task 4: Website_Repository — read helpers
 
 **Files:**
-- Create: `includes/services/class-website-repository.php`
+- Create: `includes/Services/Website_Repository.php`
 - Test: `tests/Services/WebsiteRepositoryTest.php`
 
 **Interfaces:**
@@ -1391,7 +1391,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/services/class-website-repository.php tests/Services/WebsiteRepositoryTest.php
+git add includes/Services/Website_Repository.php tests/Services/WebsiteRepositoryTest.php
 git commit -m "feat: add Website_Repository read helpers"
 ```
 
@@ -1400,7 +1400,7 @@ git commit -m "feat: add Website_Repository read helpers"
 ### Task 5: Domain_Resolver — HTTP_HOST to Website ID
 
 **Files:**
-- Create: `includes/services/class-domain-resolver.php`
+- Create: `includes/Services/Domain_Resolver.php`
 - Test: `tests/Services/DomainResolverTest.php`
 
 **Interfaces:**
@@ -1602,7 +1602,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/services/class-domain-resolver.php tests/Services/DomainResolverTest.php
+git add includes/Services/Domain_Resolver.php tests/Services/DomainResolverTest.php
 git commit -m "feat: add Domain_Resolver for HTTP_HOST to Website ID lookup"
 ```
 
@@ -1611,7 +1611,7 @@ git commit -m "feat: add Domain_Resolver for HTTP_HOST to Website ID lookup"
 ### Task 6: Variable_Parser
 
 **Files:**
-- Create: `includes/services/class-variable-parser.php`
+- Create: `includes/Services/Variable_Parser.php`
 - Test: `tests/Services/VariableParserTest.php`
 
 **Interfaces:**
@@ -1754,7 +1754,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/services/class-variable-parser.php tests/Services/VariableParserTest.php
+git add includes/Services/Variable_Parser.php tests/Services/VariableParserTest.php
 git commit -m "feat: add Variable_Parser for key=value textarea input"
 ```
 
@@ -1763,7 +1763,7 @@ git commit -m "feat: add Variable_Parser for key=value textarea input"
 ### Task 7: Global_Styles_Post_Service
 
 **Files:**
-- Create: `includes/services/class-global-styles-post-service.php`
+- Create: `includes/Services/Global_Styles_Post_Service.php`
 - Test: `tests/Services/GlobalStylesPostServiceTest.php`
 
 **Interfaces:**
@@ -1981,7 +1981,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/services/class-global-styles-post-service.php tests/Services/GlobalStylesPostServiceTest.php
+git add includes/Services/Global_Styles_Post_Service.php tests/Services/GlobalStylesPostServiceTest.php
 git commit -m "feat: add Global_Styles_Post_Service to manage per-Website styles posts"
 ```
 
@@ -1990,7 +1990,7 @@ git commit -m "feat: add Global_Styles_Post_Service to manage per-Website styles
 ### Task 8: Global_Styles_Override — frontend theme.json merge
 
 **Files:**
-- Create: `includes/services/class-global-styles-override.php`
+- Create: `includes/Services/Global_Styles_Override.php`
 - Test: `tests/Services/GlobalStylesOverrideTest.php`
 
 **Interfaces:**
@@ -2258,7 +2258,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/services/class-global-styles-override.php tests/Services/GlobalStylesOverrideTest.php
+git add includes/Services/Global_Styles_Override.php tests/Services/GlobalStylesOverrideTest.php
 git commit -m "feat: add Global_Styles_Override frontend theme.json merge"
 ```
 
@@ -2267,7 +2267,7 @@ git commit -m "feat: add Global_Styles_Override frontend theme.json merge"
 ### Task 9: Variable_Substitution_Service
 
 **Files:**
-- Create: `includes/services/class-variable-substitution-service.php`
+- Create: `includes/Services/Variable_Substitution_Service.php`
 - Test: `tests/Services/VariableSubstitutionServiceTest.php`
 
 **Interfaces:**
@@ -2495,7 +2495,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/services/class-variable-substitution-service.php tests/Services/VariableSubstitutionServiceTest.php
+git add includes/Services/Variable_Substitution_Service.php tests/Services/VariableSubstitutionServiceTest.php
 git commit -m "feat: add Variable_Substitution_Service for %%website.*%% tokens"
 ```
 
@@ -2504,7 +2504,7 @@ git commit -m "feat: add Variable_Substitution_Service for %%website.*%% tokens"
 ### Task 10: Website_Post_Type — CPT, meta boxes, save glue
 
 **Files:**
-- Create: `includes/post-types/class-website-post-type.php`
+- Create: `includes/Post_Types/Website_Post_Type.php`
 - Test: `tests/PostTypes/WebsitePostTypeTest.php`
 
 **Interfaces:**
@@ -3019,7 +3019,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/post-types/class-website-post-type.php tests/PostTypes/WebsitePostTypeTest.php
+git add includes/Post_Types/Website_Post_Type.php tests/PostTypes/WebsitePostTypeTest.php
 git commit -m "feat: add Website_Post_Type with domains, variables, default flag, and raw-JSON styles editor"
 ```
 
@@ -3028,7 +3028,7 @@ git commit -m "feat: add Website_Post_Type with domains, variables, default flag
 ### Task 11: Admin_Notices — duplicate domain rejection
 
 **Files:**
-- Create: `includes/admin/class-admin-notices.php`
+- Create: `includes/Admin/Admin_Notices.php`
 - Test: `tests/Admin/AdminNoticesTest.php`
 
 **Interfaces:**
@@ -3159,7 +3159,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/admin/class-admin-notices.php tests/Admin/AdminNoticesTest.php
+git add includes/Admin/Admin_Notices.php tests/Admin/AdminNoticesTest.php
 git commit -m "feat: add Admin_Notices for domain conflict rejection"
 ```
 
@@ -3168,13 +3168,13 @@ git commit -m "feat: add Admin_Notices for domain conflict rejection"
 ### Task 12: Wire everything together in Plugin::start()
 
 **Files:**
-- Modify: `includes/class-plugin.php`
+- Modify: `includes/Plugin.php`
 
 **Interfaces:**
 - Consumes: every service produced in Tasks 2–11
 - Produces: a fully wired `Plugin::start()` — no new public interface for later tasks to consume (this is the top of the dependency graph)
 
-- [ ] **Step 1: Replace includes/class-plugin.php with the fully wired version**
+- [ ] **Step 1: Replace includes/Plugin.php with the fully wired version**
 
 ```php
 <?php
@@ -3319,7 +3319,7 @@ Expected: No errors.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add includes/class-plugin.php
+git add includes/Plugin.php
 git commit -m "feat: wire all services and hooks in Plugin::start()"
 ```
 
