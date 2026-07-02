@@ -1,7 +1,9 @@
-FROM alpine:3.20
+FROM alpine:latest
 
-# PHP 8.3 toolchain for composer/phpcs/phpunit, Node for the npm-based
-# release pipeline (wp-scripts plugin-zip + version scripts).
+# PHP 8.3 toolchain for composer/phpcs/phpunit (php83 packages are pinned to
+# match the plugin's production PHP target even as the base image moves),
+# Node for the npm-based release pipeline (wp-scripts plugin-zip + version
+# scripts).
 RUN apk add --no-cache \
 	php83 \
 	php83-cli \
@@ -22,13 +24,20 @@ RUN apk add --no-cache \
 	php83-xmlreader \
 	php83-xmlwriter \
 	php83-zip \
-	composer \
 	nodejs \
 	npm \
 	make \
 	git \
 	zip \
 	curl
+
+# Alpine's `composer` package depends on the distro's default PHP (8.5 on
+# 3.24+), which would silently run the toolchain on a different PHP series
+# than production. Pin the CLI to php83 and install Composer under it.
+RUN ln -sf /usr/bin/php83 /usr/local/bin/php && \
+	curl -sS https://getcomposer.org/installer -o /tmp/composer-setup.php && \
+	php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer && \
+	rm /tmp/composer-setup.php
 
 # The project directory is always bind-mounted to /app at run time, so the
 # image deliberately contains no project files (a COPY here would only bloat
