@@ -52,7 +52,7 @@ class VariableSubstitutionService {
 	 * @return void
 	 */
 	public function start_buffer(): void {
-		if ( is_admin() || wp_doing_ajax() || ( defined( 'REST_REQUEST' ) && REST_REQUEST ) ) {
+		if ( is_admin() || wp_doing_ajax() || is_feed() || ( defined( 'REST_REQUEST' ) && REST_REQUEST ) ) {
 			return;
 		}
 

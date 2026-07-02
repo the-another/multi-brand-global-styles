@@ -66,7 +66,7 @@ class GlobalStylesOverride {
 	 * @return mixed WP_Theme_JSON_Data instance, possibly merged with Brand overrides.
 	 */
 	public function filter_theme_json( mixed $theme_json ): mixed {
-		if ( is_admin() ) {
+		if ( is_admin() || wp_doing_ajax() || ( defined( 'REST_REQUEST' ) && REST_REQUEST ) ) {
 			return $theme_json;
 		}
 

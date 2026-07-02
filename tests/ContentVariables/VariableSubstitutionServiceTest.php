@@ -109,4 +109,53 @@ class VariableSubstitutionServiceTest extends TestCase {
 
 		$this->assertSame( '%%brand.name%%', $service->replace( '%%brand.name%%' ) );
 	}
+
+	// Note: the REST_REQUEST branch of start_buffer()'s guard is intentionally not
+	// covered here — defining the REST_REQUEST constant would leak process-wide
+	// and poison other tests in the suite.
+
+	public function test_start_buffer_skips_admin(): void {
+		Functions\when( 'is_admin' )->justReturn( true );
+
+		$service = $this->make_service( null );
+
+		$level = ob_get_level();
+		$service->start_buffer();
+
+		$this->assertSame( $level, ob_get_level() );
+	}
+
+	public function test_start_buffer_skips_feeds(): void {
+		Functions\when( 'is_admin' )->justReturn( false );
+		Functions\when( 'wp_doing_ajax' )->justReturn( false );
+		Functions\when( 'is_feed' )->justReturn( true );
+
+		$service = $this->make_service( null );
+
+		$level = ob_get_level();
+		$service->start_buffer();
+
+		$this->assertSame( $level, ob_get_level() );
+	}
+
+	public function test_start_buffer_starts_buffer_and_applies_replace_on_flush(): void {
+		Functions\when( 'is_admin' )->justReturn( false );
+		Functions\when( 'wp_doing_ajax' )->justReturn( false );
+		Functions\when( 'is_feed' )->justReturn( false );
+		Functions\when( 'esc_html' )->returnArg();
+
+		$service = $this->make_service( 5, array( 'name' => 'Acme Auctions' ) );
+
+		ob_start(); // outer capture buffer
+		$level_before = ob_get_level();
+
+		$service->start_buffer();
+
+		$this->assertSame( $level_before + 1, ob_get_level() );
+
+		echo 'Hello %%brand.name%%';
+		ob_end_flush(); // flush inner buffer through replace(), into the outer buffer
+
+		$this->assertSame( 'Hello Acme Auctions', ob_get_clean() );
+	}
 }
