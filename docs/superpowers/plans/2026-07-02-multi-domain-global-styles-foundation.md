@@ -4,7 +4,7 @@
 
 **Goal:** Build a standalone WordPress plugin that lets admins register domains, group them into per-domain "Website" style/variable profiles, override global styles per domain without touching the theme, and substitute `%%website.*%%` content variables — with an interim raw-JSON style editor. (Full native-Site-Editor-parity style editing is a separate follow-up plan; see "Relationship to Plan 2" below.)
 
-**Architecture:** Container-based DI (mirrors `aucteeno-nexus`/`globalag-router` house style) with code organized by domain/bounded-context (`Website`, `Global_Styles`, `Content_Variables`) rather than technical layer — see "File Structure" below. The `mdgs_website` custom post type is the aggregate root: the entity for domains, variables, and a pointer to a dedicated `wp_global_styles` post per Website. Domain routing resolves `HTTP_HOST` → Website via a cached map. Frontend rendering hooks `wp_theme_json_data_user` (style override) and a `template_redirect`-started output buffer (text variable substitution). Throughout, the implementation stays WordPress-idiomatic: the CPT is the aggregate, hooks (not a custom event bus) are the extensibility mechanism, `get_post_meta`/`wp_insert_post`/core filters are used directly rather than wrapped in additional abstraction layers.
+**Architecture:** Container-based DI (mirrors `aucteeno-nexus`/`globalag-router` house style) with code organized by domain/bounded-context (`Website`, `GlobalStyles`, `ContentVariables`) rather than technical layer — see "File Structure" below. The `mdgs_website` custom post type is the aggregate root: the entity for domains, variables, and a pointer to a dedicated `wp_global_styles` post per Website. Domain routing resolves `HTTP_HOST` → Website via a cached map. Frontend rendering hooks `wp_theme_json_data_user` (style override) and a `template_redirect`-started output buffer (text variable substitution). Throughout, the implementation stays WordPress-idiomatic: the CPT is the aggregate, hooks (not a custom event bus) are the extensibility mechanism, `get_post_meta`/`wp_insert_post`/core filters are used directly rather than wrapped in additional abstraction layers.
 
 **Tech Stack:** PHP 8.3+, WordPress 6.9+, Composer (PSR-4 autoload for both `includes/` and `tests/`), PHPUnit 11 + Brain Monkey + Mockery (unit tests only, no WP test suite / DB).
 
@@ -14,7 +14,7 @@
 - WordPress 6.9+
 - Namespace root: `The_Another\Plugin\Multi_Domain_Global_Styles` (spec: "Code conventions")
 - Standalone plugin — no dependency on other Aucteeno plugins (spec: "Code conventions")
-- Container-based DI (`Container` singleton + `Hook_Manager`), not scattered `add_action` calls (spec: "Code conventions")
+- Container-based DI (`Container` singleton + `HookManager`), not scattered `add_action` calls (spec: "Code conventions")
 - Duplicate domain registration across Websites must be rejected at save time with an admin-visible error (spec: "Error handling & edge cases")
 - Undefined `%%token%%` values are left literal, never silently blanked (spec: "Variable substitution")
 - Variable values are escaped via `esc_html()` before substitution — plain text only, no HTML injection (spec: "Variable substitution" / "Assumptions")
@@ -36,21 +36,21 @@ the-another-multi-domain-global-styles/
 ├── phpunit.xml.dist
 ├── .phpcs.xml.dist
 ├── includes/
-│   ├── Container.php                        # DI container (copied pattern from aucteeno-nexus) — infrastructure, not a domain
-│   ├── Hook_Manager.php                      # Hook registration/tracking (copied pattern) — infrastructure
-│   ├── Plugin.php                            # Orchestrator: registers services + hooks — infrastructure
-│   ├── Website/                              # Bounded context: the Website entity + domain routing
-│   │   ├── Website_Post_Type.php             # `mdgs_website` CPT (aggregate root), meta boxes, save glue
-│   │   ├── Domain_Registry.php               # normalize/parse/dedupe domains, conflict detection, cached map
-│   │   ├── Website_Repository.php            # read helpers: domains, variables, default, global-styles-post-id
-│   │   ├── Domain_Resolver.php               # HTTP_HOST → Website ID
-│   │   └── Admin_Notices.php                 # duplicate-domain rejection notice
-│   ├── Global_Styles/                        # Bounded context: per-Website style override mechanism
-│   │   ├── Global_Styles_Post_Service.php    # create/read the per-Website wp_global_styles post
-│   │   └── Global_Styles_Override.php        # wp_theme_json_data_user filter (frontend)
-│   └── Content_Variables/                    # Bounded context: %%website.*%% token substitution
-│       ├── Variable_Parser.php               # "key = value" textarea → assoc array
-│       └── Variable_Substitution_Service.php # output buffer + %%website.*%% substitution
+│   ├── Container.php                    # DI container (copied pattern from aucteeno-nexus) — infrastructure, not a domain
+│   ├── HookManager.php                  # Hook registration/tracking (copied pattern) — infrastructure
+│   ├── Plugin.php                       # Orchestrator: registers services + hooks — infrastructure
+│   ├── Website/                         # Bounded context: the Website entity + domain routing
+│   │   ├── WebsitePostType.php          # `mdgs_website` CPT (aggregate root), meta boxes, save glue
+│   │   ├── DomainRegistry.php           # normalize/parse/dedupe domains, conflict detection, cached map
+│   │   ├── WebsiteRepository.php        # read helpers: domains, variables, default, global-styles-post-id
+│   │   ├── DomainResolver.php           # HTTP_HOST → Website ID
+│   │   └── AdminNotices.php             # duplicate-domain rejection notice
+│   ├── GlobalStyles/                    # Bounded context: per-Website style override mechanism
+│   │   ├── GlobalStylesPostService.php  # create/read the per-Website wp_global_styles post
+│   │   └── GlobalStylesOverride.php     # wp_theme_json_data_user filter (frontend)
+│   └── ContentVariables/                # Bounded context: %%website.*%% token substitution
+│       ├── VariableParser.php               # "key = value" textarea → assoc array
+│       └── VariableSubstitutionService.php  # output buffer + %%website.*%% substitution
 └── tests/
     ├── bootstrap.php
     ├── ContainerTest.php
@@ -60,19 +60,19 @@ the-another-multi-domain-global-styles/
     │   ├── WebsiteRepositoryTest.php
     │   ├── DomainResolverTest.php
     │   └── AdminNoticesTest.php
-    ├── Global_Styles/
+    ├── GlobalStyles/
     │   ├── GlobalStylesPostServiceTest.php
     │   └── GlobalStylesOverrideTest.php
-    └── Content_Variables/
+    └── ContentVariables/
         ├── VariableParserTest.php
         └── VariableSubstitutionServiceTest.php
 ```
 
-Each bounded context maps 1:1 onto a domain concept from the spec, not a technical role — `Website` is the aggregate root (the `mdgs_website` CPT) plus everything needed to identify and validate one; `Global_Styles` and `Content_Variables` are the two independent capabilities a Website exposes. `Container`/`Hook_Manager`/`Plugin` stay at the root as shared infrastructure, consistent with how WordPress plugins conventionally keep bootstrapping concerns separate from domain logic. Nothing about the WordPress-facing API changes — CPT registration, hooks, meta keys, and `get_post_meta`/`wp_insert_post` usage are unchanged from the original design; this is a pure reorganization of where the same code lives.
+Each bounded context maps 1:1 onto a domain concept from the spec, not a technical role — `Website` is the aggregate root (the `mdgs_website` CPT) plus everything needed to identify and validate one; `GlobalStyles` and `ContentVariables` are the two independent capabilities a Website exposes. `Container`/`HookManager`/`Plugin` stay at the root as shared infrastructure, consistent with how WordPress plugins conventionally keep bootstrapping concerns separate from domain logic. Nothing about the WordPress-facing API changes — CPT registration, hooks, meta keys, and `get_post_meta`/`wp_insert_post` usage are unchanged from the original design; this is a pure reorganization of where the same code lives.
 
 ---
 
-### Task 1: Plugin scaffold — Container, Hook_Manager, bootstrap
+### Task 1: Plugin scaffold — Container, HookManager, bootstrap
 
 **Files:**
 - Create: `composer.json`
@@ -80,14 +80,14 @@ Each bounded context maps 1:1 onto a domain concept from the spec, not a technic
 - Create: `.phpcs.xml.dist`
 - Create: `the-another-multi-domain-global-styles.php`
 - Create: `includes/Container.php`
-- Create: `includes/Hook_Manager.php`
+- Create: `includes/HookManager.php`
 - Create: `includes/Plugin.php`
 - Test: `tests/bootstrap.php`
 - Test: `tests/ContainerTest.php`
 
 **Interfaces:**
-- Produces: `The_Another\Plugin\Multi_Domain_Global_Styles\Container::get_instance(): Container`, `->register(string $key, callable $factory, bool $singleton = true): void`, `->get(string $key): mixed`, `->has(string $key): bool`, `->get_hook_manager(): Hook_Manager`
-- Produces: `The_Another\Plugin\Multi_Domain_Global_Styles\Hook_Manager::register_action(string $hook, callable $callback, int $priority = 10, int $accepted_args = 1): void`, `->register_filter(...)` (same signature)
+- Produces: `The_Another\Plugin\Multi_Domain_Global_Styles\Container::get_instance(): Container`, `->register(string $key, callable $factory, bool $singleton = true): void`, `->get(string $key): mixed`, `->has(string $key): bool`, `->get_hook_manager(): HookManager`
+- Produces: `The_Another\Plugin\Multi_Domain_Global_Styles\HookManager::register_action(string $hook, callable $callback, int $priority = 10, int $accepted_args = 1): void`, `->register_filter(...)` (same signature)
 - Produces: `The_Another\Plugin\Multi_Domain_Global_Styles\Plugin::get_instance(): Plugin`, `->start(): void` (body filled in as later tasks wire services in; empty for this task)
 
 - [ ] **Step 1: Create composer.json**
@@ -278,15 +278,15 @@ class Container {
 	/**
 	 * Hook manager instance.
 	 *
-	 * @var Hook_Manager
+	 * @var HookManager
 	 */
-	private Hook_Manager $hook_manager;
+	private HookManager $hook_manager;
 
 	/**
 	 * Private constructor to prevent direct instantiation.
 	 */
 	private function __construct() {
-		$this->hook_manager = new Hook_Manager();
+		$this->hook_manager = new HookManager();
 	}
 
 	/**
@@ -369,9 +369,9 @@ class Container {
 	/**
 	 * Get the hook manager instance.
 	 *
-	 * @return Hook_Manager Hook manager instance.
+	 * @return HookManager Hook manager instance.
 	 */
-	public function get_hook_manager(): Hook_Manager {
+	public function get_hook_manager(): HookManager {
 		return $this->hook_manager;
 	}
 
@@ -401,7 +401,7 @@ class Container {
 }
 ```
 
-- [ ] **Step 5: Create includes/Hook_Manager.php**
+- [ ] **Step 5: Create includes/HookManager.php**
 
 ```php
 <?php
@@ -417,11 +417,11 @@ class Container {
 namespace The_Another\Plugin\Multi_Domain_Global_Styles;
 
 /**
- * Class Hook_Manager
+ * Class HookManager
  *
  * Tracks and manages WordPress hooks for easy registration and deregistration.
  */
-class Hook_Manager {
+class HookManager {
 
 	/**
 	 * Registered hooks tracking.
@@ -525,7 +525,7 @@ namespace The_Another\Plugin\Multi_Domain_Global_Styles;
  *
  * Registers services and wires hooks. Task 12 fills in register_services()
  * and start() with the full service graph; this task only establishes the
- * singleton shape so Container/Hook_Manager have a real consumer to test against.
+ * singleton shape so Container/HookManager have a real consumer to test against.
  */
 class Plugin {
 
@@ -787,7 +787,7 @@ class ContainerTest extends TestCase {
 		$container = Container::get_instance();
 
 		$this->assertInstanceOf(
-			\The_Another\Plugin\Multi_Domain_Global_Styles\Hook_Manager::class,
+			\The_Another\Plugin\Multi_Domain_Global_Styles\HookManager::class,
 			$container->get_hook_manager()
 		);
 	}
@@ -807,21 +807,21 @@ Expected: No errors (warnings acceptable) against the files created in this task
 - [ ] **Step 12: Commit**
 
 ```bash
-git add composer.json phpunit.xml.dist .phpcs.xml.dist the-another-multi-domain-global-styles.php includes/Container.php includes/Hook_Manager.php includes/Plugin.php tests/bootstrap.php tests/ContainerTest.php
+git add composer.json phpunit.xml.dist .phpcs.xml.dist the-another-multi-domain-global-styles.php includes/Container.php includes/HookManager.php includes/Plugin.php tests/bootstrap.php tests/ContainerTest.php
 git commit -m "feat: scaffold plugin with DI container and hook manager"
 ```
 
 ---
 
-### Task 2: Domain_Registry — normalization and input parsing
+### Task 2: DomainRegistry — normalization and input parsing
 
 **Files:**
-- Create: `includes/Website/Domain_Registry.php`
+- Create: `includes/Website/DomainRegistry.php`
 - Test: `tests/Website/DomainRegistryTest.php`
 
 **Interfaces:**
 - Consumes: nothing (pure logic + WP core functions `wp_parse_url`)
-- Produces: `The_Another\Plugin\Multi_Domain_Global_Styles\Website\Domain_Registry::normalize(string $raw): string`, `->parse_domains_input(string $raw): array` (returns `array<int, string>` of normalized, deduped, non-empty hostnames)
+- Produces: `The_Another\Plugin\Multi_Domain_Global_Styles\Website\DomainRegistry::normalize(string $raw): string`, `->parse_domains_input(string $raw): array` (returns `array<int, string>` of normalized, deduped, non-empty hostnames)
 
 - [ ] **Step 1: Write the failing test**
 
@@ -837,19 +837,19 @@ use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Domain_Registry;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\DomainRegistry;
 
-#[CoversClass( Domain_Registry::class )]
+#[CoversClass( DomainRegistry::class )]
 class DomainRegistryTest extends TestCase {
 	use MockeryPHPUnitIntegration;
 
-	private Domain_Registry $registry;
+	private DomainRegistry $registry;
 
 	protected function setUp(): void {
 		parent::setUp();
 		Monkey\setUp();
 
-		$this->registry = new Domain_Registry();
+		$this->registry = new DomainRegistry();
 	}
 
 	protected function tearDown(): void {
@@ -900,7 +900,7 @@ class DomainRegistryTest extends TestCase {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `composer test -- --filter DomainRegistryTest`
-Expected: FAIL with "Class ... Domain_Registry not found" (class doesn't exist yet).
+Expected: FAIL with "Class ... DomainRegistry not found" (class doesn't exist yet).
 
 - [ ] **Step 3: Write implementation**
 
@@ -916,11 +916,11 @@ Expected: FAIL with "Class ... Domain_Registry not found" (class doesn't exist y
 namespace The_Another\Plugin\Multi_Domain_Global_Styles\Website;
 
 /**
- * Class Domain_Registry
+ * Class DomainRegistry
  *
  * Normalizes hostnames and maintains the cached domain -> Website map.
  */
-class Domain_Registry {
+class DomainRegistry {
 
 	/**
 	 * Transient key for the cached domain -> Website ID map.
@@ -992,21 +992,21 @@ Expected: PASS (all data provider cases + both parse_domains_input tests).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/Website/Domain_Registry.php tests/Website/DomainRegistryTest.php
+git add includes/Website/DomainRegistry.php tests/Website/DomainRegistryTest.php
 git commit -m "feat: add domain normalization and input parsing"
 ```
 
 ---
 
-### Task 3: Domain_Registry — cached map and conflict detection
+### Task 3: DomainRegistry — cached map and conflict detection
 
 **Files:**
-- Modify: `includes/Website/Domain_Registry.php`
+- Modify: `includes/Website/DomainRegistry.php`
 - Modify: `tests/Website/DomainRegistryTest.php`
 
 **Interfaces:**
 - Consumes: `get_transient()`, `set_transient()`, `delete_transient()`, `get_posts()`, `get_post_meta()` (WP core, mocked in tests via Brain Monkey)
-- Produces: `Domain_Registry::get_domain_map(): array<string, int>`, `->find_conflicting_website(string $normalized_domain, int $exclude_post_id = 0): ?int`, `->invalidate_cache(): void`
+- Produces: `DomainRegistry::get_domain_map(): array<string, int>`, `->find_conflicting_website(string $normalized_domain, int $exclude_post_id = 0): ?int`, `->invalidate_cache(): void`
 
 - [ ] **Step 1: Write the failing test (append to DomainRegistryTest.php)**
 
@@ -1097,11 +1097,11 @@ git commit -m "feat: add domain normalization and input parsing"
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `composer test -- --filter DomainRegistryTest`
-Expected: FAIL — `Call to undefined method Domain_Registry::get_domain_map()` (and similar for the other two new methods).
+Expected: FAIL — `Call to undefined method DomainRegistry::get_domain_map()` (and similar for the other two new methods).
 
-- [ ] **Step 3: Add methods to Domain_Registry**
+- [ ] **Step 3: Add methods to DomainRegistry**
 
-Add to `includes/Website/Domain_Registry.php`, inside the `Domain_Registry` class:
+Add to `includes/Website/DomainRegistry.php`, inside the `DomainRegistry` class:
 
 ```php
 	/**
@@ -1182,21 +1182,21 @@ Expected: PASS (all tests in the file, including Task 2's).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/Website/Domain_Registry.php tests/Website/DomainRegistryTest.php
+git add includes/Website/DomainRegistry.php tests/Website/DomainRegistryTest.php
 git commit -m "feat: add cached domain map and conflict detection"
 ```
 
 ---
 
-### Task 4: Website_Repository — read helpers
+### Task 4: WebsiteRepository — read helpers
 
 **Files:**
-- Create: `includes/Website/Website_Repository.php`
+- Create: `includes/Website/WebsiteRepository.php`
 - Test: `tests/Website/WebsiteRepositoryTest.php`
 
 **Interfaces:**
 - Consumes: `get_post_meta()`, `get_posts()` (WP core)
-- Produces: `Website_Repository::get_domains(int $website_id): array`, `->get_variables(int $website_id): array`, `->get_default_website_id(): ?int`, `->get_global_styles_post_id(int $website_id): ?int`
+- Produces: `WebsiteRepository::get_domains(int $website_id): array`, `->get_variables(int $website_id): array`, `->get_default_website_id(): ?int`, `->get_global_styles_post_id(int $website_id): ?int`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1211,19 +1211,19 @@ use Brain\Monkey\Functions;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Website_Repository;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\WebsiteRepository;
 
-#[CoversClass( Website_Repository::class )]
+#[CoversClass( WebsiteRepository::class )]
 class WebsiteRepositoryTest extends TestCase {
 	use MockeryPHPUnitIntegration;
 
-	private Website_Repository $repository;
+	private WebsiteRepository $repository;
 
 	protected function setUp(): void {
 		parent::setUp();
 		Monkey\setUp();
 
-		$this->repository = new Website_Repository();
+		$this->repository = new WebsiteRepository();
 	}
 
 	protected function tearDown(): void {
@@ -1305,7 +1305,7 @@ class WebsiteRepositoryTest extends TestCase {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `composer test -- --filter WebsiteRepositoryTest`
-Expected: FAIL with "Class ... Website_Repository not found".
+Expected: FAIL with "Class ... WebsiteRepository not found".
 
 - [ ] **Step 3: Write implementation**
 
@@ -1321,11 +1321,11 @@ Expected: FAIL with "Class ... Website_Repository not found".
 namespace The_Another\Plugin\Multi_Domain_Global_Styles\Website;
 
 /**
- * Class Website_Repository
+ * Class WebsiteRepository
  *
  * Read-only helpers for `mdgs_website` post data.
  */
-class Website_Repository {
+class WebsiteRepository {
 
 	/**
 	 * Get a Website's registered domains.
@@ -1393,21 +1393,21 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/Website/Website_Repository.php tests/Website/WebsiteRepositoryTest.php
-git commit -m "feat: add Website_Repository read helpers"
+git add includes/Website/WebsiteRepository.php tests/Website/WebsiteRepositoryTest.php
+git commit -m "feat: add WebsiteRepository read helpers"
 ```
 
 ---
 
-### Task 5: Domain_Resolver — HTTP_HOST to Website ID
+### Task 5: DomainResolver — HTTP_HOST to Website ID
 
 **Files:**
-- Create: `includes/Website/Domain_Resolver.php`
+- Create: `includes/Website/DomainResolver.php`
 - Test: `tests/Website/DomainResolverTest.php`
 
 **Interfaces:**
-- Consumes: `Domain_Registry::normalize(string): string`, `->get_domain_map(): array` (Task 2/3); `Website_Repository::get_default_website_id(): ?int` (Task 4)
-- Produces: `Domain_Resolver::__construct(Domain_Registry $domain_registry, Website_Repository $website_repository)`, `->resolve_host(string $host): ?int`, `->resolve_current_request(): ?int`
+- Consumes: `DomainRegistry::normalize(string): string`, `->get_domain_map(): array` (Task 2/3); `WebsiteRepository::get_default_website_id(): ?int` (Task 4)
+- Produces: `DomainResolver::__construct(DomainRegistry $domain_registry, WebsiteRepository $website_repository)`, `->resolve_host(string $host): ?int`, `->resolve_current_request(): ?int`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1423,11 +1423,11 @@ use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Domain_Registry;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Domain_Resolver;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Website_Repository;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\DomainRegistry;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\DomainResolver;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\WebsiteRepository;
 
-#[CoversClass( Domain_Resolver::class )]
+#[CoversClass( DomainResolver::class )]
 class DomainResolverTest extends TestCase {
 	use MockeryPHPUnitIntegration;
 
@@ -1443,51 +1443,51 @@ class DomainResolverTest extends TestCase {
 	}
 
 	public function test_resolve_host_returns_matched_website_id(): void {
-		$registry = Mockery::mock( Domain_Registry::class );
+		$registry = Mockery::mock( DomainRegistry::class );
 		$registry->shouldReceive( 'normalize' )->with( 'example.com' )->andReturn( 'example.com' );
 		$registry->shouldReceive( 'get_domain_map' )->andReturn( array( 'example.com' => 5 ) );
 
-		$repository = Mockery::mock( Website_Repository::class );
+		$repository = Mockery::mock( WebsiteRepository::class );
 
-		$resolver = new Domain_Resolver( $registry, $repository );
+		$resolver = new DomainResolver( $registry, $repository );
 
 		$this->assertSame( 5, $resolver->resolve_host( 'example.com' ) );
 	}
 
 	public function test_resolve_host_falls_back_to_default_when_unmatched(): void {
-		$registry = Mockery::mock( Domain_Registry::class );
+		$registry = Mockery::mock( DomainRegistry::class );
 		$registry->shouldReceive( 'normalize' )->with( 'unknown.test' )->andReturn( 'unknown.test' );
 		$registry->shouldReceive( 'get_domain_map' )->andReturn( array( 'example.com' => 5 ) );
 
-		$repository = Mockery::mock( Website_Repository::class );
+		$repository = Mockery::mock( WebsiteRepository::class );
 		$repository->shouldReceive( 'get_default_website_id' )->once()->andReturn( 9 );
 
-		$resolver = new Domain_Resolver( $registry, $repository );
+		$resolver = new DomainResolver( $registry, $repository );
 
 		$this->assertSame( 9, $resolver->resolve_host( 'unknown.test' ) );
 	}
 
 	public function test_resolve_host_returns_null_when_unmatched_and_no_default(): void {
-		$registry = Mockery::mock( Domain_Registry::class );
+		$registry = Mockery::mock( DomainRegistry::class );
 		$registry->shouldReceive( 'normalize' )->with( 'unknown.test' )->andReturn( 'unknown.test' );
 		$registry->shouldReceive( 'get_domain_map' )->andReturn( array() );
 
-		$repository = Mockery::mock( Website_Repository::class );
+		$repository = Mockery::mock( WebsiteRepository::class );
 		$repository->shouldReceive( 'get_default_website_id' )->once()->andReturn( null );
 
-		$resolver = new Domain_Resolver( $registry, $repository );
+		$resolver = new DomainResolver( $registry, $repository );
 
 		$this->assertNull( $resolver->resolve_host( 'unknown.test' ) );
 	}
 
 	public function test_resolve_host_falls_back_to_default_for_empty_host(): void {
-		$registry = Mockery::mock( Domain_Registry::class );
+		$registry = Mockery::mock( DomainRegistry::class );
 		$registry->shouldReceive( 'normalize' )->with( '' )->andReturn( '' );
 
-		$repository = Mockery::mock( Website_Repository::class );
+		$repository = Mockery::mock( WebsiteRepository::class );
 		$repository->shouldReceive( 'get_default_website_id' )->once()->andReturn( 9 );
 
-		$resolver = new Domain_Resolver( $registry, $repository );
+		$resolver = new DomainResolver( $registry, $repository );
 
 		$this->assertSame( 9, $resolver->resolve_host( '' ) );
 	}
@@ -1498,13 +1498,13 @@ class DomainResolverTest extends TestCase {
 		Functions\when( 'sanitize_text_field' )->returnArg();
 		Functions\when( 'wp_unslash' )->returnArg();
 
-		$registry = Mockery::mock( Domain_Registry::class );
+		$registry = Mockery::mock( DomainRegistry::class );
 		$registry->shouldReceive( 'normalize' )->with( 'example.com' )->andReturn( 'example.com' );
 		$registry->shouldReceive( 'get_domain_map' )->andReturn( array( 'example.com' => 5 ) );
 
-		$repository = Mockery::mock( Website_Repository::class );
+		$repository = Mockery::mock( WebsiteRepository::class );
 
-		$resolver = new Domain_Resolver( $registry, $repository );
+		$resolver = new DomainResolver( $registry, $repository );
 
 		$this->assertSame( 5, $resolver->resolve_current_request() );
 	}
@@ -1514,7 +1514,7 @@ class DomainResolverTest extends TestCase {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `composer test -- --filter DomainResolverTest`
-Expected: FAIL with "Class ... Domain_Resolver not found".
+Expected: FAIL with "Class ... DomainResolver not found".
 
 - [ ] **Step 3: Write implementation**
 
@@ -1530,33 +1530,33 @@ Expected: FAIL with "Class ... Domain_Resolver not found".
 namespace The_Another\Plugin\Multi_Domain_Global_Styles\Website;
 
 /**
- * Class Domain_Resolver
+ * Class DomainResolver
  *
  * Resolves the current request's hostname to a Website ID.
  */
-class Domain_Resolver {
+class DomainResolver {
 
 	/**
 	 * Domain registry.
 	 *
-	 * @var Domain_Registry
+	 * @var DomainRegistry
 	 */
-	private Domain_Registry $domain_registry;
+	private DomainRegistry $domain_registry;
 
 	/**
 	 * Website repository.
 	 *
-	 * @var Website_Repository
+	 * @var WebsiteRepository
 	 */
-	private Website_Repository $website_repository;
+	private WebsiteRepository $website_repository;
 
 	/**
 	 * Constructor.
 	 *
-	 * @param Domain_Registry    $domain_registry    Domain registry service.
-	 * @param Website_Repository $website_repository Website repository service.
+	 * @param DomainRegistry    $domain_registry    Domain registry service.
+	 * @param WebsiteRepository $website_repository Website repository service.
 	 */
-	public function __construct( Domain_Registry $domain_registry, Website_Repository $website_repository ) {
+	public function __construct( DomainRegistry $domain_registry, WebsiteRepository $website_repository ) {
 		$this->domain_registry    = $domain_registry;
 		$this->website_repository = $website_repository;
 	}
@@ -1604,21 +1604,21 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/Website/Domain_Resolver.php tests/Website/DomainResolverTest.php
-git commit -m "feat: add Domain_Resolver for HTTP_HOST to Website ID lookup"
+git add includes/Website/DomainResolver.php tests/Website/DomainResolverTest.php
+git commit -m "feat: add DomainResolver for HTTP_HOST to Website ID lookup"
 ```
 
 ---
 
-### Task 6: Variable_Parser
+### Task 6: VariableParser
 
 **Files:**
-- Create: `includes/Content_Variables/Variable_Parser.php`
-- Test: `tests/Content_Variables/VariableParserTest.php`
+- Create: `includes/ContentVariables/VariableParser.php`
+- Test: `tests/ContentVariables/VariableParserTest.php`
 
 **Interfaces:**
 - Consumes: nothing (pure logic)
-- Produces: `Variable_Parser::parse(string $raw): array<string, string>`
+- Produces: `VariableParser::parse(string $raw): array<string, string>`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1626,25 +1626,25 @@ git commit -m "feat: add Domain_Resolver for HTTP_HOST to Website ID lookup"
 <?php
 declare(strict_types=1);
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\Content_Variables;
+namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\ContentVariables;
 
 use Brain\Monkey;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Content_Variables\Variable_Parser;
+use The_Another\Plugin\Multi_Domain_Global_Styles\ContentVariables\VariableParser;
 
-#[CoversClass( Variable_Parser::class )]
+#[CoversClass( VariableParser::class )]
 class VariableParserTest extends TestCase {
 	use MockeryPHPUnitIntegration;
 
-	private Variable_Parser $parser;
+	private VariableParser $parser;
 
 	protected function setUp(): void {
 		parent::setUp();
 		Monkey\setUp();
 
-		$this->parser = new Variable_Parser();
+		$this->parser = new VariableParser();
 	}
 
 	protected function tearDown(): void {
@@ -1697,7 +1697,7 @@ class VariableParserTest extends TestCase {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `composer test -- --filter VariableParserTest`
-Expected: FAIL with "Class ... Variable_Parser not found".
+Expected: FAIL with "Class ... VariableParser not found".
 
 - [ ] **Step 3: Write implementation**
 
@@ -1710,14 +1710,14 @@ Expected: FAIL with "Class ... Variable_Parser not found".
  * @since 1.0.0
  */
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Content_Variables;
+namespace The_Another\Plugin\Multi_Domain_Global_Styles\ContentVariables;
 
 /**
- * Class Variable_Parser
+ * Class VariableParser
  *
  * Parses "key = value" textarea input into a variable map.
  */
-class Variable_Parser {
+class VariableParser {
 
 	/**
 	 * Parse "key = value" lines into an associative array.
@@ -1756,21 +1756,21 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/Content_Variables/Variable_Parser.php tests/Content_Variables/VariableParserTest.php
-git commit -m "feat: add Variable_Parser for key=value textarea input"
+git add includes/ContentVariables/VariableParser.php tests/ContentVariables/VariableParserTest.php
+git commit -m "feat: add VariableParser for key=value textarea input"
 ```
 
 ---
 
-### Task 7: Global_Styles_Post_Service
+### Task 7: GlobalStylesPostService
 
 **Files:**
-- Create: `includes/Global_Styles/Global_Styles_Post_Service.php`
-- Test: `tests/Global_Styles/GlobalStylesPostServiceTest.php`
+- Create: `includes/GlobalStyles/GlobalStylesPostService.php`
+- Test: `tests/GlobalStyles/GlobalStylesPostServiceTest.php`
 
 **Interfaces:**
 - Consumes: `wp_insert_post()`, `get_post_status()`, `get_post_meta()`, `update_post_meta()`, `get_post()`, `is_wp_error()`, `wp_json_encode()` (WP core)
-- Produces: `Global_Styles_Post_Service::ensure_global_styles_post(int $website_id): int`, `->get_global_styles_data(int $global_styles_post_id): array`
+- Produces: `GlobalStylesPostService::ensure_global_styles_post(int $website_id): int`, `->get_global_styles_data(int $global_styles_post_id): array`
 
 **Note:** the created `wp_global_styles` post is deliberately **not** tagged with the `wp_theme` taxonomy for the active theme's stylesheet. Verified against WordPress core (`class-wp-theme-json-resolver.php`): the resolver that finds "the" canonical site-wide global styles post queries by that taxonomy term with `orderby => date desc, posts_per_page => 1` — tagging our posts would make whichever Website was saved most recently hijack that lookup and corrupt the real site-wide default everywhere core code resolves it untouched (e.g. for requests that don't match any Website).
 
@@ -1780,26 +1780,26 @@ git commit -m "feat: add Variable_Parser for key=value textarea input"
 <?php
 declare(strict_types=1);
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\Global_Styles;
+namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\GlobalStyles;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Global_Styles\Global_Styles_Post_Service;
+use The_Another\Plugin\Multi_Domain_Global_Styles\GlobalStyles\GlobalStylesPostService;
 
-#[CoversClass( Global_Styles_Post_Service::class )]
+#[CoversClass( GlobalStylesPostService::class )]
 class GlobalStylesPostServiceTest extends TestCase {
 	use MockeryPHPUnitIntegration;
 
-	private Global_Styles_Post_Service $service;
+	private GlobalStylesPostService $service;
 
 	protected function setUp(): void {
 		parent::setUp();
 		Monkey\setUp();
 
-		$this->service = new Global_Styles_Post_Service();
+		$this->service = new GlobalStylesPostService();
 	}
 
 	protected function tearDown(): void {
@@ -1878,7 +1878,7 @@ class GlobalStylesPostServiceTest extends TestCase {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `composer test -- --filter GlobalStylesPostServiceTest`
-Expected: FAIL with "Class ... Global_Styles_Post_Service not found".
+Expected: FAIL with "Class ... GlobalStylesPostService not found".
 
 - [ ] **Step 3: Write implementation**
 
@@ -1891,12 +1891,12 @@ Expected: FAIL with "Class ... Global_Styles_Post_Service not found".
  * @since 1.0.0
  */
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Global_Styles;
+namespace The_Another\Plugin\Multi_Domain_Global_Styles\GlobalStyles;
 
 use RuntimeException;
 
 /**
- * Class Global_Styles_Post_Service
+ * Class GlobalStylesPostService
  *
  * Creates and reads the dedicated wp_global_styles post for each Website.
  *
@@ -1905,7 +1905,7 @@ use RuntimeException;
  * post for the active theme" query (ordered by date desc) pick up whichever
  * Website was saved most recently, corrupting the real site-wide default.
  */
-class Global_Styles_Post_Service {
+class GlobalStylesPostService {
 
 	/**
 	 * Postmeta key storing the linked wp_global_styles post ID.
@@ -1983,21 +1983,21 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/Global_Styles/Global_Styles_Post_Service.php tests/Global_Styles/GlobalStylesPostServiceTest.php
-git commit -m "feat: add Global_Styles_Post_Service to manage per-Website styles posts"
+git add includes/GlobalStyles/GlobalStylesPostService.php tests/GlobalStyles/GlobalStylesPostServiceTest.php
+git commit -m "feat: add GlobalStylesPostService to manage per-Website styles posts"
 ```
 
 ---
 
-### Task 8: Global_Styles_Override — frontend theme.json merge
+### Task 8: GlobalStylesOverride — frontend theme.json merge
 
 **Files:**
-- Create: `includes/Global_Styles/Global_Styles_Override.php`
-- Test: `tests/Global_Styles/GlobalStylesOverrideTest.php`
+- Create: `includes/GlobalStyles/GlobalStylesOverride.php`
+- Test: `tests/GlobalStyles/GlobalStylesOverrideTest.php`
 
 **Interfaces:**
-- Consumes: `Domain_Resolver::resolve_current_request(): ?int` (Task 5), `Website_Repository::get_global_styles_post_id(int): ?int` (Task 4), `Global_Styles_Post_Service::get_global_styles_data(int): array` (Task 7), `is_admin()` (WP core)
-- Produces: `Global_Styles_Override::__construct(Domain_Resolver, Website_Repository, Global_Styles_Post_Service)`, `->filter_theme_json(mixed $theme_json): mixed` (hooked to `wp_theme_json_data_user`)
+- Consumes: `DomainResolver::resolve_current_request(): ?int` (Task 5), `WebsiteRepository::get_global_styles_post_id(int): ?int` (Task 4), `GlobalStylesPostService::get_global_styles_data(int): array` (Task 7), `is_admin()` (WP core)
+- Produces: `GlobalStylesOverride::__construct(DomainResolver, WebsiteRepository, GlobalStylesPostService)`, `->filter_theme_json(mixed $theme_json): mixed` (hooked to `wp_theme_json_data_user`)
 
 - [ ] **Step 1: Write the failing test**
 
@@ -2005,7 +2005,7 @@ git commit -m "feat: add Global_Styles_Post_Service to manage per-Website styles
 <?php
 declare(strict_types=1);
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\Global_Styles;
+namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\GlobalStyles;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
@@ -2013,16 +2013,16 @@ use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Domain_Resolver;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Global_Styles\Global_Styles_Override;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Global_Styles\Global_Styles_Post_Service;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Website_Repository;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\DomainResolver;
+use The_Another\Plugin\Multi_Domain_Global_Styles\GlobalStyles\GlobalStylesOverride;
+use The_Another\Plugin\Multi_Domain_Global_Styles\GlobalStyles\GlobalStylesPostService;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\WebsiteRepository;
 
 /**
  * Minimal stand-in for WP_Theme_JSON_Data, which isn't available outside a
- * full WordPress load. Only implements what Global_Styles_Override calls.
+ * full WordPress load. Only implements what GlobalStylesOverride calls.
  */
-class Fake_Theme_Json_Data {
+class FakeThemeJsonData {
 	public array $received_update = array();
 
 	public function update_with( array $data ): self {
@@ -2031,7 +2031,7 @@ class Fake_Theme_Json_Data {
 	}
 }
 
-#[CoversClass( Global_Styles_Override::class )]
+#[CoversClass( GlobalStylesOverride::class )]
 class GlobalStylesOverrideTest extends TestCase {
 	use MockeryPHPUnitIntegration;
 
@@ -2048,12 +2048,12 @@ class GlobalStylesOverrideTest extends TestCase {
 	public function test_returns_input_unchanged_in_admin(): void {
 		Functions\expect( 'is_admin' )->once()->andReturn( true );
 
-		$resolver   = Mockery::mock( Domain_Resolver::class );
-		$repository = Mockery::mock( Website_Repository::class );
-		$posts      = Mockery::mock( Global_Styles_Post_Service::class );
+		$resolver   = Mockery::mock( DomainResolver::class );
+		$repository = Mockery::mock( WebsiteRepository::class );
+		$posts      = Mockery::mock( GlobalStylesPostService::class );
 
-		$override    = new Global_Styles_Override( $resolver, $repository, $posts );
-		$theme_json  = new Fake_Theme_Json_Data();
+		$override    = new GlobalStylesOverride( $resolver, $repository, $posts );
+		$theme_json  = new FakeThemeJsonData();
 
 		$this->assertSame( $theme_json, $override->filter_theme_json( $theme_json ) );
 	}
@@ -2061,14 +2061,14 @@ class GlobalStylesOverrideTest extends TestCase {
 	public function test_returns_input_unchanged_when_no_website_resolved(): void {
 		Functions\expect( 'is_admin' )->once()->andReturn( false );
 
-		$resolver = Mockery::mock( Domain_Resolver::class );
+		$resolver = Mockery::mock( DomainResolver::class );
 		$resolver->shouldReceive( 'resolve_current_request' )->once()->andReturn( null );
 
-		$repository = Mockery::mock( Website_Repository::class );
-		$posts      = Mockery::mock( Global_Styles_Post_Service::class );
+		$repository = Mockery::mock( WebsiteRepository::class );
+		$posts      = Mockery::mock( GlobalStylesPostService::class );
 
-		$override   = new Global_Styles_Override( $resolver, $repository, $posts );
-		$theme_json = new Fake_Theme_Json_Data();
+		$override   = new GlobalStylesOverride( $resolver, $repository, $posts );
+		$theme_json = new FakeThemeJsonData();
 
 		$this->assertSame( $theme_json, $override->filter_theme_json( $theme_json ) );
 	}
@@ -2076,16 +2076,16 @@ class GlobalStylesOverrideTest extends TestCase {
 	public function test_returns_input_unchanged_when_website_has_no_styles_post(): void {
 		Functions\expect( 'is_admin' )->once()->andReturn( false );
 
-		$resolver = Mockery::mock( Domain_Resolver::class );
+		$resolver = Mockery::mock( DomainResolver::class );
 		$resolver->shouldReceive( 'resolve_current_request' )->once()->andReturn( 5 );
 
-		$repository = Mockery::mock( Website_Repository::class );
+		$repository = Mockery::mock( WebsiteRepository::class );
 		$repository->shouldReceive( 'get_global_styles_post_id' )->once()->with( 5 )->andReturn( null );
 
-		$posts = Mockery::mock( Global_Styles_Post_Service::class );
+		$posts = Mockery::mock( GlobalStylesPostService::class );
 
-		$override   = new Global_Styles_Override( $resolver, $repository, $posts );
-		$theme_json = new Fake_Theme_Json_Data();
+		$override   = new GlobalStylesOverride( $resolver, $repository, $posts );
+		$theme_json = new FakeThemeJsonData();
 
 		$this->assertSame( $theme_json, $override->filter_theme_json( $theme_json ) );
 	}
@@ -2093,13 +2093,13 @@ class GlobalStylesOverrideTest extends TestCase {
 	public function test_returns_input_unchanged_when_website_styles_are_empty(): void {
 		Functions\expect( 'is_admin' )->once()->andReturn( false );
 
-		$resolver = Mockery::mock( Domain_Resolver::class );
+		$resolver = Mockery::mock( DomainResolver::class );
 		$resolver->shouldReceive( 'resolve_current_request' )->once()->andReturn( 5 );
 
-		$repository = Mockery::mock( Website_Repository::class );
+		$repository = Mockery::mock( WebsiteRepository::class );
 		$repository->shouldReceive( 'get_global_styles_post_id' )->once()->with( 5 )->andReturn( 42 );
 
-		$posts = Mockery::mock( Global_Styles_Post_Service::class );
+		$posts = Mockery::mock( GlobalStylesPostService::class );
 		$posts->shouldReceive( 'get_global_styles_data' )->once()->with( 42 )->andReturn(
 			array(
 				'settings' => array(),
@@ -2107,8 +2107,8 @@ class GlobalStylesOverrideTest extends TestCase {
 			)
 		);
 
-		$override   = new Global_Styles_Override( $resolver, $repository, $posts );
-		$theme_json = new Fake_Theme_Json_Data();
+		$override   = new GlobalStylesOverride( $resolver, $repository, $posts );
+		$theme_json = new FakeThemeJsonData();
 
 		$this->assertSame( $theme_json, $override->filter_theme_json( $theme_json ) );
 	}
@@ -2116,15 +2116,15 @@ class GlobalStylesOverrideTest extends TestCase {
 	public function test_merges_website_styles_over_input_when_present(): void {
 		Functions\expect( 'is_admin' )->once()->andReturn( false );
 
-		$resolver = Mockery::mock( Domain_Resolver::class );
+		$resolver = Mockery::mock( DomainResolver::class );
 		$resolver->shouldReceive( 'resolve_current_request' )->once()->andReturn( 5 );
 
-		$repository = Mockery::mock( Website_Repository::class );
+		$repository = Mockery::mock( WebsiteRepository::class );
 		$repository->shouldReceive( 'get_global_styles_post_id' )->once()->with( 5 )->andReturn( 42 );
 
 		$settings = array( 'color' => array( 'palette' => array( array( 'slug' => 'brand-primary', 'color' => '#123456' ) ) ) );
 
-		$posts = Mockery::mock( Global_Styles_Post_Service::class );
+		$posts = Mockery::mock( GlobalStylesPostService::class );
 		$posts->shouldReceive( 'get_global_styles_data' )->once()->with( 42 )->andReturn(
 			array(
 				'settings' => $settings,
@@ -2132,8 +2132,8 @@ class GlobalStylesOverrideTest extends TestCase {
 			)
 		);
 
-		$override   = new Global_Styles_Override( $resolver, $repository, $posts );
-		$theme_json = new Fake_Theme_Json_Data();
+		$override   = new GlobalStylesOverride( $resolver, $repository, $posts );
+		$theme_json = new FakeThemeJsonData();
 
 		$result = $override->filter_theme_json( $theme_json );
 
@@ -2148,7 +2148,7 @@ class GlobalStylesOverrideTest extends TestCase {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `composer test -- --filter GlobalStylesOverrideTest`
-Expected: FAIL with "Class ... Global_Styles_Override not found".
+Expected: FAIL with "Class ... GlobalStylesOverride not found".
 
 - [ ] **Step 3: Write implementation**
 
@@ -2161,50 +2161,50 @@ Expected: FAIL with "Class ... Global_Styles_Override not found".
  * @since 1.0.0
  */
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Global_Styles;
+namespace The_Another\Plugin\Multi_Domain_Global_Styles\GlobalStyles;
 
 /**
- * Class Global_Styles_Override
+ * Class GlobalStylesOverride
  *
  * Hooked to `wp_theme_json_data_user` on the frontend: merges the resolved
  * Website's stored global-styles data over whatever the site's own user
  * global styles would otherwise be. Partial merge (update_with), not full
  * replacement — a Website only needs to define what differs from the theme.
  */
-class Global_Styles_Override {
+class GlobalStylesOverride {
 
 	/**
 	 * Domain resolver.
 	 *
-	 * @var Domain_Resolver
+	 * @var DomainResolver
 	 */
-	private Domain_Resolver $domain_resolver;
+	private DomainResolver $domain_resolver;
 
 	/**
 	 * Website repository.
 	 *
-	 * @var Website_Repository
+	 * @var WebsiteRepository
 	 */
-	private Website_Repository $website_repository;
+	private WebsiteRepository $website_repository;
 
 	/**
 	 * Global styles post service.
 	 *
-	 * @var Global_Styles_Post_Service
+	 * @var GlobalStylesPostService
 	 */
-	private Global_Styles_Post_Service $global_styles_post_service;
+	private GlobalStylesPostService $global_styles_post_service;
 
 	/**
 	 * Constructor.
 	 *
-	 * @param Domain_Resolver             $domain_resolver             Domain resolver service.
-	 * @param Website_Repository          $website_repository          Website repository service.
-	 * @param Global_Styles_Post_Service  $global_styles_post_service  Global styles post service.
+	 * @param DomainResolver             $domain_resolver             Domain resolver service.
+	 * @param WebsiteRepository          $website_repository          Website repository service.
+	 * @param GlobalStylesPostService  $global_styles_post_service  Global styles post service.
 	 */
 	public function __construct(
-		Domain_Resolver $domain_resolver,
-		Website_Repository $website_repository,
-		Global_Styles_Post_Service $global_styles_post_service
+		DomainResolver $domain_resolver,
+		WebsiteRepository $website_repository,
+		GlobalStylesPostService $global_styles_post_service
 	) {
 		$this->domain_resolver            = $domain_resolver;
 		$this->website_repository         = $website_repository;
@@ -2260,21 +2260,21 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/Global_Styles/Global_Styles_Override.php tests/Global_Styles/GlobalStylesOverrideTest.php
-git commit -m "feat: add Global_Styles_Override frontend theme.json merge"
+git add includes/GlobalStyles/GlobalStylesOverride.php tests/GlobalStyles/GlobalStylesOverrideTest.php
+git commit -m "feat: add GlobalStylesOverride frontend theme.json merge"
 ```
 
 ---
 
-### Task 9: Variable_Substitution_Service
+### Task 9: VariableSubstitutionService
 
 **Files:**
-- Create: `includes/Content_Variables/Variable_Substitution_Service.php`
-- Test: `tests/Content_Variables/VariableSubstitutionServiceTest.php`
+- Create: `includes/ContentVariables/VariableSubstitutionService.php`
+- Test: `tests/ContentVariables/VariableSubstitutionServiceTest.php`
 
 **Interfaces:**
-- Consumes: `Domain_Resolver::resolve_current_request(): ?int` (Task 5), `Website_Repository::get_variables(int): array` (Task 4), `is_admin()`, `wp_doing_ajax()` (WP core)
-- Produces: `Variable_Substitution_Service::__construct(Domain_Resolver, Website_Repository)`, `->replace(string $html): string`, `->start_buffer(): void` (hooked to `template_redirect`)
+- Consumes: `DomainResolver::resolve_current_request(): ?int` (Task 5), `WebsiteRepository::get_variables(int): array` (Task 4), `is_admin()`, `wp_doing_ajax()` (WP core)
+- Produces: `VariableSubstitutionService::__construct(DomainResolver, WebsiteRepository)`, `->replace(string $html): string`, `->start_buffer(): void` (hooked to `template_redirect`)
 
 - [ ] **Step 1: Write the failing test**
 
@@ -2282,7 +2282,7 @@ git commit -m "feat: add Global_Styles_Override frontend theme.json merge"
 <?php
 declare(strict_types=1);
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\Content_Variables;
+namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\ContentVariables;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
@@ -2290,11 +2290,11 @@ use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Domain_Resolver;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Content_Variables\Variable_Substitution_Service;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Website_Repository;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\DomainResolver;
+use The_Another\Plugin\Multi_Domain_Global_Styles\ContentVariables\VariableSubstitutionService;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\WebsiteRepository;
 
-#[CoversClass( Variable_Substitution_Service::class )]
+#[CoversClass( VariableSubstitutionService::class )]
 class VariableSubstitutionServiceTest extends TestCase {
 	use MockeryPHPUnitIntegration;
 
@@ -2308,16 +2308,16 @@ class VariableSubstitutionServiceTest extends TestCase {
 		parent::tearDown();
 	}
 
-	private function make_service( ?int $website_id, array $variables = array() ): Variable_Substitution_Service {
-		$resolver = Mockery::mock( Domain_Resolver::class );
+	private function make_service( ?int $website_id, array $variables = array() ): VariableSubstitutionService {
+		$resolver = Mockery::mock( DomainResolver::class );
 		$resolver->shouldReceive( 'resolve_current_request' )->andReturn( $website_id );
 
-		$repository = Mockery::mock( Website_Repository::class );
+		$repository = Mockery::mock( WebsiteRepository::class );
 		if ( null !== $website_id ) {
 			$repository->shouldReceive( 'get_variables' )->with( $website_id )->andReturn( $variables );
 		}
 
-		return new Variable_Substitution_Service( $resolver, $repository );
+		return new VariableSubstitutionService( $resolver, $repository );
 	}
 
 	public function test_replaces_known_website_token(): void {
@@ -2390,7 +2390,7 @@ class VariableSubstitutionServiceTest extends TestCase {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `composer test -- --filter VariableSubstitutionServiceTest`
-Expected: FAIL with "Class ... Variable_Substitution_Service not found".
+Expected: FAIL with "Class ... VariableSubstitutionService not found".
 
 - [ ] **Step 3: Write implementation**
 
@@ -2403,39 +2403,39 @@ Expected: FAIL with "Class ... Variable_Substitution_Service not found".
  * @since 1.0.0
  */
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Content_Variables;
+namespace The_Another\Plugin\Multi_Domain_Global_Styles\ContentVariables;
 
 /**
- * Class Variable_Substitution_Service
+ * Class VariableSubstitutionService
  *
  * Replaces %%website.*%% tokens in the final rendered HTML with the resolved
  * Website's variable values. Runs as a whole-page output buffer so it covers
  * post content, template parts, patterns, widgets, and menus in one pass,
  * rather than hooking a dozen individual WP content filters.
  */
-class Variable_Substitution_Service {
+class VariableSubstitutionService {
 
 	/**
 	 * Domain resolver.
 	 *
-	 * @var Domain_Resolver
+	 * @var DomainResolver
 	 */
-	private Domain_Resolver $domain_resolver;
+	private DomainResolver $domain_resolver;
 
 	/**
 	 * Website repository.
 	 *
-	 * @var Website_Repository
+	 * @var WebsiteRepository
 	 */
-	private Website_Repository $website_repository;
+	private WebsiteRepository $website_repository;
 
 	/**
 	 * Constructor.
 	 *
-	 * @param Domain_Resolver    $domain_resolver    Domain resolver service.
-	 * @param Website_Repository $website_repository Website repository service.
+	 * @param DomainResolver    $domain_resolver    Domain resolver service.
+	 * @param WebsiteRepository $website_repository Website repository service.
 	 */
-	public function __construct( Domain_Resolver $domain_resolver, Website_Repository $website_repository ) {
+	public function __construct( DomainResolver $domain_resolver, WebsiteRepository $website_repository ) {
 		$this->domain_resolver    = $domain_resolver;
 		$this->website_repository = $website_repository;
 	}
@@ -2497,21 +2497,21 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/Content_Variables/Variable_Substitution_Service.php tests/Content_Variables/VariableSubstitutionServiceTest.php
-git commit -m "feat: add Variable_Substitution_Service for %%website.*%% tokens"
+git add includes/ContentVariables/VariableSubstitutionService.php tests/ContentVariables/VariableSubstitutionServiceTest.php
+git commit -m "feat: add VariableSubstitutionService for %%website.*%% tokens"
 ```
 
 ---
 
-### Task 10: Website_Post_Type — CPT, meta boxes, save glue
+### Task 10: WebsitePostType — CPT, meta boxes, save glue
 
 **Files:**
-- Create: `includes/Website/Website_Post_Type.php`
+- Create: `includes/Website/WebsitePostType.php`
 - Test: `tests/Website/WebsitePostTypeTest.php`
 
 **Interfaces:**
-- Consumes: `Domain_Registry::parse_domains_input(string): array`, `->find_conflicting_website(string, int): ?int`, `->invalidate_cache(): void` (Task 2/3); `Variable_Parser::parse(string): array` (Task 6); `Global_Styles_Post_Service::ensure_global_styles_post(int): int`, `->get_global_styles_data(int): array` (Task 7)
-- Produces: `Website_Post_Type::POST_TYPE = 'mdgs_website'`, `->__construct(Domain_Registry, Variable_Parser, Global_Styles_Post_Service)`, `->register(): void`, `->register_meta_boxes(): void`, `->save(int $post_id): void`
+- Consumes: `DomainRegistry::parse_domains_input(string): array`, `->find_conflicting_website(string, int): ?int`, `->invalidate_cache(): void` (Task 2/3); `VariableParser::parse(string): array` (Task 6); `GlobalStylesPostService::ensure_global_styles_post(int): int`, `->get_global_styles_data(int): array` (Task 7)
+- Produces: `WebsitePostType::POST_TYPE = 'mdgs_website'`, `->__construct(DomainRegistry, VariableParser, GlobalStylesPostService)`, `->register(): void`, `->register_meta_boxes(): void`, `->save(int $post_id): void`
 
 This task's test coverage focuses on `save()`'s branching logic (the part with real decisions to get wrong), matching the codebase's existing convention of not unit-testing render/glue methods that just echo HTML (see `render.php` files elsewhere in this environment, which aren't unit tested). The render methods are exercised manually in Task 13's smoke check instead.
 
@@ -2529,12 +2529,12 @@ use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Website_Post_Type;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Domain_Registry;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Global_Styles\Global_Styles_Post_Service;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Content_Variables\Variable_Parser;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\WebsitePostType;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\DomainRegistry;
+use The_Another\Plugin\Multi_Domain_Global_Styles\GlobalStyles\GlobalStylesPostService;
+use The_Another\Plugin\Multi_Domain_Global_Styles\ContentVariables\VariableParser;
 
-#[CoversClass( Website_Post_Type::class )]
+#[CoversClass( WebsitePostType::class )]
 class WebsitePostTypeTest extends TestCase {
 	use MockeryPHPUnitIntegration;
 
@@ -2558,21 +2558,21 @@ class WebsitePostTypeTest extends TestCase {
 	}
 
 	private function make_post_type(
-		Domain_Registry $domain_registry = null,
-		Variable_Parser $variable_parser = null,
-		Global_Styles_Post_Service $global_styles_post_service = null
-	): Website_Post_Type {
-		return new Website_Post_Type(
-			$domain_registry ?? Mockery::mock( Domain_Registry::class ),
-			$variable_parser ?? Mockery::mock( Variable_Parser::class ),
-			$global_styles_post_service ?? Mockery::mock( Global_Styles_Post_Service::class )
+		DomainRegistry $domain_registry = null,
+		VariableParser $variable_parser = null,
+		GlobalStylesPostService $global_styles_post_service = null
+	): WebsitePostType {
+		return new WebsitePostType(
+			$domain_registry ?? Mockery::mock( DomainRegistry::class ),
+			$variable_parser ?? Mockery::mock( VariableParser::class ),
+			$global_styles_post_service ?? Mockery::mock( GlobalStylesPostService::class )
 		);
 	}
 
 	public function test_save_skips_when_nonce_missing(): void {
 		unset( $_POST['mdgs_website_nonce'] );
 
-		$domain_registry = Mockery::mock( Domain_Registry::class );
+		$domain_registry = Mockery::mock( DomainRegistry::class );
 		$domain_registry->shouldNotReceive( 'parse_domains_input' );
 
 		$post_type = $this->make_post_type( $domain_registry );
@@ -2586,7 +2586,7 @@ class WebsitePostTypeTest extends TestCase {
 		$_POST['mdgs_domains']   = "example.com\nexample.org";
 		$_POST['mdgs_variables'] = '';
 
-		$domain_registry = Mockery::mock( Domain_Registry::class );
+		$domain_registry = Mockery::mock( DomainRegistry::class );
 		$domain_registry->shouldReceive( 'parse_domains_input' )
 			->with( "example.com\nexample.org" )
 			->andReturn( array( 'example.com', 'example.org' ) );
@@ -2594,10 +2594,10 @@ class WebsitePostTypeTest extends TestCase {
 		$domain_registry->shouldReceive( 'find_conflicting_website' )->with( 'example.org', 5 )->andReturn( null );
 		$domain_registry->shouldReceive( 'invalidate_cache' )->once();
 
-		$variable_parser = Mockery::mock( Variable_Parser::class );
+		$variable_parser = Mockery::mock( VariableParser::class );
 		$variable_parser->shouldReceive( 'parse' )->with( '' )->andReturn( array() );
 
-		$global_styles_post_service = Mockery::mock( Global_Styles_Post_Service::class );
+		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
 		$global_styles_post_service->shouldReceive( 'ensure_global_styles_post' )->once()->with( 5 )->andReturn( 42 );
 
 		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_domains', array( 'example.com', 'example.org' ) )->once();
@@ -2613,16 +2613,16 @@ class WebsitePostTypeTest extends TestCase {
 		$_POST['mdgs_domains']   = "example.com\ntaken.com";
 		$_POST['mdgs_variables'] = '';
 
-		$domain_registry = Mockery::mock( Domain_Registry::class );
+		$domain_registry = Mockery::mock( DomainRegistry::class );
 		$domain_registry->shouldReceive( 'parse_domains_input' )->andReturn( array( 'example.com', 'taken.com' ) );
 		$domain_registry->shouldReceive( 'find_conflicting_website' )->with( 'example.com', 5 )->andReturn( null );
 		$domain_registry->shouldReceive( 'find_conflicting_website' )->with( 'taken.com', 5 )->andReturn( 9 );
 		$domain_registry->shouldReceive( 'invalidate_cache' )->once();
 
-		$variable_parser = Mockery::mock( Variable_Parser::class );
+		$variable_parser = Mockery::mock( VariableParser::class );
 		$variable_parser->shouldReceive( 'parse' )->andReturn( array() );
 
-		$global_styles_post_service = Mockery::mock( Global_Styles_Post_Service::class );
+		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
 		$global_styles_post_service->shouldReceive( 'ensure_global_styles_post' )->andReturn( 42 );
 
 		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_domains', array( 'example.com' ) )->once();
@@ -2641,14 +2641,14 @@ class WebsitePostTypeTest extends TestCase {
 		$_POST['mdgs_domains']   = '';
 		$_POST['mdgs_variables'] = 'name = Acme';
 
-		$domain_registry = Mockery::mock( Domain_Registry::class );
+		$domain_registry = Mockery::mock( DomainRegistry::class );
 		$domain_registry->shouldReceive( 'parse_domains_input' )->andReturn( array() );
 		$domain_registry->shouldReceive( 'invalidate_cache' )->once();
 
-		$variable_parser = Mockery::mock( Variable_Parser::class );
+		$variable_parser = Mockery::mock( VariableParser::class );
 		$variable_parser->shouldReceive( 'parse' )->with( 'name = Acme' )->andReturn( array( 'name' => 'Acme' ) );
 
-		$global_styles_post_service = Mockery::mock( Global_Styles_Post_Service::class );
+		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
 		$global_styles_post_service->shouldReceive( 'ensure_global_styles_post' )->andReturn( 42 );
 
 		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_domains', array() )->once();
@@ -2665,14 +2665,14 @@ class WebsitePostTypeTest extends TestCase {
 		$_POST['mdgs_variables']  = '';
 		$_POST['mdgs_is_default'] = '1';
 
-		$domain_registry = Mockery::mock( Domain_Registry::class );
+		$domain_registry = Mockery::mock( DomainRegistry::class );
 		$domain_registry->shouldReceive( 'parse_domains_input' )->andReturn( array() );
 		$domain_registry->shouldReceive( 'invalidate_cache' )->once();
 
-		$variable_parser = Mockery::mock( Variable_Parser::class );
+		$variable_parser = Mockery::mock( VariableParser::class );
 		$variable_parser->shouldReceive( 'parse' )->andReturn( array() );
 
-		$global_styles_post_service = Mockery::mock( Global_Styles_Post_Service::class );
+		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
 		$global_styles_post_service->shouldReceive( 'ensure_global_styles_post' )->andReturn( 42 );
 
 		Functions\expect( 'get_posts' )
@@ -2704,7 +2704,7 @@ class WebsitePostTypeTest extends TestCase {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `composer test -- --filter WebsitePostTypeTest`
-Expected: FAIL with "Class ... Website_Post_Type not found".
+Expected: FAIL with "Class ... WebsitePostType not found".
 
 - [ ] **Step 3: Write implementation**
 
@@ -2719,18 +2719,18 @@ Expected: FAIL with "Class ... Website_Post_Type not found".
 
 namespace The_Another\Plugin\Multi_Domain_Global_Styles\Website;
 
-use The_Another\Plugin\Multi_Domain_Global_Styles\Global_Styles\Global_Styles_Post_Service;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Content_Variables\Variable_Parser;
+use The_Another\Plugin\Multi_Domain_Global_Styles\GlobalStyles\GlobalStylesPostService;
+use The_Another\Plugin\Multi_Domain_Global_Styles\ContentVariables\VariableParser;
 use WP_Post;
 
 /**
- * Class Website_Post_Type
+ * Class WebsitePostType
  *
  * Registers the `mdgs_website` CPT: domains, content variables, default
  * flag, and an interim raw-JSON global styles editor (Task 10 of the
  * foundation plan; replaced by a Site Editor redirect in the follow-up plan).
  */
-class Website_Post_Type {
+class WebsitePostType {
 
 	/**
 	 * Post type slug.
@@ -2742,35 +2742,35 @@ class Website_Post_Type {
 	/**
 	 * Domain registry.
 	 *
-	 * @var Domain_Registry
+	 * @var DomainRegistry
 	 */
-	private Domain_Registry $domain_registry;
+	private DomainRegistry $domain_registry;
 
 	/**
 	 * Variable parser.
 	 *
-	 * @var Variable_Parser
+	 * @var VariableParser
 	 */
-	private Variable_Parser $variable_parser;
+	private VariableParser $variable_parser;
 
 	/**
 	 * Global styles post service.
 	 *
-	 * @var Global_Styles_Post_Service
+	 * @var GlobalStylesPostService
 	 */
-	private Global_Styles_Post_Service $global_styles_post_service;
+	private GlobalStylesPostService $global_styles_post_service;
 
 	/**
 	 * Constructor.
 	 *
-	 * @param Domain_Registry            $domain_registry             Domain registry service.
-	 * @param Variable_Parser            $variable_parser             Variable parser service.
-	 * @param Global_Styles_Post_Service $global_styles_post_service  Global styles post service.
+	 * @param DomainRegistry            $domain_registry             Domain registry service.
+	 * @param VariableParser            $variable_parser             Variable parser service.
+	 * @param GlobalStylesPostService $global_styles_post_service  Global styles post service.
 	 */
 	public function __construct(
-		Domain_Registry $domain_registry,
-		Variable_Parser $variable_parser,
-		Global_Styles_Post_Service $global_styles_post_service
+		DomainRegistry $domain_registry,
+		VariableParser $variable_parser,
+		GlobalStylesPostService $global_styles_post_service
 	) {
 		$this->domain_registry            = $domain_registry;
 		$this->variable_parser            = $variable_parser;
@@ -3020,21 +3020,21 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/Website/Website_Post_Type.php tests/Website/WebsitePostTypeTest.php
-git commit -m "feat: add Website_Post_Type with domains, variables, default flag, and raw-JSON styles editor"
+git add includes/Website/WebsitePostType.php tests/Website/WebsitePostTypeTest.php
+git commit -m "feat: add WebsitePostType with domains, variables, default flag, and raw-JSON styles editor"
 ```
 
 ---
 
-### Task 11: Admin_Notices — duplicate domain rejection
+### Task 11: AdminNotices — duplicate domain rejection
 
 **Files:**
-- Create: `includes/Website/Admin_Notices.php`
+- Create: `includes/Website/AdminNotices.php`
 - Test: `tests/Website/AdminNoticesTest.php`
 
 **Interfaces:**
 - Consumes: `get_current_user_id()`, `get_transient()`, `delete_transient()` (WP core)
-- Produces: `Admin_Notices::render(): void` (hooked to `admin_notices`)
+- Produces: `AdminNotices::render(): void` (hooked to `admin_notices`)
 
 - [ ] **Step 1: Write the failing test**
 
@@ -3049,9 +3049,9 @@ use Brain\Monkey\Functions;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Admin_Notices;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\AdminNotices;
 
-#[CoversClass( Admin_Notices::class )]
+#[CoversClass( AdminNotices::class )]
 class AdminNoticesTest extends TestCase {
 	use MockeryPHPUnitIntegration;
 
@@ -3069,7 +3069,7 @@ class AdminNoticesTest extends TestCase {
 		Functions\expect( 'get_current_user_id' )->once()->andReturn( 1 );
 		Functions\expect( 'get_transient' )->once()->with( 'mdgs_domain_conflict_1' )->andReturn( false );
 
-		$notices = new Admin_Notices();
+		$notices = new AdminNotices();
 
 		ob_start();
 		$notices->render();
@@ -3085,7 +3085,7 @@ class AdminNoticesTest extends TestCase {
 		Functions\when( '__' )->returnArg();
 		Functions\when( 'esc_html' )->returnArg();
 
-		$notices = new Admin_Notices();
+		$notices = new AdminNotices();
 
 		ob_start();
 		$notices->render();
@@ -3100,7 +3100,7 @@ class AdminNoticesTest extends TestCase {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `composer test -- --filter AdminNoticesTest`
-Expected: FAIL with "Class ... Admin_Notices not found".
+Expected: FAIL with "Class ... AdminNotices not found".
 
 - [ ] **Step 3: Write implementation**
 
@@ -3116,11 +3116,11 @@ Expected: FAIL with "Class ... Admin_Notices not found".
 namespace The_Another\Plugin\Multi_Domain_Global_Styles\Website;
 
 /**
- * Class Admin_Notices
+ * Class AdminNotices
  *
- * Surfaces the domain-conflict rejection recorded by Website_Post_Type::save().
+ * Surfaces the domain-conflict rejection recorded by WebsitePostType::save().
  */
-class Admin_Notices {
+class AdminNotices {
 
 	/**
 	 * Render pending admin notices. Hooked to `admin_notices`.
@@ -3160,8 +3160,8 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/Website/Admin_Notices.php tests/Website/AdminNoticesTest.php
-git commit -m "feat: add Admin_Notices for domain conflict rejection"
+git add includes/Website/AdminNotices.php tests/Website/AdminNoticesTest.php
+git commit -m "feat: add AdminNotices for domain conflict rejection"
 ```
 
 ---
@@ -3188,15 +3188,15 @@ git commit -m "feat: add Admin_Notices for domain conflict rejection"
 
 namespace The_Another\Plugin\Multi_Domain_Global_Styles;
 
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Admin_Notices;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Website_Post_Type;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Domain_Registry;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Domain_Resolver;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Global_Styles\Global_Styles_Override;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Global_Styles\Global_Styles_Post_Service;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Content_Variables\Variable_Parser;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Content_Variables\Variable_Substitution_Service;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Website_Repository;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\AdminNotices;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\WebsitePostType;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\DomainRegistry;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\DomainResolver;
+use The_Another\Plugin\Multi_Domain_Global_Styles\GlobalStyles\GlobalStylesOverride;
+use The_Another\Plugin\Multi_Domain_Global_Styles\GlobalStyles\GlobalStylesPostService;
+use The_Another\Plugin\Multi_Domain_Global_Styles\ContentVariables\VariableParser;
+use The_Another\Plugin\Multi_Domain_Global_Styles\ContentVariables\VariableSubstitutionService;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\WebsiteRepository;
 
 /**
  * Class Plugin
@@ -3251,7 +3251,7 @@ class Plugin {
 		$website_post_type = $this->container->get( 'website_post_type' );
 		$hooks->register_action( 'init', array( $website_post_type, 'register' ) );
 		$hooks->register_action( 'add_meta_boxes', array( $website_post_type, 'register_meta_boxes' ) );
-		$hooks->register_action( 'save_post_' . Website_Post_Type::POST_TYPE, array( $website_post_type, 'save' ) );
+		$hooks->register_action( 'save_post_' . WebsitePostType::POST_TYPE, array( $website_post_type, 'save' ) );
 
 		$global_styles_override = $this->container->get( 'global_styles_override' );
 		$hooks->register_filter( 'wp_theme_json_data_user', array( $global_styles_override, 'filter_theme_json' ) );
@@ -3269,19 +3269,19 @@ class Plugin {
 	 * @return void
 	 */
 	private function register_services(): void {
-		$this->container->register( 'domain_registry', fn() => new Domain_Registry() );
-		$this->container->register( 'variable_parser', fn() => new Variable_Parser() );
-		$this->container->register( 'website_repository', fn() => new Website_Repository() );
-		$this->container->register( 'global_styles_post_service', fn() => new Global_Styles_Post_Service() );
+		$this->container->register( 'domain_registry', fn() => new DomainRegistry() );
+		$this->container->register( 'variable_parser', fn() => new VariableParser() );
+		$this->container->register( 'website_repository', fn() => new WebsiteRepository() );
+		$this->container->register( 'global_styles_post_service', fn() => new GlobalStylesPostService() );
 
 		$this->container->register(
 			'domain_resolver',
-			fn( Container $c ) => new Domain_Resolver( $c->get( 'domain_registry' ), $c->get( 'website_repository' ) )
+			fn( Container $c ) => new DomainResolver( $c->get( 'domain_registry' ), $c->get( 'website_repository' ) )
 		);
 
 		$this->container->register(
 			'global_styles_override',
-			fn( Container $c ) => new Global_Styles_Override(
+			fn( Container $c ) => new GlobalStylesOverride(
 				$c->get( 'domain_resolver' ),
 				$c->get( 'website_repository' ),
 				$c->get( 'global_styles_post_service' )
@@ -3290,19 +3290,19 @@ class Plugin {
 
 		$this->container->register(
 			'variable_substitution_service',
-			fn( Container $c ) => new Variable_Substitution_Service( $c->get( 'domain_resolver' ), $c->get( 'website_repository' ) )
+			fn( Container $c ) => new VariableSubstitutionService( $c->get( 'domain_resolver' ), $c->get( 'website_repository' ) )
 		);
 
 		$this->container->register(
 			'website_post_type',
-			fn( Container $c ) => new Website_Post_Type(
+			fn( Container $c ) => new WebsitePostType(
 				$c->get( 'domain_registry' ),
 				$c->get( 'variable_parser' ),
 				$c->get( 'global_styles_post_service' )
 			)
 		);
 
-		$this->container->register( 'admin_notices', fn() => new Admin_Notices() );
+		$this->container->register( 'admin_notices', fn() => new AdminNotices() );
 	}
 }
 ```
@@ -3356,5 +3356,5 @@ This plugin's core value — domain resolution, style overrides, variable substi
 
 - **Spec coverage:** Domain management (Tasks 2–3, 10), Website entity bundling domains+styles+variables (Task 10), global styles override without touching theme files (Task 8), variable substitution across content/blocks/widgets/menus via whole-page buffer (Task 9), default-website fallback (Tasks 4–5, 10), duplicate-domain rejection (Tasks 3, 10–11), container-based DI house style (Task 1), esc_html-escaped plain-text variables (Task 9). The one spec item NOT covered here — full native-Site-Editor-parity style editing — is explicitly deferred to the follow-up plan per "Relationship to Plan 2" above; Task 10 ships the interim raw-JSON editor instead.
 - **Placeholder scan:** No TBD/TODO markers; every step has complete, runnable code.
-- **Type consistency:** `Domain_Resolver::resolve_host(string): ?int` / `resolve_current_request(): ?int` used identically in Tasks 5, 8, 9. `Website_Repository::get_global_styles_post_id(int): ?int`, `get_variables(int): array`, `get_default_website_id(): ?int` used identically wherever referenced. `Global_Styles_Post_Service::ensure_global_styles_post(int): int` / `get_global_styles_data(int): array` used identically in Tasks 8, 10, 12. Postmeta keys (`_mdgs_domains`, `_mdgs_variables`, `_mdgs_is_default`, `_mdgs_global_styles_post_id`) and the transient key `mdgs_domain_map` are spelled identically everywhere they appear.
-- **Domain-driven reorg consistency:** every `namespace`/`use` statement and file path in Tasks 1–12 was cross-checked against the "File Structure" bounded contexts (`Website`, `Global_Styles`, `Content_Variables`) — no file references its old `Services`/`Post_Types`/`Admin` technical-layer location, and the one same-namespace `use` statement made redundant by the move (`Domain_Registry` inside `Website_Post_Type`, both now in `Website`) was removed.
+- **Type consistency:** `DomainResolver::resolve_host(string): ?int` / `resolve_current_request(): ?int` used identically in Tasks 5, 8, 9. `WebsiteRepository::get_global_styles_post_id(int): ?int`, `get_variables(int): array`, `get_default_website_id(): ?int` used identically wherever referenced. `GlobalStylesPostService::ensure_global_styles_post(int): int` / `get_global_styles_data(int): array` used identically in Tasks 8, 10, 12. Postmeta keys (`_mdgs_domains`, `_mdgs_variables`, `_mdgs_is_default`, `_mdgs_global_styles_post_id`) and the transient key `mdgs_domain_map` are spelled identically everywhere they appear.
+- **Domain-driven reorg consistency:** every `namespace`/`use` statement and file path in Tasks 1–12 was cross-checked against the "File Structure" bounded contexts (`Website`, `GlobalStyles`, `ContentVariables`) — no file references its old `Services`/`Post_Types`/`Admin` technical-layer location, and the one same-namespace `use` statement made redundant by the move (`DomainRegistry` inside `WebsitePostType`, both now in `Website`) was removed.
