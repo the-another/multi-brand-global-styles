@@ -2,6 +2,7 @@
 /node_modules/
 /.phpunit.cache/
 /.superpowers/
+/build/
 /dist/
 .DS_Store
 .idea/
