@@ -114,4 +114,119 @@ class UrlRuleRegistryTest extends TestCase {
 	public function test_parse_rules_input_ignores_blank_and_junk_lines(): void {
 		$this->assertSame( array(), $this->registry->parse_rules_input( "\n \n/path-without-host\n" ) );
 	}
+
+	public function test_get_rule_map_returns_cached_value_when_present(): void {
+		Functions\expect( 'get_transient' )
+			->once()
+			->with( 'mdgs_rule_map' )
+			->andReturn( array( 'auctionbill.com' => array( '' => 5 ) ) );
+
+		$this->assertSame( array( 'auctionbill.com' => array( '' => 5 ) ), $this->registry->get_rule_map() );
+	}
+
+	public function test_get_rule_map_builds_and_caches_when_absent(): void {
+		Functions\expect( 'get_transient' )->once()->andReturn( false );
+		Functions\expect( 'get_posts' )
+			->once()
+			->andReturn( array( 5, 9 ) );
+		Functions\expect( 'get_post_meta' )
+			->once()
+			->with( 5, '_mdgs_rules', true )
+			->andReturn( array( 'auctionbill.com', 'beta.auctionbill.com' ) );
+		Functions\expect( 'get_post_meta' )
+			->once()
+			->with( 9, '_mdgs_rules', true )
+			->andReturn( array( 'site.com/farm', 'site2.com/farm' ) );
+		Functions\expect( 'set_transient' )
+			->once()
+			->with(
+				'mdgs_rule_map',
+				array(
+					'auctionbill.com'      => array( '' => 5 ),
+					'beta.auctionbill.com' => array( '' => 5 ),
+					'site.com'             => array( '/farm' => 9 ),
+					'site2.com'            => array( '/farm' => 9 ),
+				),
+				0
+			);
+
+		$map = $this->registry->get_rule_map();
+
+		$this->assertSame(
+			array(
+				'auctionbill.com'      => array( '' => 5 ),
+				'beta.auctionbill.com' => array( '' => 5 ),
+				'site.com'             => array( '/farm' => 9 ),
+				'site2.com'            => array( '/farm' => 9 ),
+			),
+			$map
+		);
+	}
+
+	public function test_get_rule_map_merges_host_wide_and_path_rules_for_same_host(): void {
+		Functions\expect( 'get_transient' )->once()->andReturn( false );
+		Functions\expect( 'get_posts' )->once()->andReturn( array( 7, 9 ) );
+		Functions\expect( 'get_post_meta' )
+			->once()
+			->with( 7, '_mdgs_rules', true )
+			->andReturn( array( 'site.com' ) );
+		Functions\expect( 'get_post_meta' )
+			->once()
+			->with( 9, '_mdgs_rules', true )
+			->andReturn( array( 'site.com/farm' ) );
+		Functions\expect( 'set_transient' )->once();
+
+		$this->assertSame(
+			array(
+				'site.com' => array(
+					''      => 7,
+					'/farm' => 9,
+				),
+			),
+			$this->registry->get_rule_map()
+		);
+	}
+
+	public function test_get_rule_map_skips_posts_with_no_rules_meta(): void {
+		Functions\expect( 'get_transient' )->once()->andReturn( false );
+		Functions\expect( 'get_posts' )->once()->andReturn( array( 11 ) );
+		Functions\expect( 'get_post_meta' )
+			->once()
+			->with( 11, '_mdgs_rules', true )
+			->andReturn( '' );
+		Functions\expect( 'set_transient' )->once()->with( 'mdgs_rule_map', array(), 0 );
+
+		$this->assertSame( array(), $this->registry->get_rule_map() );
+	}
+
+	public function test_find_conflicting_brand_returns_null_when_rule_unused(): void {
+		Functions\expect( 'get_transient' )->once()->andReturn( array( 'site.com' => array( '' => 7 ) ) );
+
+		$this->assertNull( $this->registry->find_conflicting_brand( 'other.test' ) );
+	}
+
+	public function test_find_conflicting_brand_allows_overlapping_but_different_rules(): void {
+		Functions\expect( 'get_transient' )->once()->andReturn( array( 'site.com' => array( '' => 7 ) ) );
+
+		// site.com is taken by Brand 7, but site.com/farm is a DIFFERENT rule — no conflict.
+		$this->assertNull( $this->registry->find_conflicting_brand( 'site.com/farm', 9 ) );
+	}
+
+	public function test_find_conflicting_brand_returns_null_for_self(): void {
+		Functions\expect( 'get_transient' )->once()->andReturn( array( 'site.com' => array( '/farm' => 9 ) ) );
+
+		$this->assertNull( $this->registry->find_conflicting_brand( 'site.com/farm', 9 ) );
+	}
+
+	public function test_find_conflicting_brand_returns_owning_id_for_other_post(): void {
+		Functions\expect( 'get_transient' )->once()->andReturn( array( 'site.com' => array( '/farm' => 9 ) ) );
+
+		$this->assertSame( 9, $this->registry->find_conflicting_brand( 'site.com/farm', 5 ) );
+	}
+
+	public function test_invalidate_cache_deletes_transient(): void {
+		Functions\expect( 'delete_transient' )->once()->with( 'mdgs_rule_map' );
+
+		$this->registry->invalidate_cache();
+	}
 }

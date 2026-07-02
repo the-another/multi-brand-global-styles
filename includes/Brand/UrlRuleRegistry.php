@@ -151,4 +151,79 @@ class UrlRuleRegistry {
 
 		return array_keys( $rules );
 	}
+
+	/**
+	 * Get the cached rule map, rebuilding it if not cached.
+	 *
+	 * @return array<string, array<string, int>> Host => (path prefix => Brand ID). '' prefix = host-wide.
+	 */
+	public function get_rule_map(): array {
+		$cached = get_transient( self::CACHE_KEY );
+
+		if ( is_array( $cached ) ) {
+			return $cached;
+		}
+
+		$map       = array();
+		$brand_ids = get_posts(
+			array(
+				'post_type'      => 'mdgs_brand',
+				'post_status'    => 'publish',
+				'posts_per_page' => -1,
+				'fields'         => 'ids',
+			)
+		);
+
+		foreach ( $brand_ids as $brand_id ) {
+			$rules = get_post_meta( $brand_id, '_mdgs_rules', true );
+
+			if ( ! is_array( $rules ) ) {
+				continue;
+			}
+
+			foreach ( $rules as $rule ) {
+				list( $host, $path_prefix ) = $this->split_rule( $rule );
+
+				$map[ $host ][ $path_prefix ] = $brand_id;
+			}
+		}
+
+		set_transient( self::CACHE_KEY, $map, 0 );
+
+		return $map;
+	}
+
+	/**
+	 * Find the Brand that already owns an exact rule, if any other than $exclude_post_id.
+	 *
+	 * Overlapping-but-different rules (site.com vs site.com/farm) never conflict.
+	 *
+	 * @param string $normalized_rule Normalized rule.
+	 * @param int    $exclude_post_id Brand post ID to treat as "self" (never reported as a conflict).
+	 * @return int|null Conflicting Brand ID, or null if the exact rule is free (or owned by $exclude_post_id).
+	 */
+	public function find_conflicting_brand( string $normalized_rule, int $exclude_post_id = 0 ): ?int {
+		list( $host, $path_prefix ) = $this->split_rule( $normalized_rule );
+
+		$map = $this->get_rule_map();
+
+		if ( ! isset( $map[ $host ][ $path_prefix ] ) ) {
+			return null;
+		}
+
+		if ( $map[ $host ][ $path_prefix ] === $exclude_post_id ) {
+			return null;
+		}
+
+		return $map[ $host ][ $path_prefix ];
+	}
+
+	/**
+	 * Invalidate the cached rule map. Call after any Brand save/trash/delete.
+	 *
+	 * @return void
+	 */
+	public function invalidate_cache(): void {
+		delete_transient( self::CACHE_KEY );
+	}
 }
