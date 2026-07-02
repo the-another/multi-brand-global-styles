@@ -10,6 +10,13 @@
 		"version": "node scripts/version-bump.js",
 		"version:patch": "node scripts/version-bump.js patch",
 		"version:minor": "node scripts/version-bump.js minor",
-		"version:major": "node scripts/version-bump.js major"
+		"version:major": "node scripts/version-bump.js major",
+		"test:e2e": "WP_BASE_URL=http://localhost:8881 npx playwright test --config playwright.config.ts",
+		"test:e2e:ui": "WP_BASE_URL=http://localhost:8881 npx playwright test --config playwright.config.ts --ui"
+	},
+	"devDependencies": {
+		"@playwright/test": "^1.59.1",
+		"@wordpress/e2e-test-utils-playwright": "^1.43.0",
+		"@wp-now/wp-now": "^0.1.74"
 	}
 }

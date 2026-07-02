@@ -7,3 +7,6 @@
 .DS_Store
 .idea/
 *.zip
+/artifacts/
+/test-results/
+/playwright-report/
