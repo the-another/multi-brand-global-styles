@@ -50,6 +50,27 @@ class BrandPostTypeTest extends TestCase {
 		);
 	}
 
+	public function test_register_gates_cpt_behind_edit_theme_options(): void {
+		Functions\when( '__' )->returnArg();
+
+		Functions\expect( 'register_post_type' )
+			->once()
+			->with(
+				'mdgs_brand',
+				Mockery::on(
+					function ( $args ) {
+						return isset( $args['capabilities'] )
+							&& 'edit_theme_options' === $args['capabilities']['create_posts']
+							&& 'edit_theme_options' === $args['capabilities']['edit_posts'];
+					}
+				)
+			);
+
+		$post_type = $this->make_post_type();
+
+		$post_type->register();
+	}
+
 	public function test_save_skips_when_nonce_missing(): void {
 		unset( $_POST['mdgs_brand_nonce'] );
 
