@@ -18,6 +18,7 @@
 /Makefile
 /Dockerfile
 /playwright.config.ts
+/playwright.check.config.ts
 /artifacts/
 /test-results/
 /playwright-report/

@@ -9,6 +9,10 @@ process.env.WP_BASE_URL = BASE_URL;
 
 export default defineConfig( {
 	testDir: './tests/e2e',
+	// plugin-check.spec.ts runs against playwright.check.config.ts's own
+	// dedicated server (a fresh install from the packaged zip, not this
+	// config's wp-now dev-mounted source) — must never run here too.
+	testIgnore: 'plugin-check.spec.ts',
 	fullyParallel: false,
 	forbidOnly: !! process.env.CI,
 	timeout: process.env.CI ? 60_000 : 30_000,
