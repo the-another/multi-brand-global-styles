@@ -4,7 +4,7 @@
 
 **Goal:** Build a standalone WordPress plugin that lets admins register domains, group them into per-domain "Website" style/variable profiles, override global styles per domain without touching the theme, and substitute `%%website.*%%` content variables — with an interim raw-JSON style editor. (Full native-Site-Editor-parity style editing is a separate follow-up plan; see "Relationship to Plan 2" below.)
 
-**Architecture:** Container-based DI (mirrors `aucteeno-nexus`/`globalag-router` house style) with a single `mdgs_website` custom post type as the entity for domains, variables, and a pointer to a dedicated `wp_global_styles` post per Website. Domain routing resolves `HTTP_HOST` → Website via a cached map. Frontend rendering hooks `wp_theme_json_data_user` (style override) and a `template_redirect`-started output buffer (text variable substitution).
+**Architecture:** Container-based DI (mirrors `aucteeno-nexus`/`globalag-router` house style) with code organized by domain/bounded-context (`Website`, `Global_Styles`, `Content_Variables`) rather than technical layer — see "File Structure" below. The `mdgs_website` custom post type is the aggregate root: the entity for domains, variables, and a pointer to a dedicated `wp_global_styles` post per Website. Domain routing resolves `HTTP_HOST` → Website via a cached map. Frontend rendering hooks `wp_theme_json_data_user` (style override) and a `template_redirect`-started output buffer (text variable substitution). Throughout, the implementation stays WordPress-idiomatic: the CPT is the aggregate, hooks (not a custom event bus) are the extensibility mechanism, `get_post_meta`/`wp_insert_post`/core filters are used directly rather than wrapped in additional abstraction layers.
 
 **Tech Stack:** PHP 8.3+, WordPress 6.9+, Composer (PSR-4 autoload for both `includes/` and `tests/`), PHPUnit 11 + Brain Monkey + Mockery (unit tests only, no WP test suite / DB).
 
@@ -36,37 +36,39 @@ the-another-multi-domain-global-styles/
 ├── phpunit.xml.dist
 ├── .phpcs.xml.dist
 ├── includes/
-│   ├── Container.php                       # DI container (copied pattern from aucteeno-nexus)
-│   ├── Hook_Manager.php                     # Hook registration/tracking (copied pattern)
-│   ├── Plugin.php                           # Orchestrator: registers services + hooks
-│   ├── Post_Types/
-│   │   └── Website_Post_Type.php            # `mdgs_website` CPT, meta boxes, save glue
-│   ├── Services/
-│   │   ├── Domain_Registry.php              # normalize/parse/dedupe domains, conflict detection, cached map
-│   │   ├── Website_Repository.php           # read helpers: domains, variables, default, global-styles-post-id
-│   │   ├── Domain_Resolver.php              # HTTP_HOST → Website ID
-│   │   ├── Variable_Parser.php               # "key = value" textarea → assoc array
+│   ├── Container.php                        # DI container (copied pattern from aucteeno-nexus) — infrastructure, not a domain
+│   ├── Hook_Manager.php                      # Hook registration/tracking (copied pattern) — infrastructure
+│   ├── Plugin.php                            # Orchestrator: registers services + hooks — infrastructure
+│   ├── Website/                              # Bounded context: the Website entity + domain routing
+│   │   ├── Website_Post_Type.php             # `mdgs_website` CPT (aggregate root), meta boxes, save glue
+│   │   ├── Domain_Registry.php               # normalize/parse/dedupe domains, conflict detection, cached map
+│   │   ├── Website_Repository.php            # read helpers: domains, variables, default, global-styles-post-id
+│   │   ├── Domain_Resolver.php               # HTTP_HOST → Website ID
+│   │   └── Admin_Notices.php                 # duplicate-domain rejection notice
+│   ├── Global_Styles/                        # Bounded context: per-Website style override mechanism
 │   │   ├── Global_Styles_Post_Service.php    # create/read the per-Website wp_global_styles post
-│   │   ├── Global_Styles_Override.php        # wp_theme_json_data_user filter (frontend)
-│   │   └── Variable_Substitution_Service.php # output buffer + %%website.*%% substitution
-│   └── Admin/
-│       └── Admin_Notices.php                 # duplicate-domain rejection notice
+│   │   └── Global_Styles_Override.php        # wp_theme_json_data_user filter (frontend)
+│   └── Content_Variables/                    # Bounded context: %%website.*%% token substitution
+│       ├── Variable_Parser.php               # "key = value" textarea → assoc array
+│       └── Variable_Substitution_Service.php # output buffer + %%website.*%% substitution
 └── tests/
     ├── bootstrap.php
     ├── ContainerTest.php
-    ├── PostTypes/
-    │   └── WebsitePostTypeTest.php
-    ├── Services/
+    ├── Website/
+    │   ├── WebsitePostTypeTest.php
     │   ├── DomainRegistryTest.php
     │   ├── WebsiteRepositoryTest.php
     │   ├── DomainResolverTest.php
-    │   ├── VariableParserTest.php
+    │   └── AdminNoticesTest.php
+    ├── Global_Styles/
     │   ├── GlobalStylesPostServiceTest.php
-    │   ├── GlobalStylesOverrideTest.php
-    │   └── VariableSubstitutionServiceTest.php
-    └── Admin/
-        └── AdminNoticesTest.php
+    │   └── GlobalStylesOverrideTest.php
+    └── Content_Variables/
+        ├── VariableParserTest.php
+        └── VariableSubstitutionServiceTest.php
 ```
+
+Each bounded context maps 1:1 onto a domain concept from the spec, not a technical role — `Website` is the aggregate root (the `mdgs_website` CPT) plus everything needed to identify and validate one; `Global_Styles` and `Content_Variables` are the two independent capabilities a Website exposes. `Container`/`Hook_Manager`/`Plugin` stay at the root as shared infrastructure, consistent with how WordPress plugins conventionally keep bootstrapping concerns separate from domain logic. Nothing about the WordPress-facing API changes — CPT registration, hooks, meta keys, and `get_post_meta`/`wp_insert_post` usage are unchanged from the original design; this is a pure reorganization of where the same code lives.
 
 ---
 
@@ -814,12 +816,12 @@ git commit -m "feat: scaffold plugin with DI container and hook manager"
 ### Task 2: Domain_Registry — normalization and input parsing
 
 **Files:**
-- Create: `includes/Services/Domain_Registry.php`
-- Test: `tests/Services/DomainRegistryTest.php`
+- Create: `includes/Website/Domain_Registry.php`
+- Test: `tests/Website/DomainRegistryTest.php`
 
 **Interfaces:**
 - Consumes: nothing (pure logic + WP core functions `wp_parse_url`)
-- Produces: `The_Another\Plugin\Multi_Domain_Global_Styles\Services\Domain_Registry::normalize(string $raw): string`, `->parse_domains_input(string $raw): array` (returns `array<int, string>` of normalized, deduped, non-empty hostnames)
+- Produces: `The_Another\Plugin\Multi_Domain_Global_Styles\Website\Domain_Registry::normalize(string $raw): string`, `->parse_domains_input(string $raw): array` (returns `array<int, string>` of normalized, deduped, non-empty hostnames)
 
 - [ ] **Step 1: Write the failing test**
 
@@ -827,7 +829,7 @@ git commit -m "feat: scaffold plugin with DI container and hook manager"
 <?php
 declare(strict_types=1);
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\Services;
+namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\Website;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
@@ -835,7 +837,7 @@ use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Services\Domain_Registry;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Domain_Registry;
 
 #[CoversClass( Domain_Registry::class )]
 class DomainRegistryTest extends TestCase {
@@ -911,7 +913,7 @@ Expected: FAIL with "Class ... Domain_Registry not found" (class doesn't exist y
  * @since 1.0.0
  */
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Services;
+namespace The_Another\Plugin\Multi_Domain_Global_Styles\Website;
 
 /**
  * Class Domain_Registry
@@ -990,7 +992,7 @@ Expected: PASS (all data provider cases + both parse_domains_input tests).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/Services/Domain_Registry.php tests/Services/DomainRegistryTest.php
+git add includes/Website/Domain_Registry.php tests/Website/DomainRegistryTest.php
 git commit -m "feat: add domain normalization and input parsing"
 ```
 
@@ -999,8 +1001,8 @@ git commit -m "feat: add domain normalization and input parsing"
 ### Task 3: Domain_Registry — cached map and conflict detection
 
 **Files:**
-- Modify: `includes/Services/Domain_Registry.php`
-- Modify: `tests/Services/DomainRegistryTest.php`
+- Modify: `includes/Website/Domain_Registry.php`
+- Modify: `tests/Website/DomainRegistryTest.php`
 
 **Interfaces:**
 - Consumes: `get_transient()`, `set_transient()`, `delete_transient()`, `get_posts()`, `get_post_meta()` (WP core, mocked in tests via Brain Monkey)
@@ -1099,7 +1101,7 @@ Expected: FAIL — `Call to undefined method Domain_Registry::get_domain_map()` 
 
 - [ ] **Step 3: Add methods to Domain_Registry**
 
-Add to `includes/Services/Domain_Registry.php`, inside the `Domain_Registry` class:
+Add to `includes/Website/Domain_Registry.php`, inside the `Domain_Registry` class:
 
 ```php
 	/**
@@ -1180,7 +1182,7 @@ Expected: PASS (all tests in the file, including Task 2's).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/Services/Domain_Registry.php tests/Services/DomainRegistryTest.php
+git add includes/Website/Domain_Registry.php tests/Website/DomainRegistryTest.php
 git commit -m "feat: add cached domain map and conflict detection"
 ```
 
@@ -1189,8 +1191,8 @@ git commit -m "feat: add cached domain map and conflict detection"
 ### Task 4: Website_Repository — read helpers
 
 **Files:**
-- Create: `includes/Services/Website_Repository.php`
-- Test: `tests/Services/WebsiteRepositoryTest.php`
+- Create: `includes/Website/Website_Repository.php`
+- Test: `tests/Website/WebsiteRepositoryTest.php`
 
 **Interfaces:**
 - Consumes: `get_post_meta()`, `get_posts()` (WP core)
@@ -1202,14 +1204,14 @@ git commit -m "feat: add cached domain map and conflict detection"
 <?php
 declare(strict_types=1);
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\Services;
+namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\Website;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Services\Website_Repository;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Website_Repository;
 
 #[CoversClass( Website_Repository::class )]
 class WebsiteRepositoryTest extends TestCase {
@@ -1316,7 +1318,7 @@ Expected: FAIL with "Class ... Website_Repository not found".
  * @since 1.0.0
  */
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Services;
+namespace The_Another\Plugin\Multi_Domain_Global_Styles\Website;
 
 /**
  * Class Website_Repository
@@ -1391,7 +1393,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/Services/Website_Repository.php tests/Services/WebsiteRepositoryTest.php
+git add includes/Website/Website_Repository.php tests/Website/WebsiteRepositoryTest.php
 git commit -m "feat: add Website_Repository read helpers"
 ```
 
@@ -1400,8 +1402,8 @@ git commit -m "feat: add Website_Repository read helpers"
 ### Task 5: Domain_Resolver — HTTP_HOST to Website ID
 
 **Files:**
-- Create: `includes/Services/Domain_Resolver.php`
-- Test: `tests/Services/DomainResolverTest.php`
+- Create: `includes/Website/Domain_Resolver.php`
+- Test: `tests/Website/DomainResolverTest.php`
 
 **Interfaces:**
 - Consumes: `Domain_Registry::normalize(string): string`, `->get_domain_map(): array` (Task 2/3); `Website_Repository::get_default_website_id(): ?int` (Task 4)
@@ -1413,7 +1415,7 @@ git commit -m "feat: add Website_Repository read helpers"
 <?php
 declare(strict_types=1);
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\Services;
+namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\Website;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
@@ -1421,9 +1423,9 @@ use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Services\Domain_Registry;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Services\Domain_Resolver;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Services\Website_Repository;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Domain_Registry;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Domain_Resolver;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Website_Repository;
 
 #[CoversClass( Domain_Resolver::class )]
 class DomainResolverTest extends TestCase {
@@ -1525,7 +1527,7 @@ Expected: FAIL with "Class ... Domain_Resolver not found".
  * @since 1.0.0
  */
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Services;
+namespace The_Another\Plugin\Multi_Domain_Global_Styles\Website;
 
 /**
  * Class Domain_Resolver
@@ -1602,7 +1604,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/Services/Domain_Resolver.php tests/Services/DomainResolverTest.php
+git add includes/Website/Domain_Resolver.php tests/Website/DomainResolverTest.php
 git commit -m "feat: add Domain_Resolver for HTTP_HOST to Website ID lookup"
 ```
 
@@ -1611,8 +1613,8 @@ git commit -m "feat: add Domain_Resolver for HTTP_HOST to Website ID lookup"
 ### Task 6: Variable_Parser
 
 **Files:**
-- Create: `includes/Services/Variable_Parser.php`
-- Test: `tests/Services/VariableParserTest.php`
+- Create: `includes/Content_Variables/Variable_Parser.php`
+- Test: `tests/Content_Variables/VariableParserTest.php`
 
 **Interfaces:**
 - Consumes: nothing (pure logic)
@@ -1624,13 +1626,13 @@ git commit -m "feat: add Domain_Resolver for HTTP_HOST to Website ID lookup"
 <?php
 declare(strict_types=1);
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\Services;
+namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\Content_Variables;
 
 use Brain\Monkey;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Services\Variable_Parser;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Content_Variables\Variable_Parser;
 
 #[CoversClass( Variable_Parser::class )]
 class VariableParserTest extends TestCase {
@@ -1708,7 +1710,7 @@ Expected: FAIL with "Class ... Variable_Parser not found".
  * @since 1.0.0
  */
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Services;
+namespace The_Another\Plugin\Multi_Domain_Global_Styles\Content_Variables;
 
 /**
  * Class Variable_Parser
@@ -1754,7 +1756,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/Services/Variable_Parser.php tests/Services/VariableParserTest.php
+git add includes/Content_Variables/Variable_Parser.php tests/Content_Variables/VariableParserTest.php
 git commit -m "feat: add Variable_Parser for key=value textarea input"
 ```
 
@@ -1763,8 +1765,8 @@ git commit -m "feat: add Variable_Parser for key=value textarea input"
 ### Task 7: Global_Styles_Post_Service
 
 **Files:**
-- Create: `includes/Services/Global_Styles_Post_Service.php`
-- Test: `tests/Services/GlobalStylesPostServiceTest.php`
+- Create: `includes/Global_Styles/Global_Styles_Post_Service.php`
+- Test: `tests/Global_Styles/GlobalStylesPostServiceTest.php`
 
 **Interfaces:**
 - Consumes: `wp_insert_post()`, `get_post_status()`, `get_post_meta()`, `update_post_meta()`, `get_post()`, `is_wp_error()`, `wp_json_encode()` (WP core)
@@ -1778,14 +1780,14 @@ git commit -m "feat: add Variable_Parser for key=value textarea input"
 <?php
 declare(strict_types=1);
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\Services;
+namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\Global_Styles;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Services\Global_Styles_Post_Service;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Global_Styles\Global_Styles_Post_Service;
 
 #[CoversClass( Global_Styles_Post_Service::class )]
 class GlobalStylesPostServiceTest extends TestCase {
@@ -1889,7 +1891,7 @@ Expected: FAIL with "Class ... Global_Styles_Post_Service not found".
  * @since 1.0.0
  */
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Services;
+namespace The_Another\Plugin\Multi_Domain_Global_Styles\Global_Styles;
 
 use RuntimeException;
 
@@ -1981,7 +1983,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/Services/Global_Styles_Post_Service.php tests/Services/GlobalStylesPostServiceTest.php
+git add includes/Global_Styles/Global_Styles_Post_Service.php tests/Global_Styles/GlobalStylesPostServiceTest.php
 git commit -m "feat: add Global_Styles_Post_Service to manage per-Website styles posts"
 ```
 
@@ -1990,8 +1992,8 @@ git commit -m "feat: add Global_Styles_Post_Service to manage per-Website styles
 ### Task 8: Global_Styles_Override — frontend theme.json merge
 
 **Files:**
-- Create: `includes/Services/Global_Styles_Override.php`
-- Test: `tests/Services/GlobalStylesOverrideTest.php`
+- Create: `includes/Global_Styles/Global_Styles_Override.php`
+- Test: `tests/Global_Styles/GlobalStylesOverrideTest.php`
 
 **Interfaces:**
 - Consumes: `Domain_Resolver::resolve_current_request(): ?int` (Task 5), `Website_Repository::get_global_styles_post_id(int): ?int` (Task 4), `Global_Styles_Post_Service::get_global_styles_data(int): array` (Task 7), `is_admin()` (WP core)
@@ -2003,7 +2005,7 @@ git commit -m "feat: add Global_Styles_Post_Service to manage per-Website styles
 <?php
 declare(strict_types=1);
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\Services;
+namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\Global_Styles;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
@@ -2011,10 +2013,10 @@ use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Services\Domain_Resolver;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Services\Global_Styles_Override;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Services\Global_Styles_Post_Service;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Services\Website_Repository;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Domain_Resolver;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Global_Styles\Global_Styles_Override;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Global_Styles\Global_Styles_Post_Service;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Website_Repository;
 
 /**
  * Minimal stand-in for WP_Theme_JSON_Data, which isn't available outside a
@@ -2159,7 +2161,7 @@ Expected: FAIL with "Class ... Global_Styles_Override not found".
  * @since 1.0.0
  */
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Services;
+namespace The_Another\Plugin\Multi_Domain_Global_Styles\Global_Styles;
 
 /**
  * Class Global_Styles_Override
@@ -2258,7 +2260,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/Services/Global_Styles_Override.php tests/Services/GlobalStylesOverrideTest.php
+git add includes/Global_Styles/Global_Styles_Override.php tests/Global_Styles/GlobalStylesOverrideTest.php
 git commit -m "feat: add Global_Styles_Override frontend theme.json merge"
 ```
 
@@ -2267,8 +2269,8 @@ git commit -m "feat: add Global_Styles_Override frontend theme.json merge"
 ### Task 9: Variable_Substitution_Service
 
 **Files:**
-- Create: `includes/Services/Variable_Substitution_Service.php`
-- Test: `tests/Services/VariableSubstitutionServiceTest.php`
+- Create: `includes/Content_Variables/Variable_Substitution_Service.php`
+- Test: `tests/Content_Variables/VariableSubstitutionServiceTest.php`
 
 **Interfaces:**
 - Consumes: `Domain_Resolver::resolve_current_request(): ?int` (Task 5), `Website_Repository::get_variables(int): array` (Task 4), `is_admin()`, `wp_doing_ajax()` (WP core)
@@ -2280,7 +2282,7 @@ git commit -m "feat: add Global_Styles_Override frontend theme.json merge"
 <?php
 declare(strict_types=1);
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\Services;
+namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\Content_Variables;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
@@ -2288,9 +2290,9 @@ use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Services\Domain_Resolver;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Services\Variable_Substitution_Service;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Services\Website_Repository;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Domain_Resolver;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Content_Variables\Variable_Substitution_Service;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Website_Repository;
 
 #[CoversClass( Variable_Substitution_Service::class )]
 class VariableSubstitutionServiceTest extends TestCase {
@@ -2401,7 +2403,7 @@ Expected: FAIL with "Class ... Variable_Substitution_Service not found".
  * @since 1.0.0
  */
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Services;
+namespace The_Another\Plugin\Multi_Domain_Global_Styles\Content_Variables;
 
 /**
  * Class Variable_Substitution_Service
@@ -2495,7 +2497,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/Services/Variable_Substitution_Service.php tests/Services/VariableSubstitutionServiceTest.php
+git add includes/Content_Variables/Variable_Substitution_Service.php tests/Content_Variables/VariableSubstitutionServiceTest.php
 git commit -m "feat: add Variable_Substitution_Service for %%website.*%% tokens"
 ```
 
@@ -2504,8 +2506,8 @@ git commit -m "feat: add Variable_Substitution_Service for %%website.*%% tokens"
 ### Task 10: Website_Post_Type — CPT, meta boxes, save glue
 
 **Files:**
-- Create: `includes/Post_Types/Website_Post_Type.php`
-- Test: `tests/PostTypes/WebsitePostTypeTest.php`
+- Create: `includes/Website/Website_Post_Type.php`
+- Test: `tests/Website/WebsitePostTypeTest.php`
 
 **Interfaces:**
 - Consumes: `Domain_Registry::parse_domains_input(string): array`, `->find_conflicting_website(string, int): ?int`, `->invalidate_cache(): void` (Task 2/3); `Variable_Parser::parse(string): array` (Task 6); `Global_Styles_Post_Service::ensure_global_styles_post(int): int`, `->get_global_styles_data(int): array` (Task 7)
@@ -2519,7 +2521,7 @@ This task's test coverage focuses on `save()`'s branching logic (the part with r
 <?php
 declare(strict_types=1);
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\PostTypes;
+namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\Website;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
@@ -2527,10 +2529,10 @@ use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Post_Types\Website_Post_Type;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Services\Domain_Registry;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Services\Global_Styles_Post_Service;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Services\Variable_Parser;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Website_Post_Type;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Domain_Registry;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Global_Styles\Global_Styles_Post_Service;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Content_Variables\Variable_Parser;
 
 #[CoversClass( Website_Post_Type::class )]
 class WebsitePostTypeTest extends TestCase {
@@ -2715,11 +2717,10 @@ Expected: FAIL with "Class ... Website_Post_Type not found".
  * @since 1.0.0
  */
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Post_Types;
+namespace The_Another\Plugin\Multi_Domain_Global_Styles\Website;
 
-use The_Another\Plugin\Multi_Domain_Global_Styles\Services\Domain_Registry;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Services\Global_Styles_Post_Service;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Services\Variable_Parser;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Global_Styles\Global_Styles_Post_Service;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Content_Variables\Variable_Parser;
 use WP_Post;
 
 /**
@@ -3019,7 +3020,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/Post_Types/Website_Post_Type.php tests/PostTypes/WebsitePostTypeTest.php
+git add includes/Website/Website_Post_Type.php tests/Website/WebsitePostTypeTest.php
 git commit -m "feat: add Website_Post_Type with domains, variables, default flag, and raw-JSON styles editor"
 ```
 
@@ -3028,8 +3029,8 @@ git commit -m "feat: add Website_Post_Type with domains, variables, default flag
 ### Task 11: Admin_Notices — duplicate domain rejection
 
 **Files:**
-- Create: `includes/Admin/Admin_Notices.php`
-- Test: `tests/Admin/AdminNoticesTest.php`
+- Create: `includes/Website/Admin_Notices.php`
+- Test: `tests/Website/AdminNoticesTest.php`
 
 **Interfaces:**
 - Consumes: `get_current_user_id()`, `get_transient()`, `delete_transient()` (WP core)
@@ -3041,14 +3042,14 @@ git commit -m "feat: add Website_Post_Type with domains, variables, default flag
 <?php
 declare(strict_types=1);
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\Admin;
+namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\Website;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Admin\Admin_Notices;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Admin_Notices;
 
 #[CoversClass( Admin_Notices::class )]
 class AdminNoticesTest extends TestCase {
@@ -3112,7 +3113,7 @@ Expected: FAIL with "Class ... Admin_Notices not found".
  * @since 1.0.0
  */
 
-namespace The_Another\Plugin\Multi_Domain_Global_Styles\Admin;
+namespace The_Another\Plugin\Multi_Domain_Global_Styles\Website;
 
 /**
  * Class Admin_Notices
@@ -3159,7 +3160,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/Admin/Admin_Notices.php tests/Admin/AdminNoticesTest.php
+git add includes/Website/Admin_Notices.php tests/Website/AdminNoticesTest.php
 git commit -m "feat: add Admin_Notices for domain conflict rejection"
 ```
 
@@ -3187,15 +3188,15 @@ git commit -m "feat: add Admin_Notices for domain conflict rejection"
 
 namespace The_Another\Plugin\Multi_Domain_Global_Styles;
 
-use The_Another\Plugin\Multi_Domain_Global_Styles\Admin\Admin_Notices;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Post_Types\Website_Post_Type;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Services\Domain_Registry;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Services\Domain_Resolver;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Services\Global_Styles_Override;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Services\Global_Styles_Post_Service;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Services\Variable_Parser;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Services\Variable_Substitution_Service;
-use The_Another\Plugin\Multi_Domain_Global_Styles\Services\Website_Repository;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Admin_Notices;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Website_Post_Type;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Domain_Registry;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Domain_Resolver;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Global_Styles\Global_Styles_Override;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Global_Styles\Global_Styles_Post_Service;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Content_Variables\Variable_Parser;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Content_Variables\Variable_Substitution_Service;
+use The_Another\Plugin\Multi_Domain_Global_Styles\Website\Website_Repository;
 
 /**
  * Class Plugin
@@ -3356,3 +3357,4 @@ This plugin's core value — domain resolution, style overrides, variable substi
 - **Spec coverage:** Domain management (Tasks 2–3, 10), Website entity bundling domains+styles+variables (Task 10), global styles override without touching theme files (Task 8), variable substitution across content/blocks/widgets/menus via whole-page buffer (Task 9), default-website fallback (Tasks 4–5, 10), duplicate-domain rejection (Tasks 3, 10–11), container-based DI house style (Task 1), esc_html-escaped plain-text variables (Task 9). The one spec item NOT covered here — full native-Site-Editor-parity style editing — is explicitly deferred to the follow-up plan per "Relationship to Plan 2" above; Task 10 ships the interim raw-JSON editor instead.
 - **Placeholder scan:** No TBD/TODO markers; every step has complete, runnable code.
 - **Type consistency:** `Domain_Resolver::resolve_host(string): ?int` / `resolve_current_request(): ?int` used identically in Tasks 5, 8, 9. `Website_Repository::get_global_styles_post_id(int): ?int`, `get_variables(int): array`, `get_default_website_id(): ?int` used identically wherever referenced. `Global_Styles_Post_Service::ensure_global_styles_post(int): int` / `get_global_styles_data(int): array` used identically in Tasks 8, 10, 12. Postmeta keys (`_mdgs_domains`, `_mdgs_variables`, `_mdgs_is_default`, `_mdgs_global_styles_post_id`) and the transient key `mdgs_domain_map` are spelled identically everywhere they appear.
+- **Domain-driven reorg consistency:** every `namespace`/`use` statement and file path in Tasks 1–12 was cross-checked against the "File Structure" bounded contexts (`Website`, `Global_Styles`, `Content_Variables`) — no file references its old `Services`/`Post_Types`/`Admin` technical-layer location, and the one same-namespace `use` statement made redundant by the move (`Domain_Registry` inside `Website_Post_Type`, both now in `Website`) was removed.
