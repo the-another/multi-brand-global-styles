@@ -17,6 +17,9 @@
 	<config name="testVersion" value="8.3-"/>
 	<config name="minimum_supported_wp_version" value="6.9"/>
 
+	<!-- Errors fail the build; warnings stay visible but do not (make lint gate). -->
+	<config name="ignore_warnings_on_exit" value="1"/>
+
 	<rule ref="WordPress">
 		<exclude name="WordPress.Files.FileName"/>
 		<exclude name="WordPress.NamingConventions.PrefixAllGlobals"/>

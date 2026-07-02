@@ -1,0 +1,26 @@
+{
+	"name": "the-another-multi-domain-global-styles",
+	"version": "0.1.0",
+	"description": "Define Brands - URL match rules (whole domains or path sections) with per-Brand global style overrides and content variables - on a single WordPress install.",
+	"author": "The Another",
+	"license": "GPL-2.0-or-later",
+	"homepage": "https://theanother.org/plugin/multi-domain-global-styles/",
+	"files": [
+		"the-another-multi-domain-global-styles.php",
+		"composer.json",
+		"readme.txt",
+		"includes/**",
+		"vendor/autoload.php",
+		"vendor/composer"
+	],
+	"scripts": {
+		"plugin-zip": "composer build && wp-scripts plugin-zip > /dev/null 2>&1 && node scripts/version-zip.js",
+		"version": "node scripts/version-bump.js",
+		"version:patch": "node scripts/version-bump.js patch",
+		"version:minor": "node scripts/version-bump.js minor",
+		"version:major": "node scripts/version-bump.js major"
+	},
+	"devDependencies": {
+		"@wordpress/scripts": "^31.2.0"
+	}
+}
