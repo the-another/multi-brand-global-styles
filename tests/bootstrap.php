@@ -38,3 +38,7 @@ if ( ! function_exists( 'is_wp_error' ) ) {
 		return ( $thing instanceof WP_Error );
 	}
 }
+
+// Do NOT define esc_html() (or other Brain Monkey-stubable WP functions) here:
+// a real definition blocks Brain Monkey/Patchwork from redefining them per-test.
+// Tests that need them stub via Functions\when() in their own setUp().

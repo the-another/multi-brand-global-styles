@@ -21,6 +21,8 @@ class GlobalStylesPostServiceTest extends TestCase {
 		parent::setUp();
 		Monkey\setUp();
 
+		Functions\when( 'esc_html' )->returnArg();
+
 		$this->service = new GlobalStylesPostService();
 	}
 
