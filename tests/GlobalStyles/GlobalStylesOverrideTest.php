@@ -54,8 +54,23 @@ class GlobalStylesOverrideTest extends TestCase {
 		$this->assertSame( $theme_json, $override->filter_theme_json( $theme_json ) );
 	}
 
+	public function test_returns_input_unchanged_when_doing_ajax(): void {
+		Functions\expect( 'is_admin' )->once()->andReturn( false );
+		Functions\expect( 'wp_doing_ajax' )->once()->andReturn( true );
+
+		$resolver   = Mockery::mock( BrandResolver::class );
+		$repository = Mockery::mock( BrandRepository::class );
+		$posts      = Mockery::mock( GlobalStylesPostService::class );
+
+		$override   = new GlobalStylesOverride( $resolver, $repository, $posts );
+		$theme_json = new FakeThemeJsonData();
+
+		$this->assertSame( $theme_json, $override->filter_theme_json( $theme_json ) );
+	}
+
 	public function test_returns_input_unchanged_when_no_brand_resolved(): void {
 		Functions\expect( 'is_admin' )->once()->andReturn( false );
+		Functions\expect( 'wp_doing_ajax' )->once()->andReturn( false );
 
 		$resolver = Mockery::mock( BrandResolver::class );
 		$resolver->shouldReceive( 'resolve_current_request' )->once()->andReturn( null );
@@ -71,6 +86,7 @@ class GlobalStylesOverrideTest extends TestCase {
 
 	public function test_returns_input_unchanged_when_brand_has_no_styles_post(): void {
 		Functions\expect( 'is_admin' )->once()->andReturn( false );
+		Functions\expect( 'wp_doing_ajax' )->once()->andReturn( false );
 
 		$resolver = Mockery::mock( BrandResolver::class );
 		$resolver->shouldReceive( 'resolve_current_request' )->once()->andReturn( 5 );
@@ -88,6 +104,7 @@ class GlobalStylesOverrideTest extends TestCase {
 
 	public function test_returns_input_unchanged_when_brand_styles_are_empty(): void {
 		Functions\expect( 'is_admin' )->once()->andReturn( false );
+		Functions\expect( 'wp_doing_ajax' )->once()->andReturn( false );
 
 		$resolver = Mockery::mock( BrandResolver::class );
 		$resolver->shouldReceive( 'resolve_current_request' )->once()->andReturn( 5 );
@@ -111,6 +128,7 @@ class GlobalStylesOverrideTest extends TestCase {
 
 	public function test_merges_brand_styles_over_input_when_present(): void {
 		Functions\expect( 'is_admin' )->once()->andReturn( false );
+		Functions\expect( 'wp_doing_ajax' )->once()->andReturn( false );
 
 		$resolver = Mockery::mock( BrandResolver::class );
 		$resolver->shouldReceive( 'resolve_current_request' )->once()->andReturn( 5 );
