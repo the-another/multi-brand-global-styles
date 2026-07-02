@@ -1,0 +1,41 @@
+# Source control / project metadata
+/.git/
+/.github/
+/.idea/
+/.vscode/
+/.superpowers/
+.DS_Store
+
+# Development dependencies and caches
+/node_modules/
+/.phpunit.cache/
+/coverage/
+
+# Tests, docs, tooling
+/tests/
+/docs/
+/scripts/
+/Makefile
+/Dockerfile
+
+# Build output (zips must never nest a previous zip)
+/build/
+/dist/
+*.zip
+
+# Dev configuration — composer.json ships (family convention), the rest doesn't
+/composer.lock
+/package.json
+/package-lock.json
+/phpunit.xml.dist
+/.phpcs.xml.dist
+/.gitignore
+/.distignore
+
+# Composer creates vendor/bin even when no dev binaries are installed
+/vendor/bin/
+
+# NOTE: /vendor/ is intentionally NOT ignored. The release pipeline runs
+# `composer build` (install --no-dev + optimized dump-autoload) immediately
+# before archiving, which reduces vendor/ to just the composer autoloader —
+# required at runtime, since the plugin loads via vendor/autoload.php.

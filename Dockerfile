@@ -40,6 +40,14 @@ RUN ln -sf /usr/bin/php83 /usr/local/bin/php && \
 	php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer && \
 	rm /tmp/composer-setup.php
 
+# wp-cli + dist-archive-command: the release zip is built from .distignore
+# via `wp dist-archive`. The command is pinned to the newest release whose
+# wp-cli constraint (^2) matches the stable phar (2.12) — newer versions
+# require a wp-cli the phar channel doesn't ship yet.
+RUN curl -sSL https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar -o /usr/local/bin/wp && \
+	chmod +x /usr/local/bin/wp && \
+	wp package install https://github.com/wp-cli/dist-archive-command/archive/refs/tags/v3.1.0.zip --allow-root
+
 # The project directory is always bind-mounted to /app at run time, so the
 # image deliberately contains no project files (a COPY here would only bloat
 # the image and bust the cache on every source change).
