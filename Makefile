@@ -1,4 +1,4 @@
-.PHONY: docker-build install install-dev require update dump-autoload lint format test release version-patch version-minor version-major all clean
+.PHONY: docker-build install install-dev require update dump-autoload lint format test release check-plugin version-patch version-minor version-major all clean
 
 # Docker image name
 DOCKER_IMAGE = the-another-multi-domain-global-styles-runner:latest
@@ -48,6 +48,21 @@ test: docker-build
 # lint/test cycle.
 release: install-dev lint test
 	$(DOCKER_RUN) sh -c "npm install --no-audit --no-fund && npm run plugin-zip"
+
+# Build the plugin zip (labeled -test, never the real version — see
+# scripts/version-zip.js's --label flag) and run WordPress.org's official
+# Plugin Check against it in a fresh WordPress instance installed FROM that
+# zip. Deliberately not the dev-mounted source the regular e2e suite uses:
+# the whole point is to catch packaging bugs (missing files, wrong
+# autoloader) that a source mount would never surface. Zip build runs in
+# Docker; the check itself runs on the host via Playwright +
+# @wp-playground/cli, since that needs a real browser (not available in the
+# Docker runner image).
+check-plugin: docker-build
+	rm -f build/the-another-multi-domain-global-styles-test.zip
+	$(DOCKER_RUN) sh -c "npm install --no-audit --no-fund && npm run plugin-zip:check"
+	npx playwright install chromium
+	npm run check:plugin
 
 # Bump version (package.json, composer.json, plugin header, VERSION constant,
 # readme.txt stable tag + changelog stub, lock files) — runs in Docker, no

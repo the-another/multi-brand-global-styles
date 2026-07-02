@@ -1,0 +1,20 @@
+{
+	"steps": [
+		{
+			"step": "installPlugin",
+			"pluginData": {
+				"resource": "wordpress.org/plugins",
+				"slug": "plugin-check"
+			},
+			"options": { "activate": true }
+		},
+		{
+			"step": "installPlugin",
+			"pluginData": {
+				"resource": "vfs",
+				"path": "/tests-artifacts/the-another-multi-domain-global-styles-test.zip"
+			},
+			"options": { "activate": true }
+		}
+	]
+}
