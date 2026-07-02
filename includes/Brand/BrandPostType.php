@@ -255,6 +255,7 @@ class BrandPostType {
 					'posts_per_page' => -1,
 					'fields'         => 'ids',
 					'post__not_in'   => array( $post_id ),
+					'post_status'    => 'any',
 					'meta_key'       => '_mdgs_is_default',
 					'meta_value'     => '1',
 				)
@@ -285,16 +286,18 @@ class BrandPostType {
 		$global_styles_post_id = $this->global_styles_post_service->ensure_global_styles_post( $post_id );
 
 		wp_update_post(
-			array(
-				'ID'           => $global_styles_post_id,
-				'post_content' => wp_json_encode(
-					array(
-						'version'                     => 3,
-						'isGlobalStylesUserThemeJSON' => true,
-						'settings'                    => $decoded['settings'] ?? new \stdClass(),
-						'styles'                      => $decoded['styles'] ?? new \stdClass(),
-					)
-				),
+			wp_slash(
+				array(
+					'ID'           => $global_styles_post_id,
+					'post_content' => wp_json_encode(
+						array(
+							'version'                     => 3,
+							'isGlobalStylesUserThemeJSON' => true,
+							'settings'                    => $decoded['settings'] ?? new \stdClass(),
+							'styles'                      => $decoded['styles'] ?? new \stdClass(),
+						)
+					),
+				)
 			)
 		);
 	}

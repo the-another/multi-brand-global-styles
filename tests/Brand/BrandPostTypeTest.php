@@ -164,6 +164,7 @@ class BrandPostTypeTest extends TestCase {
 					'posts_per_page' => -1,
 					'fields'         => 'ids',
 					'post__not_in'   => array( 5 ),
+					'post_status'    => 'any',
 					'meta_key'       => '_mdgs_is_default',
 					'meta_value'     => '1',
 				)
@@ -174,6 +175,78 @@ class BrandPostTypeTest extends TestCase {
 		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_rules', array() )->once();
 		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_variables', array() )->once();
 		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_is_default', '1' )->once();
+
+		$post_type = $this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service );
+
+		$post_type->save( 5 );
+	}
+
+	public function test_save_persists_valid_styles_json(): void {
+		$_POST['mdgs_rules']       = '';
+		$_POST['mdgs_variables']   = '';
+		$_POST['mdgs_styles_json'] = '{"settings":{"color":{"palette":[]}},"styles":{}}';
+
+		$url_rule_registry = Mockery::mock( UrlRuleRegistry::class );
+		$url_rule_registry->shouldReceive( 'parse_rules_input' )->andReturn( array() );
+		$url_rule_registry->shouldReceive( 'invalidate_cache' )->once();
+
+		$variable_parser = Mockery::mock( VariableParser::class );
+		$variable_parser->shouldReceive( 'parse' )->andReturn( array() );
+
+		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
+		$global_styles_post_service->shouldReceive( 'ensure_global_styles_post' )
+			->twice()
+			->with( 5 )
+			->andReturn( 42 );
+
+		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_rules', array() )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_variables', array() )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_is_default', '' )->once();
+
+		Functions\expect( 'wp_slash' )->once()->andReturnUsing( fn( $v ) => $v );
+		Functions\expect( 'wp_json_encode' )->andReturnUsing( 'json_encode' );
+
+		Functions\expect( 'wp_update_post' )
+			->once()
+			->with(
+				Mockery::on(
+					function ( $args ) {
+						return 42 === $args['ID']
+							&& is_string( $args['post_content'] )
+							&& str_contains( $args['post_content'], '"isGlobalStylesUserThemeJSON":true' )
+							&& str_contains( $args['post_content'], '"settings":{"color":{"palette":[]}}' );
+					}
+				)
+			);
+
+		$post_type = $this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service );
+
+		$post_type->save( 5 );
+	}
+
+	public function test_save_skips_styles_write_when_json_invalid(): void {
+		$_POST['mdgs_rules']       = '';
+		$_POST['mdgs_variables']   = '';
+		$_POST['mdgs_styles_json'] = '{not valid json';
+
+		$url_rule_registry = Mockery::mock( UrlRuleRegistry::class );
+		$url_rule_registry->shouldReceive( 'parse_rules_input' )->andReturn( array() );
+		$url_rule_registry->shouldReceive( 'invalidate_cache' )->once();
+
+		$variable_parser = Mockery::mock( VariableParser::class );
+		$variable_parser->shouldReceive( 'parse' )->andReturn( array() );
+
+		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
+		$global_styles_post_service->shouldReceive( 'ensure_global_styles_post' )
+			->once()
+			->with( 5 )
+			->andReturn( 42 );
+
+		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_rules', array() )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_variables', array() )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_is_default', '' )->once();
+
+		Functions\expect( 'wp_update_post' )->never();
 
 		$post_type = $this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service );
 
