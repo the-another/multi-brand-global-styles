@@ -1784,6 +1784,7 @@ namespace The_Another\Plugin\Multi_Domain_Global_Styles\Tests\GlobalStyles;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
+use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
@@ -1834,7 +1835,9 @@ class GlobalStylesPostServiceTest extends TestCase {
 				true
 			)
 			->andReturn( 99 );
-		Functions\expect( 'is_wp_error' )->once()->with( 99 )->andReturn( false );
+		// No is_wp_error mock: tests/bootstrap.php already defines the real stub
+		// (Brain Monkey cannot redefine an already-defined function), and 99 is
+		// an int, so it naturally returns false.
 		Functions\expect( 'update_post_meta' )->once()->with( 5, '_mdgs_global_styles_post_id', 99 );
 
 		$this->assertSame( 99, $this->service->ensure_global_styles_post( 5 ) );
@@ -1845,7 +1848,6 @@ class GlobalStylesPostServiceTest extends TestCase {
 		Functions\expect( 'get_post_status' )->once()->with( '42' )->andReturn( false );
 		Functions\expect( 'wp_json_encode' )->andReturnUsing( 'json_encode' );
 		Functions\expect( 'wp_insert_post' )->once()->andReturn( 100 );
-		Functions\expect( 'is_wp_error' )->once()->with( 100 )->andReturn( false );
 		Functions\expect( 'update_post_meta' )->once()->with( 5, '_mdgs_global_styles_post_id', 100 );
 
 		$this->assertSame( 100, $this->service->ensure_global_styles_post( 5 ) );
@@ -2542,6 +2544,7 @@ class WebsitePostTypeTest extends TestCase {
 		parent::setUp();
 		Monkey\setUp();
 
+		Functions\when( 'sanitize_text_field' )->returnArg();
 		Functions\when( 'sanitize_textarea_field' )->returnArg();
 		Functions\when( 'wp_unslash' )->returnArg();
 		Functions\when( 'wp_verify_nonce' )->justReturn( true );
@@ -3253,6 +3256,23 @@ class Plugin {
 		$hooks->register_action( 'add_meta_boxes', array( $website_post_type, 'register_meta_boxes' ) );
 		$hooks->register_action( 'save_post_' . WebsitePostType::POST_TYPE, array( $website_post_type, 'save' ) );
 
+		// The domain-map transient never expires, and the nonce-gated save()
+		// handler above doesn't run on trash/untrash/delete — invalidate
+		// unconditionally on any Website status change so the map can't go
+		// stale when a Website is trashed or permanently deleted.
+		$domain_registry = $this->container->get( 'domain_registry' );
+		$hooks->register_action( 'save_post_' . WebsitePostType::POST_TYPE, array( $domain_registry, 'invalidate_cache' ) );
+		$hooks->register_action(
+			'deleted_post',
+			function ( $post_id, $post ) use ( $domain_registry ) {
+				if ( $post && WebsitePostType::POST_TYPE === $post->post_type ) {
+					$domain_registry->invalidate_cache();
+				}
+			},
+			10,
+			2
+		);
+
 		$global_styles_override = $this->container->get( 'global_styles_override' );
 		$hooks->register_filter( 'wp_theme_json_data_user', array( $global_styles_override, 'filter_theme_json' ) );
 
@@ -3358,3 +3378,4 @@ This plugin's core value — domain resolution, style overrides, variable substi
 - **Placeholder scan:** No TBD/TODO markers; every step has complete, runnable code.
 - **Type consistency:** `DomainResolver::resolve_host(string): ?int` / `resolve_current_request(): ?int` used identically in Tasks 5, 8, 9. `WebsiteRepository::get_global_styles_post_id(int): ?int`, `get_variables(int): array`, `get_default_website_id(): ?int` used identically wherever referenced. `GlobalStylesPostService::ensure_global_styles_post(int): int` / `get_global_styles_data(int): array` used identically in Tasks 8, 10, 12. Postmeta keys (`_mdgs_domains`, `_mdgs_variables`, `_mdgs_is_default`, `_mdgs_global_styles_post_id`) and the transient key `mdgs_domain_map` are spelled identically everywhere they appear.
 - **Domain-driven reorg consistency:** every `namespace`/`use` statement and file path in Tasks 1–12 was cross-checked against the "File Structure" bounded contexts (`Website`, `GlobalStyles`, `ContentVariables`) — no file references its old `Services`/`Post_Types`/`Admin` technical-layer location, and the one same-namespace `use` statement made redundant by the move (`DomainRegistry` inside `WebsitePostType`, both now in `Website`) was removed.
+- **Post-rename verification pass (test-executability audit):** three latent defects found and fixed — (1) `GlobalStylesPostServiceTest` used `Mockery::on()` without importing `use Mockery;`; (2) `WebsitePostTypeTest` didn't stub `sanitize_text_field`, which `save()` calls on the nonce before anything else (Brain Monkey auto-defines escaping/translation functions but not `sanitize_*`); (3) the same test file mocked `is_wp_error` via `Functions\expect`, but `tests/bootstrap.php` already defines that function globally and Brain Monkey cannot redefine an existing function — the mocks were dropped in favor of the real stub. Also fixed a cache-lifecycle gap: the domain-map transient never expires and was only invalidated inside the nonce-gated `save()` handler, so Task 12 now registers an unconditional `invalidate_cache` on `save_post_mdgs_website` (fires on trash/untrash too, since those go through `wp_insert_post`) plus a `deleted_post` guard for permanent deletion.

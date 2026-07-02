@@ -64,7 +64,7 @@ Follows the house style seen in `aucteeno-nexus` / `globalag-router`:
 - PHP 8.3+, WordPress 6.9+
 - Namespace: `The_Another\Plugin\Multi_Domain_Global_Styles`
 - Composer-managed, PSR-4 autoload (`includes/`)
-- Container-based DI (`Container` singleton + `Hook_Manager`) rather than scattered `add_action` calls
+- Container-based DI (`Container` singleton + `HookManager`) rather than scattered `add_action` calls; plugin-internal class/file names use StudlyCaps without underscores (the shared root namespace keeps the sibling plugins' underscored convention)
 - Standalone plugin — no dependency on the other Aucteeno plugins
 
 ## Error handling & edge cases
