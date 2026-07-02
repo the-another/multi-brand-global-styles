@@ -74,6 +74,16 @@ class GlobalStylesPostServiceTest extends TestCase {
 		$this->assertSame( 100, $this->service->ensure_global_styles_post( 5 ) );
 	}
 
+	public function test_ensure_global_styles_post_recreates_when_existing_post_trashed(): void {
+		Functions\expect( 'get_post_meta' )->once()->andReturn( '42' );
+		Functions\expect( 'get_post_status' )->once()->with( '42' )->andReturn( 'trash' );
+		Functions\expect( 'wp_json_encode' )->andReturnUsing( 'json_encode' );
+		Functions\expect( 'wp_insert_post' )->once()->andReturn( 101 );
+		Functions\expect( 'update_post_meta' )->once()->with( 5, '_mdgs_global_styles_post_id', 101 );
+
+		$this->assertSame( 101, $this->service->ensure_global_styles_post( 5 ) );
+	}
+
 	public function test_get_global_styles_data_decodes_post_content(): void {
 		$post               = new \stdClass();
 		$post->post_content = '{"version":3,"settings":{"color":{"palette":[]}},"styles":{}}';

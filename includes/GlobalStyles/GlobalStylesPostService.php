@@ -30,7 +30,7 @@ class GlobalStylesPostService {
 	private const META_KEY = '_mdgs_global_styles_post_id';
 
 	/**
-	 * Ensure a Brand has a wp_global_styles post, creating one if missing.
+	 * Ensure a Brand has a wp_global_styles post, creating one if missing, trashed, or otherwise not published.
 	 *
 	 * @param int $brand_id Brand post ID.
 	 * @return int The wp_global_styles post ID.
@@ -40,7 +40,7 @@ class GlobalStylesPostService {
 	public function ensure_global_styles_post( int $brand_id ): int {
 		$existing_id = get_post_meta( $brand_id, self::META_KEY, true );
 
-		if ( $existing_id && get_post_status( $existing_id ) ) {
+		if ( $existing_id && 'publish' === get_post_status( $existing_id ) ) {
 			return (int) $existing_id;
 		}
 
