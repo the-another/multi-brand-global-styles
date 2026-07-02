@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a standalone WordPress plugin that lets admins register domains, group them into per-domain "Website" style/variable profiles, override global styles per domain without touching the theme, and substitute `%%website.*%%` content variables — with an interim raw-JSON style editor. (Full native-Site-Editor-parity style editing is a separate follow-up plan; see "Relationship to Plan 2" below.)
+**Goal:** Build a standalone WordPress plugin that lets admins define "Brands" — URL match rules + global-style overrides + content variables. A Brand can be scoped to whole domains (`auctionbill.com`, `beta.auctionbill.com`) or to path sections of one or more sites (`site.com/farm/*`, `site2.com/farm/*`); wherever it matches, its style overrides apply without touching the theme and its `%%brand.*%%` content variables get substituted — with an interim raw-JSON style editor. (Full native-Site-Editor-parity style editing is a separate follow-up plan; see "Relationship to Plan 2" below.)
 
-**Architecture:** Container-based DI (mirrors `aucteeno-nexus`/`globalag-router` house style) with code organized by domain/bounded-context (`Website`, `GlobalStyles`, `ContentVariables`) rather than technical layer — see "File Structure" below. The `mdgs_website` custom post type is the aggregate root: the entity for domains, variables, and a pointer to a dedicated `wp_global_styles` post per Website. Domain routing resolves `HTTP_HOST` → Website via a cached map. Frontend rendering hooks `wp_theme_json_data_user` (style override) and a `template_redirect`-started output buffer (text variable substitution). Throughout, the implementation stays WordPress-idiomatic: the CPT is the aggregate, hooks (not a custom event bus) are the extensibility mechanism, `get_post_meta`/`wp_insert_post`/core filters are used directly rather than wrapped in additional abstraction layers.
+**Architecture:** Container-based DI (mirrors `aucteeno-nexus`/`globalag-router` house style) with code organized by domain/bounded-context (`Brand`, `GlobalStyles`, `ContentVariables`) rather than technical layer — see "File Structure" below. The `mdgs_brand` custom post type is the aggregate root: the entity for URL rules, variables, and a pointer to a dedicated `wp_global_styles` post per Brand. Request routing resolves `HTTP_HOST` + `REQUEST_URI` → Brand via a cached rule map, most-specific rule winning (host+path beats host-only, longer path prefix beats shorter, prefixes match on path segment boundaries). Frontend rendering hooks `wp_theme_json_data_user` (style override) and a `template_redirect`-started output buffer (text variable substitution). Throughout, the implementation stays WordPress-idiomatic: the CPT is the aggregate, hooks (not a custom event bus) are the extensibility mechanism, `get_post_meta`/`wp_insert_post`/core filters are used directly rather than wrapped in additional abstraction layers.
 
 **Tech Stack:** PHP 8.3+, WordPress 6.9+, Composer (PSR-4 autoload for both `includes/` and `tests/`), PHPUnit 11 + Brain Monkey + Mockery (unit tests only, no WP test suite / DB).
 
@@ -15,7 +15,7 @@
 - Namespace root: `TheAnother\Plugin\MultiDomainGlobalStyles` (spec: "Code conventions")
 - Standalone plugin — no dependency on other Aucteeno plugins (spec: "Code conventions")
 - Container-based DI (`Container` singleton + `HookManager`), not scattered `add_action` calls (spec: "Code conventions")
-- Duplicate domain registration across Websites must be rejected at save time with an admin-visible error (spec: "Error handling & edge cases")
+- Registering a URL rule already owned by another Brand must be rejected at save time with an admin-visible error; overlapping-but-different rules (e.g. `site.com` vs `site.com/farm`) are allowed by design (spec: "Error handling & edge cases")
 - Undefined `%%token%%` values are left literal, never silently blanked (spec: "Variable substitution")
 - Variable values are escaped via `esc_html()` before substitution — plain text only, no HTML injection (spec: "Variable substitution" / "Assumptions")
 - Output buffer runs on frontend HTML responses only — skipped for REST/admin-ajax/feeds (spec: "Variable substitution" / "Assumptions")
@@ -23,7 +23,7 @@
 
 ## Relationship to Plan 2
 
-This plan ships a complete, independently useful plugin: domain management, per-domain style overrides, and variable substitution all work end-to-end. The one deliberate gap is the style-editing UX — Task 10 below adds a **raw JSON textarea** against the same `wp_global_styles` post structure that the real Site Editor uses, as an interim editing surface. A second plan will replace that textarea with a redirect into WordPress's actual native Styles UI (full per-block-type parity, per the approved spec). Because both plans write to the exact same `wp_global_styles` post format, Plan 2 is a pure UX swap — no data migration, no changes to the override/substitution mechanisms built here.
+This plan ships a complete, independently useful plugin: URL rule management, per-Brand style overrides, and variable substitution all work end-to-end. The one deliberate gap is the style-editing UX — Task 10 below adds a **raw JSON textarea** against the same `wp_global_styles` post structure that the real Site Editor uses, as an interim editing surface. A second plan will replace that textarea with a redirect into WordPress's actual native Styles UI (full per-block-type parity, per the approved spec). Because both plans write to the exact same `wp_global_styles` post format, Plan 2 is a pure UX swap — no data migration, no changes to the override/substitution mechanisms built here.
 
 ---
 
@@ -39,26 +39,26 @@ the-another-multi-domain-global-styles/
 │   ├── Container.php                    # DI container (copied pattern from aucteeno-nexus) — infrastructure, not a domain
 │   ├── HookManager.php                  # Hook registration/tracking (copied pattern) — infrastructure
 │   ├── Plugin.php                       # Orchestrator: registers services + hooks — infrastructure
-│   ├── Website/                         # Bounded context: the Website entity + domain routing
-│   │   ├── WebsitePostType.php          # `mdgs_website` CPT (aggregate root), meta boxes, save glue
-│   │   ├── DomainRegistry.php           # normalize/parse/dedupe domains, conflict detection, cached map
-│   │   ├── WebsiteRepository.php        # read helpers: domains, variables, default, global-styles-post-id
-│   │   ├── DomainResolver.php           # HTTP_HOST → Website ID
-│   │   └── AdminNotices.php             # duplicate-domain rejection notice
-│   ├── GlobalStyles/                    # Bounded context: per-Website style override mechanism
-│   │   ├── GlobalStylesPostService.php  # create/read the per-Website wp_global_styles post
+│   ├── Brand/                           # Bounded context: the Brand entity + URL rule matching
+│   │   ├── BrandPostType.php            # `mdgs_brand` CPT (aggregate root), meta boxes, save glue
+│   │   ├── UrlRuleRegistry.php          # normalize/parse/dedupe URL rules, conflict detection, cached rule map
+│   │   ├── BrandRepository.php          # read helpers: rules, variables, default, global-styles-post-id
+│   │   ├── BrandResolver.php            # HTTP_HOST + REQUEST_URI → Brand ID (most specific rule wins)
+│   │   └── AdminNotices.php             # duplicate-rule rejection notice
+│   ├── GlobalStyles/                    # Bounded context: per-Brand style override mechanism
+│   │   ├── GlobalStylesPostService.php  # create/read the per-Brand wp_global_styles post
 │   │   └── GlobalStylesOverride.php     # wp_theme_json_data_user filter (frontend)
-│   └── ContentVariables/                # Bounded context: %%website.*%% token substitution
+│   └── ContentVariables/                # Bounded context: %%brand.*%% token substitution
 │       ├── VariableParser.php               # "key = value" textarea → assoc array
-│       └── VariableSubstitutionService.php  # output buffer + %%website.*%% substitution
+│       └── VariableSubstitutionService.php  # output buffer + %%brand.*%% substitution
 └── tests/
     ├── bootstrap.php
     ├── ContainerTest.php
-    ├── Website/
-    │   ├── WebsitePostTypeTest.php
-    │   ├── DomainRegistryTest.php
-    │   ├── WebsiteRepositoryTest.php
-    │   ├── DomainResolverTest.php
+    ├── Brand/
+    │   ├── BrandPostTypeTest.php
+    │   ├── UrlRuleRegistryTest.php
+    │   ├── BrandRepositoryTest.php
+    │   ├── BrandResolverTest.php
     │   └── AdminNoticesTest.php
     ├── GlobalStyles/
     │   ├── GlobalStylesPostServiceTest.php
@@ -68,7 +68,7 @@ the-another-multi-domain-global-styles/
         └── VariableSubstitutionServiceTest.php
 ```
 
-Each bounded context maps 1:1 onto a domain concept from the spec, not a technical role — `Website` is the aggregate root (the `mdgs_website` CPT) plus everything needed to identify and validate one; `GlobalStyles` and `ContentVariables` are the two independent capabilities a Website exposes. `Container`/`HookManager`/`Plugin` stay at the root as shared infrastructure, consistent with how WordPress plugins conventionally keep bootstrapping concerns separate from domain logic. Nothing about the WordPress-facing API changes — CPT registration, hooks, meta keys, and `get_post_meta`/`wp_insert_post` usage are unchanged from the original design; this is a pure reorganization of where the same code lives.
+Each bounded context maps 1:1 onto a domain concept from the spec, not a technical role — `Brand` is the aggregate root (the `mdgs_brand` CPT) plus everything needed to identify and validate one; `GlobalStyles` and `ContentVariables` are the two independent capabilities a Brand exposes. `Container`/`HookManager`/`Plugin` stay at the root as shared infrastructure, consistent with how WordPress plugins conventionally keep bootstrapping concerns separate from domain logic. Nothing about the WordPress-facing API changes — CPT registration, hooks, meta keys, and `get_post_meta`/`wp_insert_post` usage are unchanged from the original design; this is a pure reorganization of where the same code lives.
 
 ---
 
@@ -95,7 +95,7 @@ Each bounded context maps 1:1 onto a domain concept from the spec, not a technic
 ```json
 {
   "name": "theanother/the-another-multi-domain-global-styles",
-  "description": "Manage additional domains, per-domain global style overrides, and content variables from a single WordPress install.",
+  "description": "Define Brands - URL match rules (whole domains or path sections) with per-Brand global style overrides and content variables - on a single WordPress install.",
   "type": "wordpress-plugin",
   "license": "GPL-2.0-or-later",
   "version": "0.1.0",
@@ -580,7 +580,7 @@ class Plugin {
 /**
  * Plugin Name: The Another Multi-Domain Global Styles
  * Plugin URI: https://theanother.org/plugin/multi-domain-global-styles/
- * Description: Manage additional domains, per-domain global style overrides, and content variables from a single WordPress install.
+ * Description: Define Brands — URL match rules (whole domains or path sections) with per-Brand global style overrides and content variables — on a single WordPress install.
  * Version: 0.1.0
  * Author: The Another
  * Author URI: https://theanother.org
@@ -813,15 +813,17 @@ git commit -m "feat: scaffold plugin with DI container and hook manager"
 
 ---
 
-### Task 2: DomainRegistry — normalization and input parsing
+### Task 2: UrlRuleRegistry — rule normalization and input parsing
 
 **Files:**
-- Create: `includes/Website/DomainRegistry.php`
-- Test: `tests/Website/DomainRegistryTest.php`
+- Create: `includes/Brand/UrlRuleRegistry.php`
+- Test: `tests/Brand/UrlRuleRegistryTest.php`
 
 **Interfaces:**
-- Consumes: nothing (pure logic + WP core functions `wp_parse_url`)
-- Produces: `TheAnother\Plugin\MultiDomainGlobalStyles\Website\DomainRegistry::normalize(string $raw): string`, `->parse_domains_input(string $raw): array` (returns `array<int, string>` of normalized, deduped, non-empty hostnames)
+- Consumes: nothing (pure logic + WP core function `wp_parse_url`)
+- Produces: `TheAnother\Plugin\MultiDomainGlobalStyles\Brand\UrlRuleRegistry::normalize_host(string $raw): string`, `->normalize_path(string $raw): string`, `->normalize_rule(string $raw): string` (returns `host` or `host/path/prefix`, empty string if unusable), `->split_rule(string $rule): array{0: string, 1: string}` (host, path prefix — `''` for host-wide), `->parse_rules_input(string $raw): array<int, string>` (normalized, deduped, non-empty rules)
+
+A **URL rule** is the plugin's core matching primitive: either a bare hostname (`auctionbill.com` — the whole domain) or hostname + path prefix (`site.com/farm` — one section). Admin input tolerates schemes, `www.`, ports, trailing slashes, and a trailing `/*` wildcard; all are normalized away so `https://www.Site.com/Farm/*` and `site.com/farm` are the same rule.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -829,7 +831,7 @@ git commit -m "feat: scaffold plugin with DI container and hook manager"
 <?php
 declare(strict_types=1);
 
-namespace TheAnother\Plugin\MultiDomainGlobalStyles\Tests\Website;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles\Tests\Brand;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
@@ -837,19 +839,21 @@ use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use TheAnother\Plugin\MultiDomainGlobalStyles\Website\DomainRegistry;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\UrlRuleRegistry;
 
-#[CoversClass( DomainRegistry::class )]
-class DomainRegistryTest extends TestCase {
+#[CoversClass( UrlRuleRegistry::class )]
+class UrlRuleRegistryTest extends TestCase {
 	use MockeryPHPUnitIntegration;
 
-	private DomainRegistry $registry;
+	private UrlRuleRegistry $registry;
 
 	protected function setUp(): void {
 		parent::setUp();
 		Monkey\setUp();
 
-		$this->registry = new DomainRegistry();
+		Functions\when( 'wp_parse_url' )->alias( 'parse_url' );
+
+		$this->registry = new UrlRuleRegistry();
 	}
 
 	protected function tearDown(): void {
@@ -857,7 +861,7 @@ class DomainRegistryTest extends TestCase {
 		parent::tearDown();
 	}
 
-	public static function normalize_cases(): array {
+	public static function normalize_host_cases(): array {
 		return array(
 			'plain host'            => array( 'example.com', 'example.com' ),
 			'uppercase'              => array( 'EXAMPLE.com', 'example.com' ),
@@ -871,71 +875,114 @@ class DomainRegistryTest extends TestCase {
 		);
 	}
 
-	#[DataProvider( 'normalize_cases' )]
-	public function test_normalize( string $input, string $expected ): void {
-		Functions\when( 'wp_parse_url' )->alias( 'parse_url' );
-
-		$this->assertSame( $expected, $this->registry->normalize( $input ) );
+	#[DataProvider( 'normalize_host_cases' )]
+	public function test_normalize_host( string $input, string $expected ): void {
+		$this->assertSame( $expected, $this->registry->normalize_host( $input ) );
 	}
 
-	public function test_parse_domains_input_splits_dedupes_and_normalizes(): void {
-		Functions\when( 'wp_parse_url' )->alias( 'parse_url' );
-
-		$raw = "example.com\nWWW.Example.com\n\nother.test\nexample.com";
-
-		$this->assertSame(
-			array( 'example.com', 'other.test' ),
-			$this->registry->parse_domains_input( $raw )
+	public static function normalize_path_cases(): array {
+		return array(
+			'empty'                   => array( '', '' ),
+			'root slash only'         => array( '/', '' ),
+			'simple section'          => array( '/farm', '/farm' ),
+			'no leading slash'        => array( 'farm', '/farm' ),
+			'trailing slash'          => array( '/farm/', '/farm' ),
+			'trailing wildcard'       => array( '/farm/*', '/farm' ),
+			'uppercase'               => array( '/Farm/Sub', '/farm/sub' ),
+			'query string stripped'   => array( '/farm?x=1', '/farm' ),
+			'fragment stripped'       => array( '/farm#top', '/farm' ),
+			'nested with wildcard'    => array( '/farm/tractors/*', '/farm/tractors' ),
 		);
 	}
 
-	public function test_parse_domains_input_ignores_blank_lines(): void {
-		Functions\when( 'wp_parse_url' )->alias( 'parse_url' );
+	#[DataProvider( 'normalize_path_cases' )]
+	public function test_normalize_path( string $input, string $expected ): void {
+		$this->assertSame( $expected, $this->registry->normalize_path( $input ) );
+	}
 
-		$this->assertSame( array(), $this->registry->parse_domains_input( "\n \n  \n" ) );
+	public static function normalize_rule_cases(): array {
+		return array(
+			'bare host'                  => array( 'auctionbill.com', 'auctionbill.com' ),
+			'host with www and port'     => array( 'WWW.AuctionBill.com:8080', 'auctionbill.com' ),
+			'host with trailing slash'   => array( 'site.com/', 'site.com' ),
+			'host and section'           => array( 'site.com/farm', 'site.com/farm' ),
+			'section with wildcard'      => array( 'site.com/farm/*', 'site.com/farm' ),
+			'full url with scheme'       => array( 'https://site.com/farm/', 'site.com/farm' ),
+			'mixed case path'            => array( 'site.com/Farm/Sub/', 'site.com/farm/sub' ),
+			'query string stripped'      => array( 'site.com/farm?x=1', 'site.com/farm' ),
+			'path without host is junk'  => array( '/farm', '' ),
+			'empty string'               => array( '', '' ),
+		);
+	}
+
+	#[DataProvider( 'normalize_rule_cases' )]
+	public function test_normalize_rule( string $input, string $expected ): void {
+		$this->assertSame( $expected, $this->registry->normalize_rule( $input ) );
+	}
+
+	public function test_split_rule_host_only(): void {
+		$this->assertSame( array( 'auctionbill.com', '' ), $this->registry->split_rule( 'auctionbill.com' ) );
+	}
+
+	public function test_split_rule_host_and_path(): void {
+		$this->assertSame( array( 'site.com', '/farm' ), $this->registry->split_rule( 'site.com/farm' ) );
+	}
+
+	public function test_parse_rules_input_splits_dedupes_and_normalizes(): void {
+		$raw = "auctionbill.com\nWWW.AuctionBill.com\n\nsite.com/farm/*\nsite.com/farm";
+
+		$this->assertSame(
+			array( 'auctionbill.com', 'site.com/farm' ),
+			$this->registry->parse_rules_input( $raw )
+		);
+	}
+
+	public function test_parse_rules_input_ignores_blank_and_junk_lines(): void {
+		$this->assertSame( array(), $this->registry->parse_rules_input( "\n \n/path-without-host\n" ) );
 	}
 }
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `composer test -- --filter DomainRegistryTest`
-Expected: FAIL with "Class ... DomainRegistry not found" (class doesn't exist yet).
+Run: `composer test -- --filter UrlRuleRegistryTest`
+Expected: FAIL with "Class ... UrlRuleRegistry not found" (class doesn't exist yet).
 
 - [ ] **Step 3: Write implementation**
 
 ```php
 <?php
 /**
- * Domain Registry Service
+ * URL Rule Registry Service
  *
  * @package MultiDomainGlobalStyles
  * @since 1.0.0
  */
 
-namespace TheAnother\Plugin\MultiDomainGlobalStyles\Website;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles\Brand;
 
 /**
- * Class DomainRegistry
+ * Class UrlRuleRegistry
  *
- * Normalizes hostnames and maintains the cached domain -> Website map.
+ * Normalizes URL match rules (host or host/path-prefix) and maintains the
+ * cached rule map used to resolve requests to Brands.
  */
-class DomainRegistry {
+class UrlRuleRegistry {
 
 	/**
-	 * Transient key for the cached domain -> Website ID map.
+	 * Transient key for the cached rule map.
 	 *
 	 * @var string
 	 */
-	private const CACHE_KEY = 'mdgs_domain_map';
+	private const CACHE_KEY = 'mdgs_rule_map';
 
 	/**
 	 * Normalize a hostname: lowercase, strip scheme/path, strip port, strip leading www.
 	 *
-	 * @param string $raw Raw hostname or URL as entered by an admin.
+	 * @param string $raw Raw hostname or URL.
 	 * @return string Normalized hostname, or empty string if nothing usable was found.
 	 */
-	public function normalize( string $raw ): string {
+	public function normalize_host( string $raw ): string {
 		$raw = trim( $raw );
 
 		if ( '' === $raw ) {
@@ -964,131 +1011,232 @@ class DomainRegistry {
 	}
 
 	/**
-	 * Parse a textarea of one-hostname-per-line input into a deduped, normalized list.
+	 * Normalize a path prefix: lowercase, strip query/fragment, strip trailing
+	 * wildcard and slashes, ensure a leading slash. Root ('/') collapses to ''.
+	 *
+	 * @param string $raw Raw path.
+	 * @return string Normalized path prefix, or empty string for host-wide.
+	 */
+	public function normalize_path( string $raw ): string {
+		$raw = strtolower( trim( $raw ) );
+
+		$raw = preg_split( '/[?#]/', $raw )[0];
+		$raw = preg_replace( '~/?\*$~', '', $raw );
+		$raw = trim( $raw, '/' );
+
+		if ( '' === $raw ) {
+			return '';
+		}
+
+		return '/' . $raw;
+	}
+
+	/**
+	 * Normalize a full rule: `host` or `host/path/prefix`.
+	 *
+	 * @param string $raw Raw rule line as entered by an admin.
+	 * @return string Normalized rule, or empty string if no usable host was found.
+	 */
+	public function normalize_rule( string $raw ): string {
+		$raw = trim( $raw );
+
+		if ( '' === $raw ) {
+			return '';
+		}
+
+		// Strip scheme so the host/path split below is uniform.
+		$raw = preg_replace( '#^[a-z][a-z0-9+.-]*://|^//#i', '', $raw );
+
+		$slash_pos = strpos( $raw, '/' );
+		$host_part = false === $slash_pos ? $raw : substr( $raw, 0, $slash_pos );
+		$path_part = false === $slash_pos ? '' : substr( $raw, $slash_pos );
+
+		$host = $this->normalize_host( $host_part );
+
+		if ( '' === $host ) {
+			return '';
+		}
+
+		return $host . $this->normalize_path( $path_part );
+	}
+
+	/**
+	 * Split a normalized rule back into host and path prefix.
+	 *
+	 * @param string $rule Normalized rule.
+	 * @return array{0: string, 1: string} Host and path prefix ('' for host-wide).
+	 */
+	public function split_rule( string $rule ): array {
+		$slash_pos = strpos( $rule, '/' );
+
+		if ( false === $slash_pos ) {
+			return array( $rule, '' );
+		}
+
+		return array( substr( $rule, 0, $slash_pos ), substr( $rule, $slash_pos ) );
+	}
+
+	/**
+	 * Parse a textarea of one-rule-per-line input into a deduped, normalized list.
 	 *
 	 * @param string $raw Raw textarea contents.
-	 * @return array<int, string> Normalized hostnames, in first-seen order.
+	 * @return array<int, string> Normalized rules, in first-seen order.
 	 */
-	public function parse_domains_input( string $raw ): array {
-		$domains = array();
+	public function parse_rules_input( string $raw ): array {
+		$rules = array();
 
 		foreach ( preg_split( '/\r\n|\r|\n/', $raw ) as $line ) {
-			$normalized = $this->normalize( $line );
+			$normalized = $this->normalize_rule( $line );
 			if ( '' !== $normalized ) {
-				$domains[ $normalized ] = true;
+				$rules[ $normalized ] = true;
 			}
 		}
 
-		return array_keys( $domains );
+		return array_keys( $rules );
 	}
 }
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `composer test -- --filter DomainRegistryTest`
-Expected: PASS (all data provider cases + both parse_domains_input tests).
+Run: `composer test -- --filter UrlRuleRegistryTest`
+Expected: PASS (all data provider cases + split/parse tests).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/Website/DomainRegistry.php tests/Website/DomainRegistryTest.php
-git commit -m "feat: add domain normalization and input parsing"
+git add includes/Brand/UrlRuleRegistry.php tests/Brand/UrlRuleRegistryTest.php
+git commit -m "feat: add URL rule normalization and input parsing"
 ```
 
 ---
 
-### Task 3: DomainRegistry — cached map and conflict detection
+### Task 3: UrlRuleRegistry — cached rule map and conflict detection
 
 **Files:**
-- Modify: `includes/Website/DomainRegistry.php`
-- Modify: `tests/Website/DomainRegistryTest.php`
+- Modify: `includes/Brand/UrlRuleRegistry.php`
+- Modify: `tests/Brand/UrlRuleRegistryTest.php`
 
 **Interfaces:**
 - Consumes: `get_transient()`, `set_transient()`, `delete_transient()`, `get_posts()`, `get_post_meta()` (WP core, mocked in tests via Brain Monkey)
-- Produces: `DomainRegistry::get_domain_map(): array<string, int>`, `->find_conflicting_website(string $normalized_domain, int $exclude_post_id = 0): ?int`, `->invalidate_cache(): void`
+- Produces: `UrlRuleRegistry::get_rule_map(): array<string, array<string, int>>` (host → path prefix (`''` = host-wide) → Brand ID), `->find_conflicting_brand(string $normalized_rule, int $exclude_post_id = 0): ?int`, `->invalidate_cache(): void`
 
-- [ ] **Step 1: Write the failing test (append to DomainRegistryTest.php)**
+The map is keyed by host, then by path prefix, so the resolver (Task 5) can fetch all candidate rules for a request's host in one lookup and pick the most specific. Only an **exact** rule collision counts as a conflict — `site.com` on Brand A and `site.com/farm` on Brand "Farm" coexisting is the core feature.
+
+- [ ] **Step 1: Write the failing test (append to UrlRuleRegistryTest.php)**
 
 ```php
-	public function test_get_domain_map_returns_cached_value_when_present(): void {
+	public function test_get_rule_map_returns_cached_value_when_present(): void {
 		Functions\expect( 'get_transient' )
 			->once()
-			->with( 'mdgs_domain_map' )
-			->andReturn( array( 'example.com' => 5 ) );
+			->with( 'mdgs_rule_map' )
+			->andReturn( array( 'auctionbill.com' => array( '' => 5 ) ) );
 
-		$this->assertSame( array( 'example.com' => 5 ), $this->registry->get_domain_map() );
+		$this->assertSame( array( 'auctionbill.com' => array( '' => 5 ) ), $this->registry->get_rule_map() );
 	}
 
-	public function test_get_domain_map_builds_and_caches_when_absent(): void {
+	public function test_get_rule_map_builds_and_caches_when_absent(): void {
 		Functions\expect( 'get_transient' )->once()->andReturn( false );
 		Functions\expect( 'get_posts' )
 			->once()
-			->andReturn( array( 5, 7 ) );
+			->andReturn( array( 5, 9 ) );
 		Functions\expect( 'get_post_meta' )
 			->once()
-			->with( 5, '_mdgs_domains', true )
-			->andReturn( array( 'example.com', 'example.org' ) );
+			->with( 5, '_mdgs_rules', true )
+			->andReturn( array( 'auctionbill.com', 'beta.auctionbill.com' ) );
 		Functions\expect( 'get_post_meta' )
 			->once()
-			->with( 7, '_mdgs_domains', true )
-			->andReturn( array( 'other.test' ) );
+			->with( 9, '_mdgs_rules', true )
+			->andReturn( array( 'site.com/farm', 'site2.com/farm' ) );
 		Functions\expect( 'set_transient' )
 			->once()
 			->with(
-				'mdgs_domain_map',
+				'mdgs_rule_map',
 				array(
-					'example.com' => 5,
-					'example.org' => 5,
-					'other.test'  => 7,
+					'auctionbill.com'      => array( '' => 5 ),
+					'beta.auctionbill.com' => array( '' => 5 ),
+					'site.com'             => array( '/farm' => 9 ),
+					'site2.com'            => array( '/farm' => 9 ),
 				),
 				0
 			);
 
-		$map = $this->registry->get_domain_map();
+		$map = $this->registry->get_rule_map();
 
 		$this->assertSame(
 			array(
-				'example.com' => 5,
-				'example.org' => 5,
-				'other.test'  => 7,
+				'auctionbill.com'      => array( '' => 5 ),
+				'beta.auctionbill.com' => array( '' => 5 ),
+				'site.com'             => array( '/farm' => 9 ),
+				'site2.com'            => array( '/farm' => 9 ),
 			),
 			$map
 		);
 	}
 
-	public function test_get_domain_map_skips_posts_with_no_domains_meta(): void {
+	public function test_get_rule_map_merges_host_wide_and_path_rules_for_same_host(): void {
 		Functions\expect( 'get_transient' )->once()->andReturn( false );
-		Functions\expect( 'get_posts' )->once()->andReturn( array( 9 ) );
+		Functions\expect( 'get_posts' )->once()->andReturn( array( 7, 9 ) );
 		Functions\expect( 'get_post_meta' )
 			->once()
-			->with( 9, '_mdgs_domains', true )
+			->with( 7, '_mdgs_rules', true )
+			->andReturn( array( 'site.com' ) );
+		Functions\expect( 'get_post_meta' )
+			->once()
+			->with( 9, '_mdgs_rules', true )
+			->andReturn( array( 'site.com/farm' ) );
+		Functions\expect( 'set_transient' )->once();
+
+		$this->assertSame(
+			array(
+				'site.com' => array(
+					''      => 7,
+					'/farm' => 9,
+				),
+			),
+			$this->registry->get_rule_map()
+		);
+	}
+
+	public function test_get_rule_map_skips_posts_with_no_rules_meta(): void {
+		Functions\expect( 'get_transient' )->once()->andReturn( false );
+		Functions\expect( 'get_posts' )->once()->andReturn( array( 11 ) );
+		Functions\expect( 'get_post_meta' )
+			->once()
+			->with( 11, '_mdgs_rules', true )
 			->andReturn( '' );
-		Functions\expect( 'set_transient' )->once()->with( 'mdgs_domain_map', array(), 0 );
+		Functions\expect( 'set_transient' )->once()->with( 'mdgs_rule_map', array(), 0 );
 
-		$this->assertSame( array(), $this->registry->get_domain_map() );
+		$this->assertSame( array(), $this->registry->get_rule_map() );
 	}
 
-	public function test_find_conflicting_website_returns_null_when_domain_unused(): void {
-		Functions\expect( 'get_transient' )->once()->andReturn( array( 'example.com' => 5 ) );
+	public function test_find_conflicting_brand_returns_null_when_rule_unused(): void {
+		Functions\expect( 'get_transient' )->once()->andReturn( array( 'site.com' => array( '' => 7 ) ) );
 
-		$this->assertNull( $this->registry->find_conflicting_website( 'other.test' ) );
+		$this->assertNull( $this->registry->find_conflicting_brand( 'other.test' ) );
 	}
 
-	public function test_find_conflicting_website_returns_null_for_self(): void {
-		Functions\expect( 'get_transient' )->once()->andReturn( array( 'example.com' => 5 ) );
+	public function test_find_conflicting_brand_allows_overlapping_but_different_rules(): void {
+		Functions\expect( 'get_transient' )->once()->andReturn( array( 'site.com' => array( '' => 7 ) ) );
 
-		$this->assertNull( $this->registry->find_conflicting_website( 'example.com', 5 ) );
+		// site.com is taken by Brand 7, but site.com/farm is a DIFFERENT rule — no conflict.
+		$this->assertNull( $this->registry->find_conflicting_brand( 'site.com/farm', 9 ) );
 	}
 
-	public function test_find_conflicting_website_returns_owning_id_for_other_post(): void {
-		Functions\expect( 'get_transient' )->once()->andReturn( array( 'example.com' => 5 ) );
+	public function test_find_conflicting_brand_returns_null_for_self(): void {
+		Functions\expect( 'get_transient' )->once()->andReturn( array( 'site.com' => array( '/farm' => 9 ) ) );
 
-		$this->assertSame( 5, $this->registry->find_conflicting_website( 'example.com', 9 ) );
+		$this->assertNull( $this->registry->find_conflicting_brand( 'site.com/farm', 9 ) );
+	}
+
+	public function test_find_conflicting_brand_returns_owning_id_for_other_post(): void {
+		Functions\expect( 'get_transient' )->once()->andReturn( array( 'site.com' => array( '/farm' => 9 ) ) );
+
+		$this->assertSame( 9, $this->registry->find_conflicting_brand( 'site.com/farm', 5 ) );
 	}
 
 	public function test_invalidate_cache_deletes_transient(): void {
-		Functions\expect( 'delete_transient' )->once()->with( 'mdgs_domain_map' );
+		Functions\expect( 'delete_transient' )->once()->with( 'mdgs_rule_map' );
 
 		$this->registry->invalidate_cache();
 	}
@@ -1096,45 +1244,47 @@ git commit -m "feat: add domain normalization and input parsing"
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `composer test -- --filter DomainRegistryTest`
-Expected: FAIL — `Call to undefined method DomainRegistry::get_domain_map()` (and similar for the other two new methods).
+Run: `composer test -- --filter UrlRuleRegistryTest`
+Expected: FAIL — `Call to undefined method UrlRuleRegistry::get_rule_map()` (and similar for the other new methods).
 
-- [ ] **Step 3: Add methods to DomainRegistry**
+- [ ] **Step 3: Add methods to UrlRuleRegistry**
 
-Add to `includes/Website/DomainRegistry.php`, inside the `DomainRegistry` class:
+Add to `includes/Brand/UrlRuleRegistry.php`, inside the `UrlRuleRegistry` class:
 
 ```php
 	/**
-	 * Get the cached domain -> Website ID map, rebuilding it if not cached.
+	 * Get the cached rule map, rebuilding it if not cached.
 	 *
-	 * @return array<string, int> Normalized domain => Website post ID.
+	 * @return array<string, array<string, int>> Host => (path prefix => Brand ID). '' prefix = host-wide.
 	 */
-	public function get_domain_map(): array {
+	public function get_rule_map(): array {
 		$cached = get_transient( self::CACHE_KEY );
 
 		if ( is_array( $cached ) ) {
 			return $cached;
 		}
 
-		$map      = array();
-		$websites = get_posts(
+		$map       = array();
+		$brand_ids = get_posts(
 			array(
-				'post_type'      => 'mdgs_website',
+				'post_type'      => 'mdgs_brand',
 				'post_status'    => 'publish',
 				'posts_per_page' => -1,
 				'fields'         => 'ids',
 			)
 		);
 
-		foreach ( $websites as $website_id ) {
-			$domains = get_post_meta( $website_id, '_mdgs_domains', true );
+		foreach ( $brand_ids as $brand_id ) {
+			$rules = get_post_meta( $brand_id, '_mdgs_rules', true );
 
-			if ( ! is_array( $domains ) ) {
+			if ( ! is_array( $rules ) ) {
 				continue;
 			}
 
-			foreach ( $domains as $domain ) {
-				$map[ $domain ] = $website_id;
+			foreach ( $rules as $rule ) {
+				list( $host, $path_prefix ) = $this->split_rule( $rule );
+
+				$map[ $host ][ $path_prefix ] = $brand_id;
 			}
 		}
 
@@ -1144,28 +1294,32 @@ Add to `includes/Website/DomainRegistry.php`, inside the `DomainRegistry` class:
 	}
 
 	/**
-	 * Find the Website ID that already owns a normalized domain, if any other than $exclude_post_id.
+	 * Find the Brand that already owns an exact rule, if any other than $exclude_post_id.
 	 *
-	 * @param string $normalized_domain Normalized hostname.
-	 * @param int    $exclude_post_id   Website post ID to treat as "self" (never reported as a conflict).
-	 * @return int|null Conflicting Website ID, or null if the domain is free (or only used by $exclude_post_id).
+	 * Overlapping-but-different rules (site.com vs site.com/farm) never conflict.
+	 *
+	 * @param string $normalized_rule Normalized rule.
+	 * @param int    $exclude_post_id Brand post ID to treat as "self" (never reported as a conflict).
+	 * @return int|null Conflicting Brand ID, or null if the exact rule is free (or owned by $exclude_post_id).
 	 */
-	public function find_conflicting_website( string $normalized_domain, int $exclude_post_id = 0 ): ?int {
-		$map = $this->get_domain_map();
+	public function find_conflicting_brand( string $normalized_rule, int $exclude_post_id = 0 ): ?int {
+		list( $host, $path_prefix ) = $this->split_rule( $normalized_rule );
 
-		if ( ! isset( $map[ $normalized_domain ] ) ) {
+		$map = $this->get_rule_map();
+
+		if ( ! isset( $map[ $host ][ $path_prefix ] ) ) {
 			return null;
 		}
 
-		if ( $map[ $normalized_domain ] === $exclude_post_id ) {
+		if ( $map[ $host ][ $path_prefix ] === $exclude_post_id ) {
 			return null;
 		}
 
-		return $map[ $normalized_domain ];
+		return $map[ $host ][ $path_prefix ];
 	}
 
 	/**
-	 * Invalidate the cached domain map. Call after any Website save.
+	 * Invalidate the cached rule map. Call after any Brand save/trash/delete.
 	 *
 	 * @return void
 	 */
@@ -1176,27 +1330,27 @@ Add to `includes/Website/DomainRegistry.php`, inside the `DomainRegistry` class:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `composer test -- --filter DomainRegistryTest`
+Run: `composer test -- --filter UrlRuleRegistryTest`
 Expected: PASS (all tests in the file, including Task 2's).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/Website/DomainRegistry.php tests/Website/DomainRegistryTest.php
-git commit -m "feat: add cached domain map and conflict detection"
+git add includes/Brand/UrlRuleRegistry.php tests/Brand/UrlRuleRegistryTest.php
+git commit -m "feat: add cached rule map and exact-rule conflict detection"
 ```
 
 ---
 
-### Task 4: WebsiteRepository — read helpers
+### Task 4: BrandRepository — read helpers
 
 **Files:**
-- Create: `includes/Website/WebsiteRepository.php`
-- Test: `tests/Website/WebsiteRepositoryTest.php`
+- Create: `includes/Brand/BrandRepository.php`
+- Test: `tests/Brand/BrandRepositoryTest.php`
 
 **Interfaces:**
 - Consumes: `get_post_meta()`, `get_posts()` (WP core)
-- Produces: `WebsiteRepository::get_domains(int $website_id): array`, `->get_variables(int $website_id): array`, `->get_default_website_id(): ?int`, `->get_global_styles_post_id(int $website_id): ?int`
+- Produces: `BrandRepository::get_rules(int $brand_id): array`, `->get_variables(int $brand_id): array`, `->get_default_brand_id(): ?int`, `->get_global_styles_post_id(int $brand_id): ?int`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1204,26 +1358,26 @@ git commit -m "feat: add cached domain map and conflict detection"
 <?php
 declare(strict_types=1);
 
-namespace TheAnother\Plugin\MultiDomainGlobalStyles\Tests\Website;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles\Tests\Brand;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use TheAnother\Plugin\MultiDomainGlobalStyles\Website\WebsiteRepository;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\BrandRepository;
 
-#[CoversClass( WebsiteRepository::class )]
-class WebsiteRepositoryTest extends TestCase {
+#[CoversClass( BrandRepository::class )]
+class BrandRepositoryTest extends TestCase {
 	use MockeryPHPUnitIntegration;
 
-	private WebsiteRepository $repository;
+	private BrandRepository $repository;
 
 	protected function setUp(): void {
 		parent::setUp();
 		Monkey\setUp();
 
-		$this->repository = new WebsiteRepository();
+		$this->repository = new BrandRepository();
 	}
 
 	protected function tearDown(): void {
@@ -1231,19 +1385,19 @@ class WebsiteRepositoryTest extends TestCase {
 		parent::tearDown();
 	}
 
-	public function test_get_domains_returns_array_meta(): void {
+	public function test_get_rules_returns_array_meta(): void {
 		Functions\expect( 'get_post_meta' )
 			->once()
-			->with( 5, '_mdgs_domains', true )
+			->with( 5, '_mdgs_rules', true )
 			->andReturn( array( 'example.com' ) );
 
-		$this->assertSame( array( 'example.com' ), $this->repository->get_domains( 5 ) );
+		$this->assertSame( array( 'example.com' ), $this->repository->get_rules( 5 ) );
 	}
 
-	public function test_get_domains_returns_empty_array_when_meta_missing(): void {
+	public function test_get_rules_returns_empty_array_when_meta_missing(): void {
 		Functions\expect( 'get_post_meta' )->once()->andReturn( '' );
 
-		$this->assertSame( array(), $this->repository->get_domains( 5 ) );
+		$this->assertSame( array(), $this->repository->get_rules( 5 ) );
 	}
 
 	public function test_get_variables_returns_array_meta(): void {
@@ -1261,12 +1415,12 @@ class WebsiteRepositoryTest extends TestCase {
 		$this->assertSame( array(), $this->repository->get_variables( 5 ) );
 	}
 
-	public function test_get_default_website_id_returns_id_when_found(): void {
+	public function test_get_default_brand_id_returns_id_when_found(): void {
 		Functions\expect( 'get_posts' )
 			->once()
 			->with(
 				array(
-					'post_type'      => 'mdgs_website',
+					'post_type'      => 'mdgs_brand',
 					'post_status'    => 'publish',
 					'posts_per_page' => 1,
 					'fields'         => 'ids',
@@ -1276,13 +1430,13 @@ class WebsiteRepositoryTest extends TestCase {
 			)
 			->andReturn( array( 12 ) );
 
-		$this->assertSame( 12, $this->repository->get_default_website_id() );
+		$this->assertSame( 12, $this->repository->get_default_brand_id() );
 	}
 
-	public function test_get_default_website_id_returns_null_when_none_found(): void {
+	public function test_get_default_brand_id_returns_null_when_none_found(): void {
 		Functions\expect( 'get_posts' )->once()->andReturn( array() );
 
-		$this->assertNull( $this->repository->get_default_website_id() );
+		$this->assertNull( $this->repository->get_default_brand_id() );
 	}
 
 	public function test_get_global_styles_post_id_returns_int_when_set(): void {
@@ -1304,62 +1458,62 @@ class WebsiteRepositoryTest extends TestCase {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `composer test -- --filter WebsiteRepositoryTest`
-Expected: FAIL with "Class ... WebsiteRepository not found".
+Run: `composer test -- --filter BrandRepositoryTest`
+Expected: FAIL with "Class ... BrandRepository not found".
 
 - [ ] **Step 3: Write implementation**
 
 ```php
 <?php
 /**
- * Website Repository Service
+ * Brand Repository Service
  *
  * @package MultiDomainGlobalStyles
  * @since 1.0.0
  */
 
-namespace TheAnother\Plugin\MultiDomainGlobalStyles\Website;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles\Brand;
 
 /**
- * Class WebsiteRepository
+ * Class BrandRepository
  *
- * Read-only helpers for `mdgs_website` post data.
+ * Read-only helpers for `mdgs_brand` post data.
  */
-class WebsiteRepository {
+class BrandRepository {
 
 	/**
-	 * Get a Website's registered domains.
+	 * Get a Brand's registered URL rules.
 	 *
-	 * @param int $website_id Website post ID.
+	 * @param int $brand_id Brand post ID.
 	 * @return array<int, string> Normalized hostnames.
 	 */
-	public function get_domains( int $website_id ): array {
-		$domains = get_post_meta( $website_id, '_mdgs_domains', true );
+	public function get_rules( int $brand_id ): array {
+		$rules = get_post_meta( $brand_id, '_mdgs_rules', true );
 
-		return is_array( $domains ) ? $domains : array();
+		return is_array( $rules ) ? $rules : array();
 	}
 
 	/**
-	 * Get a Website's content variables.
+	 * Get a Brand's content variables.
 	 *
-	 * @param int $website_id Website post ID.
+	 * @param int $brand_id Brand post ID.
 	 * @return array<string, string> Variable key => value.
 	 */
-	public function get_variables( int $website_id ): array {
-		$variables = get_post_meta( $website_id, '_mdgs_variables', true );
+	public function get_variables( int $brand_id ): array {
+		$variables = get_post_meta( $brand_id, '_mdgs_variables', true );
 
 		return is_array( $variables ) ? $variables : array();
 	}
 
 	/**
-	 * Get the Website ID flagged as the fallback for unmatched domains.
+	 * Get the Brand ID flagged as the fallback for unmatched requests.
 	 *
-	 * @return int|null Website post ID, or null if none is flagged.
+	 * @return int|null Brand post ID, or null if none is flagged.
 	 */
-	public function get_default_website_id(): ?int {
+	public function get_default_brand_id(): ?int {
 		$posts = get_posts(
 			array(
-				'post_type'      => 'mdgs_website',
+				'post_type'      => 'mdgs_brand',
 				'post_status'    => 'publish',
 				'posts_per_page' => 1,
 				'fields'         => 'ids',
@@ -1372,13 +1526,13 @@ class WebsiteRepository {
 	}
 
 	/**
-	 * Get the ID of a Website's dedicated wp_global_styles post.
+	 * Get the ID of a Brand's dedicated wp_global_styles post.
 	 *
-	 * @param int $website_id Website post ID.
+	 * @param int $brand_id Brand post ID.
 	 * @return int|null Global styles post ID, or null if not yet created.
 	 */
-	public function get_global_styles_post_id( int $website_id ): ?int {
-		$id = get_post_meta( $website_id, '_mdgs_global_styles_post_id', true );
+	public function get_global_styles_post_id( int $brand_id ): ?int {
+		$id = get_post_meta( $brand_id, '_mdgs_global_styles_post_id', true );
 
 		return $id ? (int) $id : null;
 	}
@@ -1387,27 +1541,29 @@ class WebsiteRepository {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `composer test -- --filter WebsiteRepositoryTest`
+Run: `composer test -- --filter BrandRepositoryTest`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/Website/WebsiteRepository.php tests/Website/WebsiteRepositoryTest.php
-git commit -m "feat: add WebsiteRepository read helpers"
+git add includes/Brand/BrandRepository.php tests/Brand/BrandRepositoryTest.php
+git commit -m "feat: add BrandRepository read helpers"
 ```
 
 ---
 
-### Task 5: DomainResolver — HTTP_HOST to Website ID
+### Task 5: BrandResolver — request URL to Brand ID
 
 **Files:**
-- Create: `includes/Website/DomainResolver.php`
-- Test: `tests/Website/DomainResolverTest.php`
+- Create: `includes/Brand/BrandResolver.php`
+- Test: `tests/Brand/BrandResolverTest.php`
 
 **Interfaces:**
-- Consumes: `DomainRegistry::normalize(string): string`, `->get_domain_map(): array` (Task 2/3); `WebsiteRepository::get_default_website_id(): ?int` (Task 4)
-- Produces: `DomainResolver::__construct(DomainRegistry $domain_registry, WebsiteRepository $website_repository)`, `->resolve_host(string $host): ?int`, `->resolve_current_request(): ?int`
+- Consumes: `UrlRuleRegistry::normalize_host(string): string`, `->normalize_path(string): string`, `->get_rule_map(): array` (Tasks 2/3); `BrandRepository::get_default_brand_id(): ?int` (Task 4)
+- Produces: `BrandResolver::__construct(UrlRuleRegistry $url_rule_registry, BrandRepository $brand_repository)`, `->resolve(string $host, string $path): ?int`, `->resolve_current_request(): ?int`
+
+Resolution picks the **most specific** matching rule for the request's host: a host+path rule beats the host-wide rule, a longer prefix beats a shorter one, and prefixes match on segment boundaries (`/farm` matches `/farm` and `/farm/x`, never `/farmhouse`). No match → default Brand (if flagged) → null.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1415,7 +1571,7 @@ git commit -m "feat: add WebsiteRepository read helpers"
 <?php
 declare(strict_types=1);
 
-namespace TheAnother\Plugin\MultiDomainGlobalStyles\Tests\Website;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles\Tests\Brand;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
@@ -1423,12 +1579,12 @@ use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use TheAnother\Plugin\MultiDomainGlobalStyles\Website\DomainRegistry;
-use TheAnother\Plugin\MultiDomainGlobalStyles\Website\DomainResolver;
-use TheAnother\Plugin\MultiDomainGlobalStyles\Website\WebsiteRepository;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\BrandRepository;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\BrandResolver;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\UrlRuleRegistry;
 
-#[CoversClass( DomainResolver::class )]
-class DomainResolverTest extends TestCase {
+#[CoversClass( BrandResolver::class )]
+class BrandResolverTest extends TestCase {
 	use MockeryPHPUnitIntegration;
 
 	protected function setUp(): void {
@@ -1438,174 +1594,245 @@ class DomainResolverTest extends TestCase {
 
 	protected function tearDown(): void {
 		Monkey\tearDown();
-		unset( $_SERVER['HTTP_HOST'] );
+		unset( $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
 		parent::tearDown();
 	}
 
-	public function test_resolve_host_returns_matched_website_id(): void {
-		$registry = Mockery::mock( DomainRegistry::class );
-		$registry->shouldReceive( 'normalize' )->with( 'example.com' )->andReturn( 'example.com' );
-		$registry->shouldReceive( 'get_domain_map' )->andReturn( array( 'example.com' => 5 ) );
+	/**
+	 * Build a resolver whose registry performs REAL normalization (pass-through
+	 * to a concrete UrlRuleRegistry) against a fixed rule map.
+	 */
+	private function make_resolver( array $rule_map, ?int $default_brand_id = null ): BrandResolver {
+		Functions\when( 'wp_parse_url' )->alias( 'parse_url' );
 
-		$repository = Mockery::mock( WebsiteRepository::class );
+		$registry = Mockery::mock( UrlRuleRegistry::class )->makePartial();
+		$registry->shouldReceive( 'get_rule_map' )->andReturn( $rule_map );
 
-		$resolver = new DomainResolver( $registry, $repository );
+		$repository = Mockery::mock( BrandRepository::class );
+		$repository->shouldReceive( 'get_default_brand_id' )->andReturn( $default_brand_id );
 
-		$this->assertSame( 5, $resolver->resolve_host( 'example.com' ) );
+		return new BrandResolver( $registry, $repository );
 	}
 
-	public function test_resolve_host_falls_back_to_default_when_unmatched(): void {
-		$registry = Mockery::mock( DomainRegistry::class );
-		$registry->shouldReceive( 'normalize' )->with( 'unknown.test' )->andReturn( 'unknown.test' );
-		$registry->shouldReceive( 'get_domain_map' )->andReturn( array( 'example.com' => 5 ) );
+	private const MAP = array(
+		'auctionbill.com'      => array( '' => 5 ),
+		'beta.auctionbill.com' => array( '' => 5 ),
+		'site.com'             => array(
+			''      => 7,
+			'/farm' => 9,
+		),
+		'site2.com'            => array( '/farm' => 9 ),
+	);
 
-		$repository = Mockery::mock( WebsiteRepository::class );
-		$repository->shouldReceive( 'get_default_website_id' )->once()->andReturn( 9 );
+	public function test_host_wide_rule_matches_any_path(): void {
+		$resolver = $this->make_resolver( self::MAP );
 
-		$resolver = new DomainResolver( $registry, $repository );
-
-		$this->assertSame( 9, $resolver->resolve_host( 'unknown.test' ) );
+		$this->assertSame( 5, $resolver->resolve( 'auctionbill.com', '/anything/here' ) );
 	}
 
-	public function test_resolve_host_returns_null_when_unmatched_and_no_default(): void {
-		$registry = Mockery::mock( DomainRegistry::class );
-		$registry->shouldReceive( 'normalize' )->with( 'unknown.test' )->andReturn( 'unknown.test' );
-		$registry->shouldReceive( 'get_domain_map' )->andReturn( array() );
+	public function test_www_and_port_are_normalized_before_lookup(): void {
+		$resolver = $this->make_resolver( self::MAP );
 
-		$repository = Mockery::mock( WebsiteRepository::class );
-		$repository->shouldReceive( 'get_default_website_id' )->once()->andReturn( null );
-
-		$resolver = new DomainResolver( $registry, $repository );
-
-		$this->assertNull( $resolver->resolve_host( 'unknown.test' ) );
+		$this->assertSame( 5, $resolver->resolve( 'WWW.AuctionBill.com:8080', '/' ) );
 	}
 
-	public function test_resolve_host_falls_back_to_default_for_empty_host(): void {
-		$registry = Mockery::mock( DomainRegistry::class );
-		$registry->shouldReceive( 'normalize' )->with( '' )->andReturn( '' );
+	public function test_path_rule_beats_host_wide_rule_on_same_host(): void {
+		$resolver = $this->make_resolver( self::MAP );
 
-		$repository = Mockery::mock( WebsiteRepository::class );
-		$repository->shouldReceive( 'get_default_website_id' )->once()->andReturn( 9 );
-
-		$resolver = new DomainResolver( $registry, $repository );
-
-		$this->assertSame( 9, $resolver->resolve_host( '' ) );
+		$this->assertSame( 9, $resolver->resolve( 'site.com', '/farm/tractors' ) );
 	}
 
-	public function test_resolve_current_request_reads_http_host_server_var(): void {
-		$_SERVER['HTTP_HOST'] = 'example.com';
+	public function test_path_rule_matches_its_exact_path(): void {
+		$resolver = $this->make_resolver( self::MAP );
+
+		$this->assertSame( 9, $resolver->resolve( 'site.com', '/farm' ) );
+	}
+
+	public function test_host_wide_rule_wins_when_path_rule_does_not_match(): void {
+		$resolver = $this->make_resolver( self::MAP );
+
+		$this->assertSame( 7, $resolver->resolve( 'site.com', '/shop' ) );
+	}
+
+	public function test_prefix_matching_respects_segment_boundaries(): void {
+		$resolver = $this->make_resolver( self::MAP );
+
+		// /farmhouse must NOT match the /farm rule.
+		$this->assertSame( 7, $resolver->resolve( 'site.com', '/farmhouse' ) );
+	}
+
+	public function test_longer_prefix_beats_shorter_prefix(): void {
+		$map = array(
+			'site.com' => array(
+				'/farm'          => 9,
+				'/farm/tractors' => 12,
+			),
+		);
+		$resolver = $this->make_resolver( $map );
+
+		$this->assertSame( 12, $resolver->resolve( 'site.com', '/farm/tractors/deere' ) );
+		$this->assertSame( 9, $resolver->resolve( 'site.com', '/farm/seeds' ) );
+	}
+
+	public function test_falls_back_to_default_when_host_unknown(): void {
+		$resolver = $this->make_resolver( self::MAP, 20 );
+
+		$this->assertSame( 20, $resolver->resolve( 'unknown.test', '/' ) );
+	}
+
+	public function test_falls_back_to_default_when_only_path_rules_exist_and_none_match(): void {
+		$resolver = $this->make_resolver( self::MAP, 20 );
+
+		// site2.com has ONLY the /farm rule; /shop matches nothing.
+		$this->assertSame( 20, $resolver->resolve( 'site2.com', '/shop' ) );
+	}
+
+	public function test_returns_null_when_unmatched_and_no_default(): void {
+		$resolver = $this->make_resolver( self::MAP, null );
+
+		$this->assertNull( $resolver->resolve( 'unknown.test', '/' ) );
+	}
+
+	public function test_falls_back_to_default_for_empty_host(): void {
+		$resolver = $this->make_resolver( self::MAP, 20 );
+
+		$this->assertSame( 20, $resolver->resolve( '', '/farm' ) );
+	}
+
+	public function test_resolve_current_request_reads_host_and_request_uri(): void {
+		$_SERVER['HTTP_HOST']   = 'site.com';
+		$_SERVER['REQUEST_URI'] = '/farm/tractors?sort=new';
 
 		Functions\when( 'sanitize_text_field' )->returnArg();
 		Functions\when( 'wp_unslash' )->returnArg();
 
-		$registry = Mockery::mock( DomainRegistry::class );
-		$registry->shouldReceive( 'normalize' )->with( 'example.com' )->andReturn( 'example.com' );
-		$registry->shouldReceive( 'get_domain_map' )->andReturn( array( 'example.com' => 5 ) );
+		$resolver = $this->make_resolver( self::MAP );
 
-		$repository = Mockery::mock( WebsiteRepository::class );
-
-		$resolver = new DomainResolver( $registry, $repository );
-
-		$this->assertSame( 5, $resolver->resolve_current_request() );
+		$this->assertSame( 9, $resolver->resolve_current_request() );
 	}
 }
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `composer test -- --filter DomainResolverTest`
-Expected: FAIL with "Class ... DomainResolver not found".
+Run: `composer test -- --filter BrandResolverTest`
+Expected: FAIL with "Class ... BrandResolver not found".
 
 - [ ] **Step 3: Write implementation**
 
 ```php
 <?php
 /**
- * Domain Resolver Service
+ * Brand Resolver Service
  *
  * @package MultiDomainGlobalStyles
  * @since 1.0.0
  */
 
-namespace TheAnother\Plugin\MultiDomainGlobalStyles\Website;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles\Brand;
 
 /**
- * Class DomainResolver
+ * Class BrandResolver
  *
- * Resolves the current request's hostname to a Website ID.
+ * Resolves the current request's host + path to a Brand ID using the rule
+ * map. Most specific rule wins: host+path beats host-wide, longer path
+ * prefix beats shorter, prefixes match on path segment boundaries.
  */
-class DomainResolver {
+class BrandResolver {
 
 	/**
-	 * Domain registry.
+	 * URL rule registry.
 	 *
-	 * @var DomainRegistry
+	 * @var UrlRuleRegistry
 	 */
-	private DomainRegistry $domain_registry;
+	private UrlRuleRegistry $url_rule_registry;
 
 	/**
-	 * Website repository.
+	 * Brand repository.
 	 *
-	 * @var WebsiteRepository
+	 * @var BrandRepository
 	 */
-	private WebsiteRepository $website_repository;
+	private BrandRepository $brand_repository;
 
 	/**
 	 * Constructor.
 	 *
-	 * @param DomainRegistry    $domain_registry    Domain registry service.
-	 * @param WebsiteRepository $website_repository Website repository service.
+	 * @param UrlRuleRegistry $url_rule_registry URL rule registry service.
+	 * @param BrandRepository $brand_repository  Brand repository service.
 	 */
-	public function __construct( DomainRegistry $domain_registry, WebsiteRepository $website_repository ) {
-		$this->domain_registry    = $domain_registry;
-		$this->website_repository = $website_repository;
+	public function __construct( UrlRuleRegistry $url_rule_registry, BrandRepository $brand_repository ) {
+		$this->url_rule_registry = $url_rule_registry;
+		$this->brand_repository  = $brand_repository;
 	}
 
 	/**
-	 * Resolve the current request's HTTP_HOST to a Website ID.
+	 * Resolve the current request (HTTP_HOST + REQUEST_URI) to a Brand ID.
 	 *
-	 * @return int|null Website post ID, or null if unmatched with no default.
+	 * @return int|null Brand post ID, or null if unmatched with no default.
 	 */
 	public function resolve_current_request(): ?int {
 		$host = isset( $_SERVER['HTTP_HOST'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_HOST'] ) ) : '';
+		$path = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
 
-		return $this->resolve_host( $host );
+		return $this->resolve( $host, $path );
 	}
 
 	/**
-	 * Resolve an arbitrary hostname to a Website ID.
+	 * Resolve an arbitrary host + path to a Brand ID.
 	 *
 	 * @param string $host Raw hostname (e.g. from HTTP_HOST).
-	 * @return int|null Website post ID, or null if unmatched with no default.
+	 * @param string $path Raw request path (e.g. from REQUEST_URI; query string is ignored).
+	 * @return int|null Brand post ID, or null if unmatched with no default.
 	 */
-	public function resolve_host( string $host ): ?int {
-		$normalized = $this->domain_registry->normalize( $host );
+	public function resolve( string $host, string $path ): ?int {
+		$normalized_host = $this->url_rule_registry->normalize_host( $host );
 
-		if ( '' === $normalized ) {
-			return $this->website_repository->get_default_website_id();
+		if ( '' === $normalized_host ) {
+			return $this->brand_repository->get_default_brand_id();
 		}
 
-		$map = $this->domain_registry->get_domain_map();
+		$map = $this->url_rule_registry->get_rule_map();
 
-		if ( isset( $map[ $normalized ] ) ) {
-			return $map[ $normalized ];
+		if ( ! isset( $map[ $normalized_host ] ) ) {
+			return $this->brand_repository->get_default_brand_id();
 		}
 
-		return $this->website_repository->get_default_website_id();
+		$normalized_path = $this->url_rule_registry->normalize_path( $path );
+
+		$best_prefix = null;
+
+		foreach ( $map[ $normalized_host ] as $path_prefix => $brand_id ) {
+			if ( '' !== $path_prefix
+				&& $normalized_path !== $path_prefix
+				&& ! str_starts_with( $normalized_path, $path_prefix . '/' )
+			) {
+				continue;
+			}
+
+			if ( null === $best_prefix || strlen( $path_prefix ) > strlen( $best_prefix ) ) {
+				$best_prefix = $path_prefix;
+			}
+		}
+
+		if ( null === $best_prefix ) {
+			return $this->brand_repository->get_default_brand_id();
+		}
+
+		return $map[ $normalized_host ][ $best_prefix ];
 	}
 }
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `composer test -- --filter DomainResolverTest`
+Run: `composer test -- --filter BrandResolverTest`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/Website/DomainResolver.php tests/Website/DomainResolverTest.php
-git commit -m "feat: add DomainResolver for HTTP_HOST to Website ID lookup"
+git add includes/Brand/BrandResolver.php tests/Brand/BrandResolverTest.php
+git commit -m "feat: add BrandResolver with most-specific URL rule matching"
 ```
 
 ---
@@ -1665,9 +1892,9 @@ class VariableParserTest extends TestCase {
 	}
 
 	public function test_lowercases_and_strips_invalid_characters_from_keys(): void {
-		$raw = "Website Name = Acme";
+		$raw = "Brand Name = Acme";
 
-		$this->assertSame( array( 'websitename' => 'Acme' ), $this->parser->parse( $raw ) );
+		$this->assertSame( array( 'brandname' => 'Acme' ), $this->parser->parse( $raw ) );
 	}
 
 	public function test_ignores_lines_without_equals_sign(): void {
@@ -1770,9 +1997,9 @@ git commit -m "feat: add VariableParser for key=value textarea input"
 
 **Interfaces:**
 - Consumes: `wp_insert_post()`, `get_post_status()`, `get_post_meta()`, `update_post_meta()`, `get_post()`, `is_wp_error()`, `wp_json_encode()` (WP core)
-- Produces: `GlobalStylesPostService::ensure_global_styles_post(int $website_id): int`, `->get_global_styles_data(int $global_styles_post_id): array`
+- Produces: `GlobalStylesPostService::ensure_global_styles_post(int $brand_id): int`, `->get_global_styles_data(int $global_styles_post_id): array`
 
-**Note:** the created `wp_global_styles` post is deliberately **not** tagged with the `wp_theme` taxonomy for the active theme's stylesheet. Verified against WordPress core (`class-wp-theme-json-resolver.php`): the resolver that finds "the" canonical site-wide global styles post queries by that taxonomy term with `orderby => date desc, posts_per_page => 1` — tagging our posts would make whichever Website was saved most recently hijack that lookup and corrupt the real site-wide default everywhere core code resolves it untouched (e.g. for requests that don't match any Website).
+**Note:** the created `wp_global_styles` post is deliberately **not** tagged with the `wp_theme` taxonomy for the active theme's stylesheet. Verified against WordPress core (`class-wp-theme-json-resolver.php`): the resolver that finds "the" canonical site-wide global styles post queries by that taxonomy term with `orderby => date desc, posts_per_page => 1` — tagging our posts would make whichever Brand was saved most recently hijack that lookup and corrupt the real site-wide default everywhere core code resolves it untouched (e.g. for requests that don't match any Brand).
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1900,12 +2127,12 @@ use RuntimeException;
 /**
  * Class GlobalStylesPostService
  *
- * Creates and reads the dedicated wp_global_styles post for each Website.
+ * Creates and reads the dedicated wp_global_styles post for each Brand.
  *
  * Deliberately does NOT tag created posts with the wp_theme taxonomy — doing
  * so would make WP_Theme_JSON_Resolver's "find the canonical global styles
  * post for the active theme" query (ordered by date desc) pick up whichever
- * Website was saved most recently, corrupting the real site-wide default.
+ * Brand was saved most recently, corrupting the real site-wide default.
  */
 class GlobalStylesPostService {
 
@@ -1917,15 +2144,15 @@ class GlobalStylesPostService {
 	private const META_KEY = '_mdgs_global_styles_post_id';
 
 	/**
-	 * Ensure a Website has a wp_global_styles post, creating one if missing.
+	 * Ensure a Brand has a wp_global_styles post, creating one if missing.
 	 *
-	 * @param int $website_id Website post ID.
+	 * @param int $brand_id Brand post ID.
 	 * @return int The wp_global_styles post ID.
 	 *
 	 * @throws RuntimeException If post creation fails.
 	 */
-	public function ensure_global_styles_post( int $website_id ): int {
-		$existing_id = get_post_meta( $website_id, self::META_KEY, true );
+	public function ensure_global_styles_post( int $brand_id ): int {
+		$existing_id = get_post_meta( $brand_id, self::META_KEY, true );
 
 		if ( $existing_id && get_post_status( $existing_id ) ) {
 			return (int) $existing_id;
@@ -1952,7 +2179,7 @@ class GlobalStylesPostService {
 			throw new RuntimeException( esc_html( $post_id->get_error_message() ) );
 		}
 
-		update_post_meta( $website_id, self::META_KEY, $post_id );
+		update_post_meta( $brand_id, self::META_KEY, $post_id );
 
 		return (int) $post_id;
 	}
@@ -1986,7 +2213,7 @@ Expected: PASS.
 
 ```bash
 git add includes/GlobalStyles/GlobalStylesPostService.php tests/GlobalStyles/GlobalStylesPostServiceTest.php
-git commit -m "feat: add GlobalStylesPostService to manage per-Website styles posts"
+git commit -m "feat: add GlobalStylesPostService to manage per-Brand styles posts"
 ```
 
 ---
@@ -1998,8 +2225,8 @@ git commit -m "feat: add GlobalStylesPostService to manage per-Website styles po
 - Test: `tests/GlobalStyles/GlobalStylesOverrideTest.php`
 
 **Interfaces:**
-- Consumes: `DomainResolver::resolve_current_request(): ?int` (Task 5), `WebsiteRepository::get_global_styles_post_id(int): ?int` (Task 4), `GlobalStylesPostService::get_global_styles_data(int): array` (Task 7), `is_admin()` (WP core)
-- Produces: `GlobalStylesOverride::__construct(DomainResolver, WebsiteRepository, GlobalStylesPostService)`, `->filter_theme_json(mixed $theme_json): mixed` (hooked to `wp_theme_json_data_user`)
+- Consumes: `BrandResolver::resolve_current_request(): ?int` (Task 5), `BrandRepository::get_global_styles_post_id(int): ?int` (Task 4), `GlobalStylesPostService::get_global_styles_data(int): array` (Task 7), `is_admin()` (WP core)
+- Produces: `GlobalStylesOverride::__construct(BrandResolver, BrandRepository, GlobalStylesPostService)`, `->filter_theme_json(mixed $theme_json): mixed` (hooked to `wp_theme_json_data_user`)
 
 - [ ] **Step 1: Write the failing test**
 
@@ -2015,10 +2242,10 @@ use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use TheAnother\Plugin\MultiDomainGlobalStyles\Website\DomainResolver;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\BrandResolver;
 use TheAnother\Plugin\MultiDomainGlobalStyles\GlobalStyles\GlobalStylesOverride;
 use TheAnother\Plugin\MultiDomainGlobalStyles\GlobalStyles\GlobalStylesPostService;
-use TheAnother\Plugin\MultiDomainGlobalStyles\Website\WebsiteRepository;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\BrandRepository;
 
 /**
  * Minimal stand-in for WP_Theme_JSON_Data, which isn't available outside a
@@ -2050,8 +2277,8 @@ class GlobalStylesOverrideTest extends TestCase {
 	public function test_returns_input_unchanged_in_admin(): void {
 		Functions\expect( 'is_admin' )->once()->andReturn( true );
 
-		$resolver   = Mockery::mock( DomainResolver::class );
-		$repository = Mockery::mock( WebsiteRepository::class );
+		$resolver   = Mockery::mock( BrandResolver::class );
+		$repository = Mockery::mock( BrandRepository::class );
 		$posts      = Mockery::mock( GlobalStylesPostService::class );
 
 		$override    = new GlobalStylesOverride( $resolver, $repository, $posts );
@@ -2060,13 +2287,13 @@ class GlobalStylesOverrideTest extends TestCase {
 		$this->assertSame( $theme_json, $override->filter_theme_json( $theme_json ) );
 	}
 
-	public function test_returns_input_unchanged_when_no_website_resolved(): void {
+	public function test_returns_input_unchanged_when_no_brand_resolved(): void {
 		Functions\expect( 'is_admin' )->once()->andReturn( false );
 
-		$resolver = Mockery::mock( DomainResolver::class );
+		$resolver = Mockery::mock( BrandResolver::class );
 		$resolver->shouldReceive( 'resolve_current_request' )->once()->andReturn( null );
 
-		$repository = Mockery::mock( WebsiteRepository::class );
+		$repository = Mockery::mock( BrandRepository::class );
 		$posts      = Mockery::mock( GlobalStylesPostService::class );
 
 		$override   = new GlobalStylesOverride( $resolver, $repository, $posts );
@@ -2075,13 +2302,13 @@ class GlobalStylesOverrideTest extends TestCase {
 		$this->assertSame( $theme_json, $override->filter_theme_json( $theme_json ) );
 	}
 
-	public function test_returns_input_unchanged_when_website_has_no_styles_post(): void {
+	public function test_returns_input_unchanged_when_brand_has_no_styles_post(): void {
 		Functions\expect( 'is_admin' )->once()->andReturn( false );
 
-		$resolver = Mockery::mock( DomainResolver::class );
+		$resolver = Mockery::mock( BrandResolver::class );
 		$resolver->shouldReceive( 'resolve_current_request' )->once()->andReturn( 5 );
 
-		$repository = Mockery::mock( WebsiteRepository::class );
+		$repository = Mockery::mock( BrandRepository::class );
 		$repository->shouldReceive( 'get_global_styles_post_id' )->once()->with( 5 )->andReturn( null );
 
 		$posts = Mockery::mock( GlobalStylesPostService::class );
@@ -2092,13 +2319,13 @@ class GlobalStylesOverrideTest extends TestCase {
 		$this->assertSame( $theme_json, $override->filter_theme_json( $theme_json ) );
 	}
 
-	public function test_returns_input_unchanged_when_website_styles_are_empty(): void {
+	public function test_returns_input_unchanged_when_brand_styles_are_empty(): void {
 		Functions\expect( 'is_admin' )->once()->andReturn( false );
 
-		$resolver = Mockery::mock( DomainResolver::class );
+		$resolver = Mockery::mock( BrandResolver::class );
 		$resolver->shouldReceive( 'resolve_current_request' )->once()->andReturn( 5 );
 
-		$repository = Mockery::mock( WebsiteRepository::class );
+		$repository = Mockery::mock( BrandRepository::class );
 		$repository->shouldReceive( 'get_global_styles_post_id' )->once()->with( 5 )->andReturn( 42 );
 
 		$posts = Mockery::mock( GlobalStylesPostService::class );
@@ -2115,13 +2342,13 @@ class GlobalStylesOverrideTest extends TestCase {
 		$this->assertSame( $theme_json, $override->filter_theme_json( $theme_json ) );
 	}
 
-	public function test_merges_website_styles_over_input_when_present(): void {
+	public function test_merges_brand_styles_over_input_when_present(): void {
 		Functions\expect( 'is_admin' )->once()->andReturn( false );
 
-		$resolver = Mockery::mock( DomainResolver::class );
+		$resolver = Mockery::mock( BrandResolver::class );
 		$resolver->shouldReceive( 'resolve_current_request' )->once()->andReturn( 5 );
 
-		$repository = Mockery::mock( WebsiteRepository::class );
+		$repository = Mockery::mock( BrandRepository::class );
 		$repository->shouldReceive( 'get_global_styles_post_id' )->once()->with( 5 )->andReturn( 42 );
 
 		$settings = array( 'color' => array( 'palette' => array( array( 'slug' => 'brand-primary', 'color' => '#123456' ) ) ) );
@@ -2169,25 +2396,25 @@ namespace TheAnother\Plugin\MultiDomainGlobalStyles\GlobalStyles;
  * Class GlobalStylesOverride
  *
  * Hooked to `wp_theme_json_data_user` on the frontend: merges the resolved
- * Website's stored global-styles data over whatever the site's own user
+ * Brand's stored global-styles data over whatever the site's own user
  * global styles would otherwise be. Partial merge (update_with), not full
- * replacement — a Website only needs to define what differs from the theme.
+ * replacement — a Brand only needs to define what differs from the theme.
  */
 class GlobalStylesOverride {
 
 	/**
-	 * Domain resolver.
+	 * Brand resolver.
 	 *
-	 * @var DomainResolver
+	 * @var BrandResolver
 	 */
-	private DomainResolver $domain_resolver;
+	private BrandResolver $brand_resolver;
 
 	/**
-	 * Website repository.
+	 * Brand repository.
 	 *
-	 * @var WebsiteRepository
+	 * @var BrandRepository
 	 */
-	private WebsiteRepository $website_repository;
+	private BrandRepository $brand_repository;
 
 	/**
 	 * Global styles post service.
@@ -2199,17 +2426,17 @@ class GlobalStylesOverride {
 	/**
 	 * Constructor.
 	 *
-	 * @param DomainResolver             $domain_resolver             Domain resolver service.
-	 * @param WebsiteRepository          $website_repository          Website repository service.
+	 * @param BrandResolver             $brand_resolver             Brand resolver service.
+	 * @param BrandRepository          $brand_repository          Brand repository service.
 	 * @param GlobalStylesPostService  $global_styles_post_service  Global styles post service.
 	 */
 	public function __construct(
-		DomainResolver $domain_resolver,
-		WebsiteRepository $website_repository,
+		BrandResolver $brand_resolver,
+		BrandRepository $brand_repository,
 		GlobalStylesPostService $global_styles_post_service
 	) {
-		$this->domain_resolver            = $domain_resolver;
-		$this->website_repository         = $website_repository;
+		$this->brand_resolver            = $brand_resolver;
+		$this->brand_repository         = $brand_repository;
 		$this->global_styles_post_service = $global_styles_post_service;
 	}
 
@@ -2217,20 +2444,20 @@ class GlobalStylesOverride {
 	 * Filter callback for `wp_theme_json_data_user`.
 	 *
 	 * @param mixed $theme_json WP_Theme_JSON_Data instance.
-	 * @return mixed WP_Theme_JSON_Data instance, possibly merged with Website overrides.
+	 * @return mixed WP_Theme_JSON_Data instance, possibly merged with Brand overrides.
 	 */
 	public function filter_theme_json( mixed $theme_json ): mixed {
 		if ( is_admin() ) {
 			return $theme_json;
 		}
 
-		$website_id = $this->domain_resolver->resolve_current_request();
+		$brand_id = $this->brand_resolver->resolve_current_request();
 
-		if ( null === $website_id ) {
+		if ( null === $brand_id ) {
 			return $theme_json;
 		}
 
-		$global_styles_post_id = $this->website_repository->get_global_styles_post_id( $website_id );
+		$global_styles_post_id = $this->brand_repository->get_global_styles_post_id( $brand_id );
 
 		if ( null === $global_styles_post_id ) {
 			return $theme_json;
@@ -2275,8 +2502,8 @@ git commit -m "feat: add GlobalStylesOverride frontend theme.json merge"
 - Test: `tests/ContentVariables/VariableSubstitutionServiceTest.php`
 
 **Interfaces:**
-- Consumes: `DomainResolver::resolve_current_request(): ?int` (Task 5), `WebsiteRepository::get_variables(int): array` (Task 4), `is_admin()`, `wp_doing_ajax()` (WP core)
-- Produces: `VariableSubstitutionService::__construct(DomainResolver, WebsiteRepository)`, `->replace(string $html): string`, `->start_buffer(): void` (hooked to `template_redirect`)
+- Consumes: `BrandResolver::resolve_current_request(): ?int` (Task 5), `BrandRepository::get_variables(int): array` (Task 4), `is_admin()`, `wp_doing_ajax()` (WP core)
+- Produces: `VariableSubstitutionService::__construct(BrandResolver, BrandRepository)`, `->replace(string $html): string`, `->start_buffer(): void` (hooked to `template_redirect`)
 
 - [ ] **Step 1: Write the failing test**
 
@@ -2292,9 +2519,9 @@ use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use TheAnother\Plugin\MultiDomainGlobalStyles\Website\DomainResolver;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\BrandResolver;
 use TheAnother\Plugin\MultiDomainGlobalStyles\ContentVariables\VariableSubstitutionService;
-use TheAnother\Plugin\MultiDomainGlobalStyles\Website\WebsiteRepository;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\BrandRepository;
 
 #[CoversClass( VariableSubstitutionService::class )]
 class VariableSubstitutionServiceTest extends TestCase {
@@ -2310,26 +2537,26 @@ class VariableSubstitutionServiceTest extends TestCase {
 		parent::tearDown();
 	}
 
-	private function make_service( ?int $website_id, array $variables = array() ): VariableSubstitutionService {
-		$resolver = Mockery::mock( DomainResolver::class );
-		$resolver->shouldReceive( 'resolve_current_request' )->andReturn( $website_id );
+	private function make_service( ?int $brand_id, array $variables = array() ): VariableSubstitutionService {
+		$resolver = Mockery::mock( BrandResolver::class );
+		$resolver->shouldReceive( 'resolve_current_request' )->andReturn( $brand_id );
 
-		$repository = Mockery::mock( WebsiteRepository::class );
-		if ( null !== $website_id ) {
-			$repository->shouldReceive( 'get_variables' )->with( $website_id )->andReturn( $variables );
+		$repository = Mockery::mock( BrandRepository::class );
+		if ( null !== $brand_id ) {
+			$repository->shouldReceive( 'get_variables' )->with( $brand_id )->andReturn( $variables );
 		}
 
 		return new VariableSubstitutionService( $resolver, $repository );
 	}
 
-	public function test_replaces_known_website_token(): void {
+	public function test_replaces_known_brand_token(): void {
 		Functions\when( 'esc_html' )->returnArg();
 
 		$service = $this->make_service( 5, array( 'name' => 'Acme Auctions' ) );
 
 		$this->assertSame(
 			'Welcome to Acme Auctions today.',
-			$service->replace( 'Welcome to %%website.name%% today.' )
+			$service->replace( 'Welcome to %%brand.name%% today.' )
 		);
 	}
 
@@ -2337,12 +2564,12 @@ class VariableSubstitutionServiceTest extends TestCase {
 		$service = $this->make_service( 5, array( 'name' => 'Acme Auctions' ) );
 
 		$this->assertSame(
-			'Call us at %%website.phone%%.',
-			$service->replace( 'Call us at %%website.phone%%.' )
+			'Call us at %%brand.phone%%.',
+			$service->replace( 'Call us at %%brand.phone%%.' )
 		);
 	}
 
-	public function test_ignores_tokens_outside_website_namespace(): void {
+	public function test_ignores_tokens_outside_brand_namespace(): void {
 		$service = $this->make_service( 5, array( 'name' => 'Acme Auctions' ) );
 
 		$this->assertSame(
@@ -2358,7 +2585,7 @@ class VariableSubstitutionServiceTest extends TestCase {
 
 		$this->assertSame(
 			'AcmeCall 555-0100',
-			$service->replace( '%%website.name%%Call %%website.phone%%' )
+			$service->replace( '%%brand.name%%Call %%brand.phone%%' )
 		);
 	}
 
@@ -2371,20 +2598,20 @@ class VariableSubstitutionServiceTest extends TestCase {
 
 		$this->assertSame(
 			'&lt;script>Acme</script>',
-			$service->replace( '%%website.name%%' )
+			$service->replace( '%%brand.name%%' )
 		);
 	}
 
-	public function test_returns_html_unchanged_when_no_website_resolved(): void {
+	public function test_returns_html_unchanged_when_no_brand_resolved(): void {
 		$service = $this->make_service( null );
 
-		$this->assertSame( '%%website.name%%', $service->replace( '%%website.name%%' ) );
+		$this->assertSame( '%%brand.name%%', $service->replace( '%%brand.name%%' ) );
 	}
 
 	public function test_returns_html_unchanged_when_no_variables_defined(): void {
 		$service = $this->make_service( 5, array() );
 
-		$this->assertSame( '%%website.name%%', $service->replace( '%%website.name%%' ) );
+		$this->assertSame( '%%brand.name%%', $service->replace( '%%brand.name%%' ) );
 	}
 }
 ```
@@ -2410,36 +2637,36 @@ namespace TheAnother\Plugin\MultiDomainGlobalStyles\ContentVariables;
 /**
  * Class VariableSubstitutionService
  *
- * Replaces %%website.*%% tokens in the final rendered HTML with the resolved
- * Website's variable values. Runs as a whole-page output buffer so it covers
+ * Replaces %%brand.*%% tokens in the final rendered HTML with the resolved
+ * Brand's variable values. Runs as a whole-page output buffer so it covers
  * post content, template parts, patterns, widgets, and menus in one pass,
  * rather than hooking a dozen individual WP content filters.
  */
 class VariableSubstitutionService {
 
 	/**
-	 * Domain resolver.
+	 * Brand resolver.
 	 *
-	 * @var DomainResolver
+	 * @var BrandResolver
 	 */
-	private DomainResolver $domain_resolver;
+	private BrandResolver $brand_resolver;
 
 	/**
-	 * Website repository.
+	 * Brand repository.
 	 *
-	 * @var WebsiteRepository
+	 * @var BrandRepository
 	 */
-	private WebsiteRepository $website_repository;
+	private BrandRepository $brand_repository;
 
 	/**
 	 * Constructor.
 	 *
-	 * @param DomainResolver    $domain_resolver    Domain resolver service.
-	 * @param WebsiteRepository $website_repository Website repository service.
+	 * @param BrandResolver    $brand_resolver    Brand resolver service.
+	 * @param BrandRepository $brand_repository Brand repository service.
 	 */
-	public function __construct( DomainResolver $domain_resolver, WebsiteRepository $website_repository ) {
-		$this->domain_resolver    = $domain_resolver;
-		$this->website_repository = $website_repository;
+	public function __construct( BrandResolver $brand_resolver, BrandRepository $brand_repository ) {
+		$this->brand_resolver    = $brand_resolver;
+		$this->brand_repository = $brand_repository;
 	}
 
 	/**
@@ -2456,26 +2683,26 @@ class VariableSubstitutionService {
 	}
 
 	/**
-	 * Replace %%website.*%% tokens in HTML with the resolved Website's variable values.
+	 * Replace %%brand.*%% tokens in HTML with the resolved Brand's variable values.
 	 *
 	 * @param string $html Rendered page HTML.
 	 * @return string HTML with known tokens replaced; unknown tokens are left literal.
 	 */
 	public function replace( string $html ): string {
-		$website_id = $this->domain_resolver->resolve_current_request();
+		$brand_id = $this->brand_resolver->resolve_current_request();
 
-		if ( null === $website_id ) {
+		if ( null === $brand_id ) {
 			return $html;
 		}
 
-		$variables = $this->website_repository->get_variables( $website_id );
+		$variables = $this->brand_repository->get_variables( $brand_id );
 
 		if ( empty( $variables ) ) {
 			return $html;
 		}
 
 		return preg_replace_callback(
-			'/%%website\.([a-z0-9_]+)%%/i',
+			'/%%brand\.([a-z0-9_]+)%%/i',
 			static function ( array $matches ) use ( $variables ) {
 				$key = strtolower( $matches[1] );
 
@@ -2500,20 +2727,20 @@ Expected: PASS.
 
 ```bash
 git add includes/ContentVariables/VariableSubstitutionService.php tests/ContentVariables/VariableSubstitutionServiceTest.php
-git commit -m "feat: add VariableSubstitutionService for %%website.*%% tokens"
+git commit -m "feat: add VariableSubstitutionService for %%brand.*%% tokens"
 ```
 
 ---
 
-### Task 10: WebsitePostType — CPT, meta boxes, save glue
+### Task 10: BrandPostType — CPT, meta boxes, save glue
 
 **Files:**
-- Create: `includes/Website/WebsitePostType.php`
-- Test: `tests/Website/WebsitePostTypeTest.php`
+- Create: `includes/Brand/BrandPostType.php`
+- Test: `tests/Brand/BrandPostTypeTest.php`
 
 **Interfaces:**
-- Consumes: `DomainRegistry::parse_domains_input(string): array`, `->find_conflicting_website(string, int): ?int`, `->invalidate_cache(): void` (Task 2/3); `VariableParser::parse(string): array` (Task 6); `GlobalStylesPostService::ensure_global_styles_post(int): int`, `->get_global_styles_data(int): array` (Task 7)
-- Produces: `WebsitePostType::POST_TYPE = 'mdgs_website'`, `->__construct(DomainRegistry, VariableParser, GlobalStylesPostService)`, `->register(): void`, `->register_meta_boxes(): void`, `->save(int $post_id): void`
+- Consumes: `UrlRuleRegistry::parse_rules_input(string): array`, `->find_conflicting_brand(string, int): ?int`, `->invalidate_cache(): void` (Task 2/3); `VariableParser::parse(string): array` (Task 6); `GlobalStylesPostService::ensure_global_styles_post(int): int`, `->get_global_styles_data(int): array` (Task 7)
+- Produces: `BrandPostType::POST_TYPE = 'mdgs_brand'`, `->__construct(UrlRuleRegistry, VariableParser, GlobalStylesPostService)`, `->register(): void`, `->register_meta_boxes(): void`, `->save(int $post_id): void`
 
 This task's test coverage focuses on `save()`'s branching logic (the part with real decisions to get wrong), matching the codebase's existing convention of not unit-testing render/glue methods that just echo HTML (see `render.php` files elsewhere in this environment, which aren't unit tested). The render methods are exercised manually in Task 13's smoke check instead.
 
@@ -2523,7 +2750,7 @@ This task's test coverage focuses on `save()`'s branching logic (the part with r
 <?php
 declare(strict_types=1);
 
-namespace TheAnother\Plugin\MultiDomainGlobalStyles\Tests\Website;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles\Tests\Brand;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
@@ -2531,13 +2758,13 @@ use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use TheAnother\Plugin\MultiDomainGlobalStyles\Website\WebsitePostType;
-use TheAnother\Plugin\MultiDomainGlobalStyles\Website\DomainRegistry;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\BrandPostType;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\UrlRuleRegistry;
 use TheAnother\Plugin\MultiDomainGlobalStyles\GlobalStyles\GlobalStylesPostService;
 use TheAnother\Plugin\MultiDomainGlobalStyles\ContentVariables\VariableParser;
 
-#[CoversClass( WebsitePostType::class )]
-class WebsitePostTypeTest extends TestCase {
+#[CoversClass( BrandPostType::class )]
+class BrandPostTypeTest extends TestCase {
 	use MockeryPHPUnitIntegration;
 
 	protected function setUp(): void {
@@ -2551,7 +2778,7 @@ class WebsitePostTypeTest extends TestCase {
 		Functions\when( 'current_user_can' )->justReturn( true );
 		Functions\when( 'get_current_user_id' )->justReturn( 1 );
 
-		$_POST['mdgs_website_nonce'] = 'valid';
+		$_POST['mdgs_brand_nonce'] = 'valid';
 	}
 
 	protected function tearDown(): void {
@@ -2561,41 +2788,41 @@ class WebsitePostTypeTest extends TestCase {
 	}
 
 	private function make_post_type(
-		DomainRegistry $domain_registry = null,
+		UrlRuleRegistry $url_rule_registry = null,
 		VariableParser $variable_parser = null,
 		GlobalStylesPostService $global_styles_post_service = null
-	): WebsitePostType {
-		return new WebsitePostType(
-			$domain_registry ?? Mockery::mock( DomainRegistry::class ),
+	): BrandPostType {
+		return new BrandPostType(
+			$url_rule_registry ?? Mockery::mock( UrlRuleRegistry::class ),
 			$variable_parser ?? Mockery::mock( VariableParser::class ),
 			$global_styles_post_service ?? Mockery::mock( GlobalStylesPostService::class )
 		);
 	}
 
 	public function test_save_skips_when_nonce_missing(): void {
-		unset( $_POST['mdgs_website_nonce'] );
+		unset( $_POST['mdgs_brand_nonce'] );
 
-		$domain_registry = Mockery::mock( DomainRegistry::class );
-		$domain_registry->shouldNotReceive( 'parse_domains_input' );
+		$url_rule_registry = Mockery::mock( UrlRuleRegistry::class );
+		$url_rule_registry->shouldNotReceive( 'parse_rules_input' );
 
-		$post_type = $this->make_post_type( $domain_registry );
+		$post_type = $this->make_post_type( $url_rule_registry );
 
 		$post_type->save( 5 );
 
 		$this->assertTrue( true ); // No exception, no calls made — assertions are the shouldNotReceive expectations above.
 	}
 
-	public function test_save_accepts_domains_without_conflicts(): void {
-		$_POST['mdgs_domains']   = "example.com\nexample.org";
+	public function test_save_accepts_rules_without_conflicts(): void {
+		$_POST['mdgs_rules']   = "example.com\nexample.org";
 		$_POST['mdgs_variables'] = '';
 
-		$domain_registry = Mockery::mock( DomainRegistry::class );
-		$domain_registry->shouldReceive( 'parse_domains_input' )
+		$url_rule_registry = Mockery::mock( UrlRuleRegistry::class );
+		$url_rule_registry->shouldReceive( 'parse_rules_input' )
 			->with( "example.com\nexample.org" )
 			->andReturn( array( 'example.com', 'example.org' ) );
-		$domain_registry->shouldReceive( 'find_conflicting_website' )->with( 'example.com', 5 )->andReturn( null );
-		$domain_registry->shouldReceive( 'find_conflicting_website' )->with( 'example.org', 5 )->andReturn( null );
-		$domain_registry->shouldReceive( 'invalidate_cache' )->once();
+		$url_rule_registry->shouldReceive( 'find_conflicting_brand' )->with( 'example.com', 5 )->andReturn( null );
+		$url_rule_registry->shouldReceive( 'find_conflicting_brand' )->with( 'example.org', 5 )->andReturn( null );
+		$url_rule_registry->shouldReceive( 'invalidate_cache' )->once();
 
 		$variable_parser = Mockery::mock( VariableParser::class );
 		$variable_parser->shouldReceive( 'parse' )->with( '' )->andReturn( array() );
@@ -2603,24 +2830,24 @@ class WebsitePostTypeTest extends TestCase {
 		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
 		$global_styles_post_service->shouldReceive( 'ensure_global_styles_post' )->once()->with( 5 )->andReturn( 42 );
 
-		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_domains', array( 'example.com', 'example.org' ) )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_rules', array( 'example.com', 'example.org' ) )->once();
 		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_variables', array() )->once();
 		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_is_default', '' )->once();
 
-		$post_type = $this->make_post_type( $domain_registry, $variable_parser, $global_styles_post_service );
+		$post_type = $this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service );
 
 		$post_type->save( 5 );
 	}
 
-	public function test_save_drops_conflicting_domain_and_records_rejection(): void {
-		$_POST['mdgs_domains']   = "example.com\ntaken.com";
+	public function test_save_drops_conflicting_rule_and_records_rejection(): void {
+		$_POST['mdgs_rules']   = "example.com\ntaken.com";
 		$_POST['mdgs_variables'] = '';
 
-		$domain_registry = Mockery::mock( DomainRegistry::class );
-		$domain_registry->shouldReceive( 'parse_domains_input' )->andReturn( array( 'example.com', 'taken.com' ) );
-		$domain_registry->shouldReceive( 'find_conflicting_website' )->with( 'example.com', 5 )->andReturn( null );
-		$domain_registry->shouldReceive( 'find_conflicting_website' )->with( 'taken.com', 5 )->andReturn( 9 );
-		$domain_registry->shouldReceive( 'invalidate_cache' )->once();
+		$url_rule_registry = Mockery::mock( UrlRuleRegistry::class );
+		$url_rule_registry->shouldReceive( 'parse_rules_input' )->andReturn( array( 'example.com', 'taken.com' ) );
+		$url_rule_registry->shouldReceive( 'find_conflicting_brand' )->with( 'example.com', 5 )->andReturn( null );
+		$url_rule_registry->shouldReceive( 'find_conflicting_brand' )->with( 'taken.com', 5 )->andReturn( 9 );
+		$url_rule_registry->shouldReceive( 'invalidate_cache' )->once();
 
 		$variable_parser = Mockery::mock( VariableParser::class );
 		$variable_parser->shouldReceive( 'parse' )->andReturn( array() );
@@ -2628,25 +2855,25 @@ class WebsitePostTypeTest extends TestCase {
 		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
 		$global_styles_post_service->shouldReceive( 'ensure_global_styles_post' )->andReturn( 42 );
 
-		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_domains', array( 'example.com' ) )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_rules', array( 'example.com' ) )->once();
 		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_variables', array() )->once();
 		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_is_default', '' )->once();
 		Functions\expect( 'set_transient' )
 			->once()
-			->with( 'mdgs_domain_conflict_1', array( 'taken.com' ), 30 );
+			->with( 'mdgs_rule_conflict_1', array( 'taken.com' ), 30 );
 
-		$post_type = $this->make_post_type( $domain_registry, $variable_parser, $global_styles_post_service );
+		$post_type = $this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service );
 
 		$post_type->save( 5 );
 	}
 
 	public function test_save_stores_parsed_variables(): void {
-		$_POST['mdgs_domains']   = '';
+		$_POST['mdgs_rules']   = '';
 		$_POST['mdgs_variables'] = 'name = Acme';
 
-		$domain_registry = Mockery::mock( DomainRegistry::class );
-		$domain_registry->shouldReceive( 'parse_domains_input' )->andReturn( array() );
-		$domain_registry->shouldReceive( 'invalidate_cache' )->once();
+		$url_rule_registry = Mockery::mock( UrlRuleRegistry::class );
+		$url_rule_registry->shouldReceive( 'parse_rules_input' )->andReturn( array() );
+		$url_rule_registry->shouldReceive( 'invalidate_cache' )->once();
 
 		$variable_parser = Mockery::mock( VariableParser::class );
 		$variable_parser->shouldReceive( 'parse' )->with( 'name = Acme' )->andReturn( array( 'name' => 'Acme' ) );
@@ -2654,23 +2881,23 @@ class WebsitePostTypeTest extends TestCase {
 		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
 		$global_styles_post_service->shouldReceive( 'ensure_global_styles_post' )->andReturn( 42 );
 
-		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_domains', array() )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_rules', array() )->once();
 		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_variables', array( 'name' => 'Acme' ) )->once();
 		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_is_default', '' )->once();
 
-		$post_type = $this->make_post_type( $domain_registry, $variable_parser, $global_styles_post_service );
+		$post_type = $this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service );
 
 		$post_type->save( 5 );
 	}
 
 	public function test_save_clears_other_defaults_when_marked_default(): void {
-		$_POST['mdgs_domains']    = '';
+		$_POST['mdgs_rules']    = '';
 		$_POST['mdgs_variables']  = '';
 		$_POST['mdgs_is_default'] = '1';
 
-		$domain_registry = Mockery::mock( DomainRegistry::class );
-		$domain_registry->shouldReceive( 'parse_domains_input' )->andReturn( array() );
-		$domain_registry->shouldReceive( 'invalidate_cache' )->once();
+		$url_rule_registry = Mockery::mock( UrlRuleRegistry::class );
+		$url_rule_registry->shouldReceive( 'parse_rules_input' )->andReturn( array() );
+		$url_rule_registry->shouldReceive( 'invalidate_cache' )->once();
 
 		$variable_parser = Mockery::mock( VariableParser::class );
 		$variable_parser->shouldReceive( 'parse' )->andReturn( array() );
@@ -2682,7 +2909,7 @@ class WebsitePostTypeTest extends TestCase {
 			->once()
 			->with(
 				array(
-					'post_type'      => 'mdgs_website',
+					'post_type'      => 'mdgs_brand',
 					'posts_per_page' => -1,
 					'fields'         => 'ids',
 					'post__not_in'   => array( 5 ),
@@ -2693,11 +2920,11 @@ class WebsitePostTypeTest extends TestCase {
 			->andReturn( array( 7 ) );
 		Functions\expect( 'delete_post_meta' )->once()->with( 7, '_mdgs_is_default' );
 
-		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_domains', array() )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_rules', array() )->once();
 		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_variables', array() )->once();
 		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_is_default', '1' )->once();
 
-		$post_type = $this->make_post_type( $domain_registry, $variable_parser, $global_styles_post_service );
+		$post_type = $this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service );
 
 		$post_type->save( 5 );
 	}
@@ -2706,48 +2933,48 @@ class WebsitePostTypeTest extends TestCase {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `composer test -- --filter WebsitePostTypeTest`
-Expected: FAIL with "Class ... WebsitePostType not found".
+Run: `composer test -- --filter BrandPostTypeTest`
+Expected: FAIL with "Class ... BrandPostType not found".
 
 - [ ] **Step 3: Write implementation**
 
 ```php
 <?php
 /**
- * Website Post Type
+ * Brand Post Type
  *
  * @package MultiDomainGlobalStyles
  * @since 1.0.0
  */
 
-namespace TheAnother\Plugin\MultiDomainGlobalStyles\Website;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles\Brand;
 
 use TheAnother\Plugin\MultiDomainGlobalStyles\GlobalStyles\GlobalStylesPostService;
 use TheAnother\Plugin\MultiDomainGlobalStyles\ContentVariables\VariableParser;
 use WP_Post;
 
 /**
- * Class WebsitePostType
+ * Class BrandPostType
  *
- * Registers the `mdgs_website` CPT: domains, content variables, default
+ * Registers the `mdgs_brand` CPT: URL rules, content variables, default
  * flag, and an interim raw-JSON global styles editor (Task 10 of the
  * foundation plan; replaced by a Site Editor redirect in the follow-up plan).
  */
-class WebsitePostType {
+class BrandPostType {
 
 	/**
 	 * Post type slug.
 	 *
 	 * @var string
 	 */
-	public const POST_TYPE = 'mdgs_website';
+	public const POST_TYPE = 'mdgs_brand';
 
 	/**
-	 * Domain registry.
+	 * URL rule registry.
 	 *
-	 * @var DomainRegistry
+	 * @var UrlRuleRegistry
 	 */
-	private DomainRegistry $domain_registry;
+	private UrlRuleRegistry $url_rule_registry;
 
 	/**
 	 * Variable parser.
@@ -2766,22 +2993,22 @@ class WebsitePostType {
 	/**
 	 * Constructor.
 	 *
-	 * @param DomainRegistry            $domain_registry             Domain registry service.
+	 * @param UrlRuleRegistry            $url_rule_registry             URL rule registry service.
 	 * @param VariableParser            $variable_parser             Variable parser service.
 	 * @param GlobalStylesPostService $global_styles_post_service  Global styles post service.
 	 */
 	public function __construct(
-		DomainRegistry $domain_registry,
+		UrlRuleRegistry $url_rule_registry,
 		VariableParser $variable_parser,
 		GlobalStylesPostService $global_styles_post_service
 	) {
-		$this->domain_registry            = $domain_registry;
+		$this->url_rule_registry            = $url_rule_registry;
 		$this->variable_parser            = $variable_parser;
 		$this->global_styles_post_service = $global_styles_post_service;
 	}
 
 	/**
-	 * Register the mdgs_website post type. Hooked to `init`.
+	 * Register the mdgs_brand post type. Hooked to `init`.
 	 *
 	 * @return void
 	 */
@@ -2790,10 +3017,10 @@ class WebsitePostType {
 			self::POST_TYPE,
 			array(
 				'labels'       => array(
-					'name'          => __( 'Websites', 'the-another-multi-domain-global-styles' ),
-					'singular_name' => __( 'Website', 'the-another-multi-domain-global-styles' ),
-					'add_new_item'  => __( 'Add New Website', 'the-another-multi-domain-global-styles' ),
-					'edit_item'     => __( 'Edit Website', 'the-another-multi-domain-global-styles' ),
+					'name'          => __( 'Brands', 'the-another-multi-domain-global-styles' ),
+					'singular_name' => __( 'Brand', 'the-another-multi-domain-global-styles' ),
+					'add_new_item'  => __( 'Add New Brand', 'the-another-multi-domain-global-styles' ),
+					'edit_item'     => __( 'Edit Brand', 'the-another-multi-domain-global-styles' ),
 				),
 				'public'       => false,
 				'show_ui'      => true,
@@ -2811,26 +3038,26 @@ class WebsitePostType {
 	 * @return void
 	 */
 	public function register_meta_boxes(): void {
-		add_meta_box( 'mdgs_domains', __( 'Domains', 'the-another-multi-domain-global-styles' ), array( $this, 'render_domains_meta_box' ), self::POST_TYPE, 'normal', 'high' );
+		add_meta_box( 'mdgs_rules', __( 'URL Rules', 'the-another-multi-domain-global-styles' ), array( $this, 'render_rules_meta_box' ), self::POST_TYPE, 'normal', 'high' );
 		add_meta_box( 'mdgs_variables', __( 'Content Variables', 'the-another-multi-domain-global-styles' ), array( $this, 'render_variables_meta_box' ), self::POST_TYPE, 'normal', 'default' );
-		add_meta_box( 'mdgs_default', __( 'Default Website', 'the-another-multi-domain-global-styles' ), array( $this, 'render_default_meta_box' ), self::POST_TYPE, 'side', 'default' );
+		add_meta_box( 'mdgs_default', __( 'Default Brand', 'the-another-multi-domain-global-styles' ), array( $this, 'render_default_meta_box' ), self::POST_TYPE, 'side', 'default' );
 		add_meta_box( 'mdgs_styles', __( 'Global Styles (raw JSON)', 'the-another-multi-domain-global-styles' ), array( $this, 'render_styles_meta_box' ), self::POST_TYPE, 'normal', 'default' );
 	}
 
 	/**
-	 * Render the domains meta box.
+	 * Render the URL rules meta box.
 	 *
 	 * @param WP_Post $post Current post.
 	 * @return void
 	 */
-	public function render_domains_meta_box( WP_Post $post ): void {
-		$domains = get_post_meta( $post->ID, '_mdgs_domains', true );
-		$domains = is_array( $domains ) ? $domains : array();
+	public function render_rules_meta_box( WP_Post $post ): void {
+		$rules = get_post_meta( $post->ID, '_mdgs_rules', true );
+		$rules = is_array( $rules ) ? $rules : array();
 
-		wp_nonce_field( 'mdgs_save_website', 'mdgs_website_nonce' );
+		wp_nonce_field( 'mdgs_save_brand', 'mdgs_brand_nonce' );
 		?>
-		<p><?php esc_html_e( 'One hostname per line, e.g. example.com', 'the-another-multi-domain-global-styles' ); ?></p>
-		<textarea name="mdgs_domains" rows="5" style="width:100%;"><?php echo esc_textarea( implode( "\n", $domains ) ); ?></textarea>
+		<p><?php esc_html_e( 'One rule per line. A bare hostname matches the whole domain (auctionbill.com); add a path to match one section only (site.com/farm/*).', 'the-another-multi-domain-global-styles' ); ?></p>
+		<textarea name="mdgs_rules" rows="5" style="width:100%;"><?php echo esc_textarea( implode( "\n", $rules ) ); ?></textarea>
 		<?php
 	}
 
@@ -2849,13 +3076,13 @@ class WebsitePostType {
 			$lines[] = "{$key} = {$value}";
 		}
 		?>
-		<p><?php esc_html_e( 'One variable per line, e.g. name = Acme Auctions. Reference in content as %%website.name%%.', 'the-another-multi-domain-global-styles' ); ?></p>
+		<p><?php esc_html_e( 'One variable per line, e.g. name = Acme Auctions. Reference in content as %%brand.name%%.', 'the-another-multi-domain-global-styles' ); ?></p>
 		<textarea name="mdgs_variables" rows="5" style="width:100%;"><?php echo esc_textarea( implode( "\n", $lines ) ); ?></textarea>
 		<?php
 	}
 
 	/**
-	 * Render the default-website meta box.
+	 * Render the default-Brand meta box.
 	 *
 	 * @param WP_Post $post Current post.
 	 * @return void
@@ -2880,19 +3107,19 @@ class WebsitePostType {
 		$global_styles_post_id = get_post_meta( $post->ID, '_mdgs_global_styles_post_id', true );
 		$data                  = $global_styles_post_id ? $this->global_styles_post_service->get_global_styles_data( (int) $global_styles_post_id ) : array();
 		?>
-		<p><?php esc_html_e( 'Raw theme.json-shaped settings/styles for this Website. A richer visual editor is planned; this is the interim editing UI.', 'the-another-multi-domain-global-styles' ); ?></p>
+		<p><?php esc_html_e( 'Raw theme.json-shaped settings/styles for this Brand. A richer visual editor is planned; this is the interim editing UI.', 'the-another-multi-domain-global-styles' ); ?></p>
 		<textarea name="mdgs_styles_json" rows="12" style="width:100%;font-family:monospace;"><?php echo esc_textarea( wp_json_encode( $data, JSON_PRETTY_PRINT ) ); ?></textarea>
 		<?php
 	}
 
 	/**
-	 * Save handler. Hooked to `save_post_mdgs_website`.
+	 * Save handler. Hooked to `save_post_mdgs_brand`.
 	 *
 	 * @param int $post_id Post ID being saved.
 	 * @return void
 	 */
 	public function save( int $post_id ): void {
-		if ( ! isset( $_POST['mdgs_website_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['mdgs_website_nonce'] ) ), 'mdgs_save_website' ) ) {
+		if ( ! isset( $_POST['mdgs_brand_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['mdgs_brand_nonce'] ) ), 'mdgs_save_brand' ) ) {
 			return;
 		}
 
@@ -2904,41 +3131,41 @@ class WebsitePostType {
 			return;
 		}
 
-		$this->save_domains( $post_id );
+		$this->save_rules( $post_id );
 		$this->save_variables( $post_id );
 		$this->save_default_flag( $post_id );
 		$this->save_styles( $post_id );
 
-		$this->domain_registry->invalidate_cache();
+		$this->url_rule_registry->invalidate_cache();
 		$this->global_styles_post_service->ensure_global_styles_post( $post_id );
 	}
 
 	/**
-	 * Parse, validate, and persist the domains field.
+	 * Parse, validate, and persist the URL rules field.
 	 *
 	 * @param int $post_id Post ID.
 	 * @return void
 	 */
-	private function save_domains( int $post_id ): void {
-		$raw     = isset( $_POST['mdgs_domains'] ) ? sanitize_textarea_field( wp_unslash( $_POST['mdgs_domains'] ) ) : '';
-		$domains = $this->domain_registry->parse_domains_input( $raw );
+	private function save_rules( int $post_id ): void {
+		$raw     = isset( $_POST['mdgs_rules'] ) ? sanitize_textarea_field( wp_unslash( $_POST['mdgs_rules'] ) ) : '';
+		$rules = $this->url_rule_registry->parse_rules_input( $raw );
 
 		$accepted = array();
 		$rejected = array();
 
-		foreach ( $domains as $domain ) {
-			if ( null !== $this->domain_registry->find_conflicting_website( $domain, $post_id ) ) {
-				$rejected[] = $domain;
+		foreach ( $rules as $rule ) {
+			if ( null !== $this->url_rule_registry->find_conflicting_brand( $rule, $post_id ) ) {
+				$rejected[] = $rule;
 				continue;
 			}
-			$accepted[] = $domain;
+			$accepted[] = $rule;
 		}
 
 		if ( ! empty( $rejected ) ) {
-			set_transient( 'mdgs_domain_conflict_' . get_current_user_id(), $rejected, 30 );
+			set_transient( 'mdgs_rule_conflict_' . get_current_user_id(), $rejected, 30 );
 		}
 
-		update_post_meta( $post_id, '_mdgs_domains', $accepted );
+		update_post_meta( $post_id, '_mdgs_rules', $accepted );
 	}
 
 	/**
@@ -2954,7 +3181,7 @@ class WebsitePostType {
 	}
 
 	/**
-	 * Persist the default-website flag, clearing it from any other Website.
+	 * Persist the default-Brand flag, clearing it from any other Brand.
 	 *
 	 * @param int $post_id Post ID.
 	 * @return void
@@ -3017,23 +3244,23 @@ class WebsitePostType {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `composer test -- --filter WebsitePostTypeTest`
+Run: `composer test -- --filter BrandPostTypeTest`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/Website/WebsitePostType.php tests/Website/WebsitePostTypeTest.php
-git commit -m "feat: add WebsitePostType with domains, variables, default flag, and raw-JSON styles editor"
+git add includes/Brand/BrandPostType.php tests/Brand/BrandPostTypeTest.php
+git commit -m "feat: add BrandPostType with URL rules, variables, default flag, and raw-JSON styles editor"
 ```
 
 ---
 
-### Task 11: AdminNotices — duplicate domain rejection
+### Task 11: AdminNotices — duplicate rule rejection
 
 **Files:**
-- Create: `includes/Website/AdminNotices.php`
-- Test: `tests/Website/AdminNoticesTest.php`
+- Create: `includes/Brand/AdminNotices.php`
+- Test: `tests/Brand/AdminNoticesTest.php`
 
 **Interfaces:**
 - Consumes: `get_current_user_id()`, `get_transient()`, `delete_transient()` (WP core)
@@ -3045,14 +3272,14 @@ git commit -m "feat: add WebsitePostType with domains, variables, default flag, 
 <?php
 declare(strict_types=1);
 
-namespace TheAnother\Plugin\MultiDomainGlobalStyles\Tests\Website;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles\Tests\Brand;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use TheAnother\Plugin\MultiDomainGlobalStyles\Website\AdminNotices;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\AdminNotices;
 
 #[CoversClass( AdminNotices::class )]
 class AdminNoticesTest extends TestCase {
@@ -3070,7 +3297,7 @@ class AdminNoticesTest extends TestCase {
 
 	public function test_render_outputs_nothing_when_no_rejection_recorded(): void {
 		Functions\expect( 'get_current_user_id' )->once()->andReturn( 1 );
-		Functions\expect( 'get_transient' )->once()->with( 'mdgs_domain_conflict_1' )->andReturn( false );
+		Functions\expect( 'get_transient' )->once()->with( 'mdgs_rule_conflict_1' )->andReturn( false );
 
 		$notices = new AdminNotices();
 
@@ -3083,8 +3310,8 @@ class AdminNoticesTest extends TestCase {
 
 	public function test_render_outputs_notice_and_clears_transient_when_rejection_recorded(): void {
 		Functions\expect( 'get_current_user_id' )->once()->andReturn( 1 );
-		Functions\expect( 'get_transient' )->once()->with( 'mdgs_domain_conflict_1' )->andReturn( array( 'taken.com' ) );
-		Functions\expect( 'delete_transient' )->once()->with( 'mdgs_domain_conflict_1' );
+		Functions\expect( 'get_transient' )->once()->with( 'mdgs_rule_conflict_1' )->andReturn( array( 'taken.com' ) );
+		Functions\expect( 'delete_transient' )->once()->with( 'mdgs_rule_conflict_1' );
 		Functions\when( '__' )->returnArg();
 		Functions\when( 'esc_html' )->returnArg();
 
@@ -3116,12 +3343,12 @@ Expected: FAIL with "Class ... AdminNotices not found".
  * @since 1.0.0
  */
 
-namespace TheAnother\Plugin\MultiDomainGlobalStyles\Website;
+namespace TheAnother\Plugin\MultiDomainGlobalStyles\Brand;
 
 /**
  * Class AdminNotices
  *
- * Surfaces the domain-conflict rejection recorded by WebsitePostType::save().
+ * Surfaces the rule-conflict rejection recorded by BrandPostType::save().
  */
 class AdminNotices {
 
@@ -3132,7 +3359,7 @@ class AdminNotices {
 	 */
 	public function render(): void {
 		$user_id       = get_current_user_id();
-		$transient_key = 'mdgs_domain_conflict_' . $user_id;
+		$transient_key = 'mdgs_rule_conflict_' . $user_id;
 		$rejected      = get_transient( $transient_key );
 
 		if ( empty( $rejected ) ) {
@@ -3145,8 +3372,8 @@ class AdminNotices {
 			'<div class="notice notice-warning"><p>%s</p></div>',
 			esc_html(
 				sprintf(
-					/* translators: %s: comma-separated list of rejected domains */
-					__( 'The following domains were not saved because they are already assigned to another Website: %s', 'the-another-multi-domain-global-styles' ),
+					/* translators: %s: comma-separated list of rejected URL rules */
+					__( 'The following URL rules were not saved because they are already assigned to another Brand: %s', 'the-another-multi-domain-global-styles' ),
 					implode( ', ', (array) $rejected )
 				)
 			)
@@ -3163,8 +3390,8 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add includes/Website/AdminNotices.php tests/Website/AdminNoticesTest.php
-git commit -m "feat: add AdminNotices for domain conflict rejection"
+git add includes/Brand/AdminNotices.php tests/Brand/AdminNoticesTest.php
+git commit -m "feat: add AdminNotices for URL rule conflict rejection"
 ```
 
 ---
@@ -3191,15 +3418,15 @@ git commit -m "feat: add AdminNotices for domain conflict rejection"
 
 namespace TheAnother\Plugin\MultiDomainGlobalStyles;
 
-use TheAnother\Plugin\MultiDomainGlobalStyles\Website\AdminNotices;
-use TheAnother\Plugin\MultiDomainGlobalStyles\Website\WebsitePostType;
-use TheAnother\Plugin\MultiDomainGlobalStyles\Website\DomainRegistry;
-use TheAnother\Plugin\MultiDomainGlobalStyles\Website\DomainResolver;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\AdminNotices;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\BrandPostType;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\UrlRuleRegistry;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\BrandResolver;
 use TheAnother\Plugin\MultiDomainGlobalStyles\GlobalStyles\GlobalStylesOverride;
 use TheAnother\Plugin\MultiDomainGlobalStyles\GlobalStyles\GlobalStylesPostService;
 use TheAnother\Plugin\MultiDomainGlobalStyles\ContentVariables\VariableParser;
 use TheAnother\Plugin\MultiDomainGlobalStyles\ContentVariables\VariableSubstitutionService;
-use TheAnother\Plugin\MultiDomainGlobalStyles\Website\WebsiteRepository;
+use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\BrandRepository;
 
 /**
  * Class Plugin
@@ -3251,22 +3478,22 @@ class Plugin {
 
 		$hooks = $this->container->get_hook_manager();
 
-		$website_post_type = $this->container->get( 'website_post_type' );
-		$hooks->register_action( 'init', array( $website_post_type, 'register' ) );
-		$hooks->register_action( 'add_meta_boxes', array( $website_post_type, 'register_meta_boxes' ) );
-		$hooks->register_action( 'save_post_' . WebsitePostType::POST_TYPE, array( $website_post_type, 'save' ) );
+		$brand_post_type = $this->container->get( 'brand_post_type' );
+		$hooks->register_action( 'init', array( $brand_post_type, 'register' ) );
+		$hooks->register_action( 'add_meta_boxes', array( $brand_post_type, 'register_meta_boxes' ) );
+		$hooks->register_action( 'save_post_' . BrandPostType::POST_TYPE, array( $brand_post_type, 'save' ) );
 
-		// The domain-map transient never expires, and the nonce-gated save()
+		// The rule-map transient never expires, and the nonce-gated save()
 		// handler above doesn't run on trash/untrash/delete — invalidate
-		// unconditionally on any Website status change so the map can't go
-		// stale when a Website is trashed or permanently deleted.
-		$domain_registry = $this->container->get( 'domain_registry' );
-		$hooks->register_action( 'save_post_' . WebsitePostType::POST_TYPE, array( $domain_registry, 'invalidate_cache' ) );
+		// unconditionally on any Brand status change so the map can't go
+		// stale when a Brand is trashed or permanently deleted.
+		$url_rule_registry = $this->container->get( 'url_rule_registry' );
+		$hooks->register_action( 'save_post_' . BrandPostType::POST_TYPE, array( $url_rule_registry, 'invalidate_cache' ) );
 		$hooks->register_action(
 			'deleted_post',
-			function ( $post_id, $post ) use ( $domain_registry ) {
-				if ( $post && WebsitePostType::POST_TYPE === $post->post_type ) {
-					$domain_registry->invalidate_cache();
+			function ( $post_id, $post ) use ( $url_rule_registry ) {
+				if ( $post && BrandPostType::POST_TYPE === $post->post_type ) {
+					$url_rule_registry->invalidate_cache();
 				}
 			},
 			10,
@@ -3289,34 +3516,34 @@ class Plugin {
 	 * @return void
 	 */
 	private function register_services(): void {
-		$this->container->register( 'domain_registry', fn() => new DomainRegistry() );
+		$this->container->register( 'url_rule_registry', fn() => new UrlRuleRegistry() );
 		$this->container->register( 'variable_parser', fn() => new VariableParser() );
-		$this->container->register( 'website_repository', fn() => new WebsiteRepository() );
+		$this->container->register( 'brand_repository', fn() => new BrandRepository() );
 		$this->container->register( 'global_styles_post_service', fn() => new GlobalStylesPostService() );
 
 		$this->container->register(
-			'domain_resolver',
-			fn( Container $c ) => new DomainResolver( $c->get( 'domain_registry' ), $c->get( 'website_repository' ) )
+			'brand_resolver',
+			fn( Container $c ) => new BrandResolver( $c->get( 'url_rule_registry' ), $c->get( 'brand_repository' ) )
 		);
 
 		$this->container->register(
 			'global_styles_override',
 			fn( Container $c ) => new GlobalStylesOverride(
-				$c->get( 'domain_resolver' ),
-				$c->get( 'website_repository' ),
+				$c->get( 'brand_resolver' ),
+				$c->get( 'brand_repository' ),
 				$c->get( 'global_styles_post_service' )
 			)
 		);
 
 		$this->container->register(
 			'variable_substitution_service',
-			fn( Container $c ) => new VariableSubstitutionService( $c->get( 'domain_resolver' ), $c->get( 'website_repository' ) )
+			fn( Container $c ) => new VariableSubstitutionService( $c->get( 'brand_resolver' ), $c->get( 'brand_repository' ) )
 		);
 
 		$this->container->register(
-			'website_post_type',
-			fn( Container $c ) => new WebsitePostType(
-				$c->get( 'domain_registry' ),
+			'brand_post_type',
+			fn( Container $c ) => new BrandPostType(
+				$c->get( 'url_rule_registry' ),
 				$c->get( 'variable_parser' ),
 				$c->get( 'global_styles_post_service' )
 			)
@@ -3350,32 +3577,36 @@ git commit -m "feat: wire all services and hooks in Plugin::start()"
 
 **Files:** none (verification only)
 
-This plugin's core value — domain resolution, style overrides, variable substitution — depends on real WordPress request handling (`$_SERVER['HTTP_HOST']`, `wp_theme_json_data_user`, output buffering) that Brain Monkey's mocked-function unit tests intentionally don't exercise end-to-end. Before considering the Foundation plan done, verify it manually against a real WordPress install:
+This plugin's core value — URL rule resolution, style overrides, variable substitution — depends on real WordPress request handling (`$_SERVER['HTTP_HOST']`, `wp_theme_json_data_user`, output buffering) that Brain Monkey's mocked-function unit tests intentionally don't exercise end-to-end. Before considering the Foundation plan done, verify it manually against a real WordPress install:
 
 - [ ] **Step 1: Install the plugin on a real WordPress 6.9+ site with a block theme active** (e.g. copy into a local install alongside `aucteeno-wp-theme`, or use the existing local dev environment for these plugins). Run `composer install --no-dev` (or full install if you also want dev tooling) inside the plugin directory first.
 
-- [ ] **Step 2: Activate the plugin.** Confirm no fatal errors and a "Websites" menu item appears in wp-admin.
+- [ ] **Step 2: Activate the plugin.** Confirm no fatal errors and a "Brands" menu item appears in wp-admin.
 
-- [ ] **Step 3: Create two Website posts.**
-  - Website A: domain `site-a.test` (or whatever local hostname you can point at this install), one variable `name = Site A`, styles JSON `{"settings":{"color":{"palette":[{"slug":"brand-primary","color":"#ff0000","name":"Brand Primary"}]}},"styles":{}}`.
-  - Website B: domain `site-b.test`, variable `name = Site B`, styles JSON with `"color":"#0000ff"` for the same palette slug.
+- [ ] **Step 3: Create three Brand posts.**
+  - Brand "AuctionBill": rule `site-a.test` (or whatever local hostname you can point at this install), one variable `name = AuctionBill`, styles JSON `{"settings":{"color":{"palette":[{"slug":"brand-primary","color":"#ff0000","name":"Brand Primary"}]}},"styles":{}}`.
+  - Brand "SiteB": rule `site-b.test`, variable `name = Site B`, styles JSON with `"color":"#0000ff"` for the same palette slug.
+  - Brand "Farm": rules `site-a.test/farm/*` **and** `site-b.test/farm/*` (same Brand spanning path sections of both hosts), variable `name = The Farm`, styles JSON with `"color":"#00aa00"` for the same palette slug.
 
-- [ ] **Step 4: Add `%%website.name%%` to a page's content** (e.g. the homepage). Visit via both hostnames (edit your local hosts file or equivalent to point both at this install) and confirm each shows its own Website's name, and that the raw theme.json (Appearance → Editor → Styles) on either domain still shows the *theme's own* unmodified defaults — confirming the override is per-request, not a global mutation.
+- [ ] **Step 4: Add `%%brand.name%%` to a page's content** (e.g. the homepage). Visit via both hostnames (edit your local hosts file or equivalent to point both at this install) and confirm each shows its own Brand's name, and that the raw theme.json (Appearance → Editor → Styles) on either domain still shows the *theme's own* unmodified defaults — confirming the override is per-request, not a global mutation.
 
 - [ ] **Step 5: Confirm palette override.** Add a block using the "Brand Primary" palette color on the page, and confirm it renders red on `site-a.test` and blue on `site-b.test` from the *same* saved content.
 
-- [ ] **Step 6: Confirm duplicate-domain rejection.** Try adding `site-a.test` to Website B and save; confirm the admin notice appears and the domain is not actually reassigned (re-check Website A still owns it).
+- [ ] **Step 6: Confirm page-level (path) branding.** Create a page at slug `farm` (and optionally a child page under it) containing `%%brand.name%%` and a Brand Primary-colored block. Confirm: `site-a.test/farm/` shows "The Farm" and green; `site-b.test/farm/` also shows "The Farm" and green (one Brand, two hosts); `site-a.test/` elsewhere still shows "AuctionBill" and red (host-wide rule still owns everything outside `/farm`); and a page like `site-a.test/farmhouse` (if you create one) does NOT get Farm branding — segment-boundary check.
 
-- [ ] **Step 7: Confirm the unmatched-domain fallback.** Visit the install via a third hostname not registered to any Website (or via its default local hostname). Confirm the designated default Website's styles/variables apply if one is flagged, or theme defaults + literal `%%website.name%%` text if none is.
+- [ ] **Step 7: Confirm duplicate-rule rejection and allowed overlap.** Try adding the exact rule `site-a.test` to Brand "SiteB" and save; confirm the admin notice appears and the rule is not reassigned (re-check "AuctionBill" still owns it). Note that `site-a.test/farm/*` living on Brand "Farm" while `site-a.test` lives on "AuctionBill" is the intended overlap, not a conflict.
 
-- [ ] **Step 8: Record results.** Note any discrepancies from expected behavior as follow-up tasks — do not silently patch and re-verify without documenting what broke.
+- [ ] **Step 8: Confirm the unmatched-request fallback.** Visit the install via a third hostname not registered to any Brand (or via its default local hostname). Confirm the designated default Brand's styles/variables apply if one is flagged, or theme defaults + literal `%%brand.name%%` text if none is.
+
+- [ ] **Step 9: Record results.** Note any discrepancies from expected behavior as follow-up tasks — do not silently patch and re-verify without documenting what broke.
 
 ---
 
 ## Self-Review Notes
 
-- **Spec coverage:** Domain management (Tasks 2–3, 10), Website entity bundling domains+styles+variables (Task 10), global styles override without touching theme files (Task 8), variable substitution across content/blocks/widgets/menus via whole-page buffer (Task 9), default-website fallback (Tasks 4–5, 10), duplicate-domain rejection (Tasks 3, 10–11), container-based DI house style (Task 1), esc_html-escaped plain-text variables (Task 9). The one spec item NOT covered here — full native-Site-Editor-parity style editing — is explicitly deferred to the follow-up plan per "Relationship to Plan 2" above; Task 10 ships the interim raw-JSON editor instead.
+- **Spec coverage:** URL rule management with host and host+path scoping (Tasks 2–3, 10), most-specific-match resolution incl. segment boundaries (Task 5), Brand entity bundling rules+styles+variables (Task 10), global styles override without touching theme files (Task 8), variable substitution across content/blocks/widgets/menus via whole-page buffer (Task 9), default-Brand fallback (Tasks 4–5, 10), exact-duplicate-rule rejection with overlap allowed (Tasks 3, 10–11), container-based DI house style (Task 1), esc_html-escaped plain-text variables (Task 9). The one spec item NOT covered here — full native-Site-Editor-parity style editing — is explicitly deferred to the follow-up plan per "Relationship to Plan 2" above; Task 10 ships the interim raw-JSON editor instead.
 - **Placeholder scan:** No TBD/TODO markers; every step has complete, runnable code.
-- **Type consistency:** `DomainResolver::resolve_host(string): ?int` / `resolve_current_request(): ?int` used identically in Tasks 5, 8, 9. `WebsiteRepository::get_global_styles_post_id(int): ?int`, `get_variables(int): array`, `get_default_website_id(): ?int` used identically wherever referenced. `GlobalStylesPostService::ensure_global_styles_post(int): int` / `get_global_styles_data(int): array` used identically in Tasks 8, 10, 12. Postmeta keys (`_mdgs_domains`, `_mdgs_variables`, `_mdgs_is_default`, `_mdgs_global_styles_post_id`) and the transient key `mdgs_domain_map` are spelled identically everywhere they appear.
-- **Domain-driven reorg consistency:** every `namespace`/`use` statement and file path in Tasks 1–12 was cross-checked against the "File Structure" bounded contexts (`Website`, `GlobalStyles`, `ContentVariables`) — no file references its old `Services`/`Post_Types`/`Admin` technical-layer location, and the one same-namespace `use` statement made redundant by the move (`DomainRegistry` inside `WebsitePostType`, both now in `Website`) was removed.
-- **Post-rename verification pass (test-executability audit):** three latent defects found and fixed — (1) `GlobalStylesPostServiceTest` used `Mockery::on()` without importing `use Mockery;`; (2) `WebsitePostTypeTest` didn't stub `sanitize_text_field`, which `save()` calls on the nonce before anything else (Brain Monkey auto-defines escaping/translation functions but not `sanitize_*`); (3) the same test file mocked `is_wp_error` via `Functions\expect`, but `tests/bootstrap.php` already defines that function globally and Brain Monkey cannot redefine an existing function — the mocks were dropped in favor of the real stub. Also fixed a cache-lifecycle gap: the domain-map transient never expires and was only invalidated inside the nonce-gated `save()` handler, so Task 12 now registers an unconditional `invalidate_cache` on `save_post_mdgs_website` (fires on trash/untrash too, since those go through `wp_insert_post`) plus a `deleted_post` guard for permanent deletion.
+- **Type consistency:** `BrandResolver::resolve(string, string): ?int` / `resolve_current_request(): ?int` used identically in Tasks 5, 8, 9. `BrandRepository::get_global_styles_post_id(int): ?int`, `get_variables(int): array`, `get_default_brand_id(): ?int` used identically wherever referenced. `GlobalStylesPostService::ensure_global_styles_post(int): int` / `get_global_styles_data(int): array` used identically in Tasks 8, 10, 12. Postmeta keys (`_mdgs_rules`, `_mdgs_variables`, `_mdgs_is_default`, `_mdgs_global_styles_post_id`) and the transient key `mdgs_rule_map` are spelled identically everywhere they appear.
+- **Domain-driven reorg consistency:** every `namespace`/`use` statement and file path in Tasks 1–12 was cross-checked against the "File Structure" bounded contexts (`Brand`, `GlobalStyles`, `ContentVariables`) — no file references its old `Services`/`Post_Types`/`Admin` technical-layer location, and the one same-namespace `use` statement made redundant by the move (`UrlRuleRegistry` inside `BrandPostType`, both now in `Brand`) was removed.
+- **Post-rename verification pass (test-executability audit):** three latent defects found and fixed — (1) `GlobalStylesPostServiceTest` used `Mockery::on()` without importing `use Mockery;`; (2) `BrandPostTypeTest` didn't stub `sanitize_text_field`, which `save()` calls on the nonce before anything else (Brain Monkey auto-defines escaping/translation functions but not `sanitize_*`); (3) the same test file mocked `is_wp_error` via `Functions\expect`, but `tests/bootstrap.php` already defines that function globally and Brain Monkey cannot redefine an existing function — the mocks were dropped in favor of the real stub. Also fixed a cache-lifecycle gap: the rule-map transient never expires and was only invalidated inside the nonce-gated `save()` handler, so Task 12 now registers an unconditional `invalidate_cache` on `save_post_mdgs_brand` (fires on trash/untrash too, since those go through `wp_insert_post`) plus a `deleted_post` guard for permanent deletion.
+- **Brand/URL-rule rework (page-level scoping):** the original "Website matched by hostname" model was upgraded to "Brand matched by URL rule" — host-wide (`auctionbill.com`) or host+path-prefix (`site.com/farm`) — with most-specific-match resolution and exact-rule-only conflict detection. Tasks 2, 3, and 5 were rewritten wholesale for the new matching logic; everything downstream (styles override, variable substitution) consumes the unchanged `resolve_current_request(): ?int` interface and needed only renames.
