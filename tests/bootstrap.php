@@ -7,8 +7,8 @@
 
 declare(strict_types=1);
 
-require_once dirname( __DIR__ ) . '/vendor/autoload.php';
 require_once dirname( __DIR__ ) . '/vendor/brain/monkey/inc/patchwork-loader.php';
+require_once dirname( __DIR__ ) . '/vendor/autoload.php';
 
 if ( ! class_exists( 'WP_Error' ) ) {
 	class WP_Error {
@@ -36,11 +36,5 @@ if ( ! class_exists( 'WP_Error' ) ) {
 if ( ! function_exists( 'is_wp_error' ) ) {
 	function is_wp_error( $thing ) {
 		return ( $thing instanceof WP_Error );
-	}
-}
-
-if ( ! function_exists( 'esc_html' ) ) {
-	function esc_html( $text ) {
-		return $text;
 	}
 }
