@@ -70,7 +70,7 @@ add_action(
 		} catch ( Exception $e ) {
 			wp_die(
 				esc_html( $e->getMessage() ),
-				'Multi-Domain Global Styles Error',
+				esc_html__( 'Multi-Domain Global Styles Error', 'the-another-multi-domain-global-styles' ),
 				array( 'response' => 500 )
 			);
 		}
