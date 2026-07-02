@@ -26,6 +26,12 @@ class UrlRuleRegistry {
 	/**
 	 * Normalize a hostname: lowercase, strip scheme/path, strip port, strip leading www.
 	 *
+	 * A host is only ever normalized in full or rejected — never truncated.
+	 * If the remaining token contains any character outside `[a-z0-9.-]`,
+	 * the whole thing is treated as junk and an empty string is returned.
+	 * Internationalized domains must be entered as punycode (e.g.
+	 * `xn--mnchen-3ya.de`), which is plain ASCII and passes validation.
+	 *
 	 * @param string $raw Raw hostname or URL.
 	 * @return string Normalized hostname, or empty string if nothing usable was found.
 	 */
@@ -40,10 +46,10 @@ class UrlRuleRegistry {
 			$parsed = wp_parse_url( $raw );
 			$raw    = $parsed['host'] ?? '';
 		} else {
-			// Bare hostname (optionally with a port or trailing path) — take
-			// just the leading host-shaped portion.
-			preg_match( '#^[a-z0-9.-]+#i', $raw, $matches );
-			$raw = $matches[0] ?? '';
+			// Bare hostname (optionally with a trailing port or path) — drop
+			// the port here; the path (if any) was already split off by the
+			// caller, so what's left should be host-shaped or nothing at all.
+			$raw = preg_replace( '/:\d+$/', '', $raw );
 		}
 
 		if ( '' === $raw ) {
@@ -53,6 +59,10 @@ class UrlRuleRegistry {
 		$raw = strtolower( $raw );
 		$raw = preg_replace( '/:\d+$/', '', $raw );
 		$raw = preg_replace( '/^www\./', '', $raw );
+
+		if ( ! preg_match( '/^[a-z0-9.-]+$/', $raw ) ) {
+			return '';
+		}
 
 		return $raw;
 	}
