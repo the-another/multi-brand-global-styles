@@ -14,6 +14,7 @@
 # Tests (tests/Unit PHPUnit, tests/e2e Playwright), docs, tooling
 /tests/
 /docs/
+/CLAUDE.md
 /scripts/
 /Makefile
 /Dockerfile
