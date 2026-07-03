@@ -3,6 +3,7 @@ import { RequestUtils } from '@wordpress/e2e-test-utils-playwright';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
+import { waitForRealReadiness } from './wait-for-real-readiness';
 
 /**
  * Path where wp-now loads shared mu-plugins from.
@@ -42,6 +43,8 @@ export default async function globalSetup( config: FullConfig ) {
 		baseURL,
 		storageStatePath,
 	} );
+
+	await waitForRealReadiness( requestUtils.request, baseURL );
 
 	// wp-now auto-activates the mounted plugin in plugin mode; this is the
 	// explicit safety net (and the activation assertion for a --reset run).

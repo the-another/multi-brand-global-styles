@@ -8,12 +8,21 @@ use Brain\Monkey\Functions;
 use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandRepository;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandResolver;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\UrlRuleRegistry;
 
+// The registry mock below is a partial mock: only get_rule_map() is stubbed,
+// normalize_host()/normalize_path() fall through to the real UrlRuleRegistry
+// so tests like test_www_and_port_are_normalized_before_lookup exercise real
+// normalization. #[UsesClass] tells PHPUnit's strict coverage metadata check
+// this is intentional — without it, the "unintentionally covered code" risky
+// flag makes PHPUnit discard the test's ENTIRE coverage contribution,
+// including BrandResolver's own lines.
 #[CoversClass( BrandResolver::class )]
+#[UsesClass( UrlRuleRegistry::class )]
 class BrandResolverTest extends TestCase {
 	use MockeryPHPUnitIntegration;
 

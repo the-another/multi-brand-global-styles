@@ -86,6 +86,20 @@ class GlobalStylesPostServiceTest extends TestCase {
 		$this->assertSame( 101, $this->service->ensure_global_styles_post( 5 ) );
 	}
 
+	public function test_ensure_global_styles_post_throws_when_insert_fails(): void {
+		Functions\expect( 'get_post_meta' )->once()->andReturn( '' );
+		Functions\expect( 'wp_json_encode' )->andReturnUsing( 'json_encode' );
+
+		$error = new \WP_Error( 'db_insert_error', 'Could not insert post into the database.' );
+		Functions\expect( 'wp_insert_post' )->once()->andReturn( $error );
+		Functions\expect( 'update_post_meta' )->never();
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessage( 'Could not insert post into the database.' );
+
+		$this->service->ensure_global_styles_post( 5 );
+	}
+
 	public function test_get_global_styles_data_decodes_post_content(): void {
 		$post               = new \stdClass();
 		$post->post_content = '{"version":3,"settings":{"color":{"palette":[]}},"styles":{}}';

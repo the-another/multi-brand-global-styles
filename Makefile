@@ -1,4 +1,4 @@
-.PHONY: docker-build docker-build-e2e install install-dev require update dump-autoload lint format test test-e2e release check-plugin version-patch version-minor version-major all clean
+.PHONY: docker-build docker-build-e2e install install-dev require update dump-autoload lint format test coverage test-e2e release check-plugin version-patch version-minor version-major all clean
 
 # Docker image names
 DOCKER_IMAGE = the-another-multi-brand-global-styles-runner:latest
@@ -9,13 +9,15 @@ DOCKER_RUN = docker run --rm -v $(PWD):/app -w /app $(DOCKER_IMAGE)
 DOCKER_IMAGE_E2E = the-another-multi-brand-global-styles-e2e-runner:latest
 DOCKER_RUN_E2E = docker run --rm -v $(PWD):/app -w /app $(DOCKER_IMAGE_E2E)
 
-# Build the e2e Docker image
+# Build the e2e Docker image (Dockerfile lives with the e2e suites; build
+# context stays the repo root — the image copies no project files anyway)
 docker-build-e2e:
-	docker build -f Dockerfile.e2e -t $(DOCKER_IMAGE_E2E) .
+	docker build -f tests/e2e/Dockerfile -t $(DOCKER_IMAGE_E2E) .
 
-# Build Docker image
+# Build Docker image (Dockerfile lives with the unit tests it primarily
+# serves; also used for lint/release/version-bump tooling)
 docker-build:
-	docker build -t $(DOCKER_IMAGE) .
+	docker build -f tests/Unit/Dockerfile -t $(DOCKER_IMAGE) .
 
 # Install composer dependencies without dev dependencies (runs in Docker)
 install: docker-build
@@ -50,6 +52,12 @@ format: docker-build
 # ordering can never mask a failure)
 test: docker-build
 	$(DOCKER_RUN) sh -c "rm -rf .phpunit.cache && php ./vendor/bin/phpunit"
+
+# Run PHPUnit with coverage (runs in Docker; loads xdebug only for this
+# invocation, see tests/Unit/Dockerfile). Prints a per-file text report and
+# writes Clover XML to build/coverage/ for tooling.
+coverage: docker-build
+	$(DOCKER_RUN) sh -c "rm -rf .phpunit.cache && mkdir -p build/coverage && php -dzend_extension=xdebug.so -dxdebug.mode=coverage ./vendor/bin/phpunit --coverage-text --coverage-clover=build/coverage/clover.xml"
 
 # Package plugin for distribution: lint + test gates, then zip into build/
 # (everything runs inside Docker). Note: the zip step reinstalls composer

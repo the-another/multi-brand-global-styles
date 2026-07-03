@@ -32,18 +32,16 @@ jobs:
             test-results/
           retention-days: 7
 
-  # Plugin Check is known, parked-failing: Task 2 of the e2e/CI plan abandoned
-  # Blueprint-driven login for this suite after finding it fundamentally
-  # incompatible with 5 of Plugin Check's own 32 runtime checks (a
-  # pre-existing @wp-playground/cli/WASM environment limitation, unrelated to
-  # this plan). continue-on-error keeps this a visible, non-blocking signal
-  # instead of a permanently-red required check, until a human decides how to
-  # resolve the underlying issue. See docs/superpowers/plans/2026-07-03-e2e-and-plugin-check-ci.md
-  # (Task 2) and the design spec's "What changes" section for full detail.
+  # Runs Plugin Check via its WP-CLI runner inside @wp-playground/cli (no
+  # browser, no Playwright) — all 32 checks including the 5 runtime ones.
+  # Gating again: the old 5-runtime-checks failure was root-caused (cookie
+  # auth cannot survive PCP's pc_-table swap in the wp-admin AJAX flow) and
+  # fixed by switching this suite to the CLI runner. See the "Plugin Check
+  # runtime checks" gotcha in CLAUDE.md and
+  # tests/e2e/check-plugin/run-plugin-check.mjs.
   check-plugin:
     name: Plugin Check (PCP)
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -51,12 +49,10 @@ jobs:
       - name: Run Plugin Check suite
         run: make check-plugin
 
-      - name: Upload Playwright report on failure
+      - name: Upload Plugin Check results on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report-plugin-check
-          path: |
-            playwright-report/
-            test-results/
+          name: plugin-check-results
+          path: build/plugin-check-results.txt
           retention-days: 7

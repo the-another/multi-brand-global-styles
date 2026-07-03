@@ -7,10 +7,13 @@ use Brain\Monkey;
 use Brain\Monkey\Functions;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Container;
+use TheAnother\Plugin\MultiBrandGlobalStyles\HookManager;
 
 #[CoversClass( Container::class )]
+#[UsesClass( HookManager::class )]
 class ContainerTest extends TestCase {
 	use MockeryPHPUnitIntegration;
 
@@ -87,5 +90,45 @@ class ContainerTest extends TestCase {
 			\TheAnother\Plugin\MultiBrandGlobalStyles\HookManager::class,
 			$container->get_hook_manager()
 		);
+	}
+
+	public function test_set_stores_a_direct_instance_retrieved_via_get(): void {
+		$container = Container::get_instance();
+		$instance  = new \stdClass();
+
+		$container->set( 'direct', $instance );
+
+		$this->assertSame( $instance, $container->get( 'direct' ) );
+	}
+
+	public function test_deregister_all_hooks_clears_hook_manager(): void {
+		Functions\when( 'has_action' )->justReturn( false );
+		Functions\when( 'add_action' )->justReturn( true );
+		Functions\when( 'remove_action' )->justReturn( true );
+
+		$container = Container::get_instance();
+		$container->get_hook_manager()->register_action( 'init', static function () {} );
+
+		$container->deregister_all_hooks();
+
+		$this->assertSame( array(), $container->get_hook_manager()->get_registered_hooks() );
+	}
+
+	public function test_clone_is_prevented(): void {
+		$container = Container::get_instance();
+
+		$this->expectException( \Error::class );
+
+		clone $container;
+	}
+
+	public function test_wakeup_throws_to_prevent_unserialize(): void {
+		$reflection = new \ReflectionClass( Container::class );
+		$instance   = $reflection->newInstanceWithoutConstructor();
+
+		$this->expectException( \Exception::class );
+		$this->expectExceptionMessage( 'Cannot unserialize singleton' );
+
+		$instance->__wakeup();
 	}
 }
