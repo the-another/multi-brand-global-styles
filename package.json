@@ -12,8 +12,8 @@
 		"version:patch": "node scripts/version-bump.js patch",
 		"version:minor": "node scripts/version-bump.js minor",
 		"version:major": "node scripts/version-bump.js major",
-		"test:e2e": "WP_BASE_URL=http://localhost:8881 npx playwright test --config tests/e2e/functional/playwright.config.ts",
-		"test:e2e:ui": "WP_BASE_URL=http://localhost:8881 npx playwright test --config tests/e2e/functional/playwright.config.ts --ui",
+		"test:e2e": "npx playwright test --config tests/e2e/functional/playwright.config.ts",
+		"test:e2e:ui": "npx playwright test --config tests/e2e/functional/playwright.config.ts --ui",
 		"check:plugin": "node tests/e2e/check-plugin/run-plugin-check.mjs"
 	},
 	"devDependencies": {

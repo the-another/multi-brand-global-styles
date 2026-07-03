@@ -18,6 +18,15 @@ fi
 npm ci --no-audit --no-fund
 
 if [ "$SUITE" = "functional" ]; then
+	# CI checks out the repo fresh and never runs composer beforehand, so
+	# vendor/ won't exist there; a local run already has vendor/ from
+	# `make install`/`make install-dev` and is left untouched. --no-dev
+	# matches the plugin's shipped runtime shape (same as `make install`),
+	# which is what serve-wp.sh copies into the ephemeral WordPress instance.
+	if [ ! -f vendor/autoload.php ]; then
+		echo "vendor/autoload.php missing — running composer install --no-dev"
+		composer install --no-dev --no-interaction
+	fi
 	npx playwright test --config tests/e2e/functional/playwright.config.ts
 else
 	rm -f build/the-another-multi-brand-global-styles-test.zip
