@@ -51,8 +51,8 @@ export async function createBrand(
 	}
 
 	// force: the classic publish button is a plain form submit, but WP
-	// admin's postbox layout under wp-now never settles enough to pass
-	// Playwright's "stable" actionability check.
+	// admin's postbox layout under the PHP-wasm engine never settles
+	// enough to pass Playwright's "stable" actionability check.
 	await page.locator( '#publish' ).click( { force: true } );
 
 	// Classic editor redirects back to post.php with a success notice.
