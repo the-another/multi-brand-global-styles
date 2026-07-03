@@ -1,9 +1,0 @@
-{
-	"login": true,
-	"steps": [
-		{
-			"step": "activatePlugin",
-			"pluginPath": "the-another-multi-brand-global-styles/the-another-multi-brand-global-styles.php"
-		}
-	]
-}
