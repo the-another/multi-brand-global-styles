@@ -74,7 +74,7 @@ RUN apk add --no-cache \
 # unlimited. Scoped to just this invocation rather than a global php.ini
 # change, since nothing else in this image extracts an archive this size.
 RUN php -d memory_limit=-1 /usr/local/bin/wp core download --version=${WP_VERSION} --path=/opt/wp-core --allow-root && \
-	curl -sSL "https://downloads.wordpress.org/plugin/sqlite-database-integration.${SQLITE_PLUGIN_VERSION}.zip" -o /tmp/sqlite.zip && \
+	curl -fsSL "https://downloads.wordpress.org/plugin/sqlite-database-integration.${SQLITE_PLUGIN_VERSION}.zip" -o /tmp/sqlite.zip && \
 	unzip -q /tmp/sqlite.zip -d /opt && \
 	rm /tmp/sqlite.zip && \
 	wp package install "https://github.com/wp-cli/server-command/archive/refs/tags/${WP_CLI_SERVER_COMMAND_VERSION}.zip" --allow-root
@@ -82,7 +82,7 @@ RUN php -d memory_limit=-1 /usr/local/bin/wp core download --version=${WP_VERSIO
 # WordPress.org Plugin Check, pinned — the check-plugin suite installs it
 # from here instead of downloading at test time (reproducible CI, zero
 # network in the run; new upstream checks arrive via deliberate ARG bumps).
-RUN curl -sSL "https://downloads.wordpress.org/plugin/plugin-check.${PCP_VERSION}.zip" -o /opt/plugin-check.zip
+RUN curl -fsSL "https://downloads.wordpress.org/plugin/plugin-check.${PCP_VERSION}.zip" -o /opt/plugin-check.zip
 
 # Alpine's own Chromium build (musl-compatible). PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
 # stops `npm install`/`npx playwright install` from fetching Playwright's own
