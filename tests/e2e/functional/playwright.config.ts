@@ -94,7 +94,14 @@ export default defineConfig( {
 		// issue above, and functional-blueprint.json's activatePlugin step
 		// replacing a runtime REST call that had no request timeout and
 		// could hang indefinitely).
-		command: `npx @wp-playground/cli server --site-url=${ BASE_URL } --mount=the-another-multi-brand-global-styles.php:/wordpress/wp-content/plugins/the-another-multi-brand-global-styles/the-another-multi-brand-global-styles.php --mount=includes:/wordpress/wp-content/plugins/the-another-multi-brand-global-styles/includes --mount=vendor:/wordpress/wp-content/plugins/the-another-multi-brand-global-styles/vendor --mount=readme.txt:/wordpress/wp-content/plugins/the-another-multi-brand-global-styles/readme.txt --mount=tests/e2e/functional/e2e-environment.php:/wordpress/wp-content/mu-plugins/e2e-environment.php --blueprint=tests/e2e/functional/functional-blueprint.json --port=${ PORT } --php=8.3 --workers=6`,
+		//
+		// WP_DEBUG/WP_DEBUG_DISPLAY: this instance is ephemeral and
+		// test-only (never production), so surfacing PHP errors/warnings
+		// directly on the page is pure upside — it turned one investigation
+		// into "check the screenshot" instead of adding temporary debug
+		// instrumentation from scratch (see CLAUDE.md's gotchas for the
+		// bugs that surfaced this way).
+		command: `npx @wp-playground/cli server --site-url=${ BASE_URL } --mount=the-another-multi-brand-global-styles.php:/wordpress/wp-content/plugins/the-another-multi-brand-global-styles/the-another-multi-brand-global-styles.php --mount=includes:/wordpress/wp-content/plugins/the-another-multi-brand-global-styles/includes --mount=vendor:/wordpress/wp-content/plugins/the-another-multi-brand-global-styles/vendor --mount=readme.txt:/wordpress/wp-content/plugins/the-another-multi-brand-global-styles/readme.txt --mount=tests/e2e/functional/e2e-environment.php:/wordpress/wp-content/mu-plugins/e2e-environment.php --blueprint=tests/e2e/functional/functional-blueprint.json --port=${ PORT } --php=8.3 --workers=6 --define-bool WP_DEBUG true --define-bool WP_DEBUG_DISPLAY true`,
 		// Playwright defaults webServer.cwd to this config file's
 		// directory; pin the repo root instead so the relative --mount and
 		// --blueprint paths above resolve correctly.
