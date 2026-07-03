@@ -78,6 +78,32 @@ test.describe( 'global styles scoping', () => {
 		expect( rootPrimary ).not.toBe( sectionPrimary );
 	} );
 
+	test( 'root URL: Navigation block still renders under the merged theme.json', async ( {
+		page,
+	} ) => {
+		await page.goto( '/' );
+
+		// The default theme's header template part renders the header
+		// Navigation block; the footer template part renders two more
+		// nav.wp-block-navigation instances (footer link columns), so scope
+		// to the header landmark to get the one real site-navigation nav.
+		const nav = page.locator( 'header nav.wp-block-navigation' );
+		await expect( nav ).toBeVisible();
+		await expect( nav.getByRole( 'link' ).first() ).toBeVisible();
+	} );
+
+	test( '/sample-page/: Navigation block still renders under the merged theme.json', async ( {
+		page,
+	} ) => {
+		await page.goto( '/sample-page/' );
+
+		// See note above: scope to the header landmark to avoid matching the
+		// footer's nav.wp-block-navigation instances too.
+		const nav = page.locator( 'header nav.wp-block-navigation' );
+		await expect( nav ).toBeVisible();
+		await expect( nav.getByRole( 'link' ).first() ).toBeVisible();
+	} );
+
 	test( 'wp-admin keeps theme defaults (no brand background leak)', async ( {
 		page,
 	} ) => {
