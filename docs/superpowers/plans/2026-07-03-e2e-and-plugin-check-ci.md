@@ -325,6 +325,8 @@ WORKDIR /app
 CMD ["sh"]
 ```
 
+**Note added during final review:** the code block above is Task 5's *original* snapshot of `Dockerfile.e2e` and is no longer a complete picture of the committed file. During Task 6's implementation, two more sections were added directly to `Dockerfile.e2e` that this snippet does not show: an ffmpeg symlink/pre-seed block (Playwright's video recording resolves its ffmpeg binary from its own registry cache path, which doesn't exist for Alpine's musl-native package, so the real system ffmpeg is symlinked into the expected location) and a `python3`/`g++` toolchain addition (so `@wp-playground/cli`'s glibc-prebuilt native dependency falls back to a node-gyp source build under musl). Both are well-commented in the real file. Treat this code block as historical context for how the image started, not as the current source of truth — read the actual `Dockerfile.e2e` in the repo root for what's really in the image.
+
 - [ ] **Step 2: Add the exclusion to .distignore**
 
 In `.distignore`, change:

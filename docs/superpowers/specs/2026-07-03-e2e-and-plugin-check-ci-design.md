@@ -48,11 +48,11 @@ New `.github/workflows/e2e.yml` (this repo has no GitHub Actions workflows yet a
 
 ## Testing
 
-- All four existing functional specs continue passing, now against Blueprint-provisioned environment instead of the mu-plugin hack.
+- All four existing functional specs continue passing. The permalink mu-plugin (`e2e-environment.php`, copied into wp-now's shared `~/.wp-now/mu-plugins/`) stays unchanged — Blueprint steps run before WordPress installation completes, so they can't replace it. A new explicit predefined-admin Blueprint (`tests/e2e/functional-blueprint.json`, `"login": true`) is layered on top for the functional suite only, making the predefined-admin-user intent explicit and inspectable.
 - New: explicit deactivate→activate UI-driven test in `activation.spec.ts`.
 - New: Navigation-block-render canary assertions in `style-scoping.spec.ts` for both Brand-scoped URLs.
-- Plugin Check suite continues asserting zero ERROR-level issues on the packaged zip; login now Blueprint-driven.
-- `make test-e2e` and `make check-plugin` both verified to pass end-to-end inside the new `Dockerfile.e2e` image before this is considered done.
+- Plugin Check suite: Blueprint-driven login was attempted and then abandoned after three rounds of empirical spikes found it fundamentally incompatible with 5 of Plugin Check's own 32 runtime checks (see "What changes" #1). The suite was reverted to its original real `wp-login.php` form POST and does **not** currently pass — those same 5 checks fail for a pre-existing `@wp-playground/cli`/WASM environment limitation, unrelated to any change in this plan. This is a known, parked issue awaiting a human decision, not something this design resolves.
+- `make test-e2e` is verified to pass end-to-end inside the new `Dockerfile.e2e` image. `make check-plugin` reaches the known, parked failure point above (not a clean pass) — expected until that issue is resolved, which is why CI wires this job as non-blocking (`continue-on-error`) rather than a hard gate.
 
 ## Out of scope
 

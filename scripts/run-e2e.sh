@@ -14,7 +14,7 @@ if [ "$SUITE" != "functional" ] && [ "$SUITE" != "plugin-check" ]; then
 	exit 1
 fi
 
-npm install --no-audit --no-fund
+npm ci --no-audit --no-fund
 
 if [ "$SUITE" = "functional" ]; then
 	WP_BASE_URL=http://localhost:8881 npx playwright test --config playwright.config.ts
