@@ -518,9 +518,7 @@ Run: `make test-e2e`
 Expected: the e2e image builds, then the full functional suite (including Tasks 3 and 4's new tests) PASSES inside the container.
 
 Run: `make check-plugin`
-Expected: the Plugin Check suite PASSES inside the container with 0 ERROR-level issues (per `plugin-check.spec.ts`'s existing assertion).
-
-If either fails specifically on Chromium launch (not on WordPress/plugin logic), re-verify Task 5's Step 3 diagnostic (`chromium-browser --version --no-sandbox` inside the image) and confirm `CHROMIUM_EXECUTABLE_PATH` matches the real binary path before re-running.
+**Known, separate, pre-existing issue — not this task's to fix:** Task 2 (Blueprint-driven login for this suite) is currently PARKED. Independent of any Docker/Chromium change, `plugin-check.spec.ts` is known to fail at `plugin_check_run_checks` (HTTP 400 / `wp_die('0')`) because 5 of its 32 checks can't run in `@wp-playground/cli`'s hosting environment at all — this reproduces identically with zero Task 2 changes (i.e. against the exact code this task is containerizing). Do NOT attempt to fix or work around this — it needs a human decision (see Task 2's section above) and is out of scope here. This task's job is only to confirm the *container/script wiring itself* works correctly: the image builds, `npm ci` runs, the zip builds, Chromium launches, the webServer boots, and the test reaches the *same* known failure point (the `plugin_check_run_checks` HTTP 400) as it does when run on the host outside Docker — not a *different* failure (e.g. Chromium won't launch, npm install fails, the webServer never boots at all). If it fails differently than that specific known signature, that likely IS this task's problem (a Docker/Chromium-specific issue) — re-verify Task 5's Step 3 diagnostic (`chromium-browser --version --no-sandbox` inside the image) and confirm `CHROMIUM_EXECUTABLE_PATH` matches the real binary path before concluding it's something else.
 
 - [ ] **Step 6: Commit**
 
