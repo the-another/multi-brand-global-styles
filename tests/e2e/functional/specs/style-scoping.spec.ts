@@ -10,7 +10,7 @@ import {
 	getCssVariable,
 	ROOT_BRAND,
 	SECTION_BRAND,
-} from './helpers';
+} from '../support/helpers';
 
 test.describe( 'global styles scoping', () => {
 	test( 'root URL gets the host-wide brand styles', async ( { page } ) => {

@@ -52,23 +52,23 @@ export default defineConfig( {
 	projects: [
 		{
 			name: 'setup',
-			testMatch: '*.setup.ts',
+			testMatch: 'setup/**/*.setup.ts',
 			retries: 0,
 		},
 		{
 			name: 'default',
-			testMatch: '*.spec.ts',
+			testMatch: 'specs/**/*.spec.ts',
 			dependencies: [ 'setup' ],
 		},
 	],
-	globalSetup: './global-setup.ts',
+	globalSetup: './setup/global-setup.ts',
 	webServer: {
 		// Native-PHP WordPress (real PHP 8.3 + the official SQLite
-		// drop-in) — see serve-wp.sh. The script finishes installing
+		// drop-in) — see environment/serve-wp.sh. The script finishes installing
 		// WordPress BEFORE the server binds the port, so a plain URL
 		// readiness poll is truthful here (no Playground login-redirect
 		// or readiness-window workarounds needed anymore).
-		command: 'sh tests/e2e/functional/serve-wp.sh',
+		command: 'sh tests/e2e/functional/environment/serve-wp.sh',
 		// Playwright defaults webServer.cwd to this config file's
 		// directory; pin the repo root so the script path resolves.
 		cwd: ROOT,

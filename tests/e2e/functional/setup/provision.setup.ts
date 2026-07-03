@@ -13,7 +13,7 @@ import {
 	setPostContent,
 	ROOT_BRAND,
 	SECTION_BRAND,
-} from './helpers';
+} from '../support/helpers';
 
 test( 'provision: brands and token content', async ( {
 	page,

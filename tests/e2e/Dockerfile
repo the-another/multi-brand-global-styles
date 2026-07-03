@@ -44,7 +44,7 @@ RUN curl -sSL https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-c
 	wp package install https://github.com/wp-cli/dist-archive-command/archive/refs/tags/v3.1.0.zip --allow-root
 
 # --- Native-PHP WordPress for the functional e2e suite -----------------------
-# (see tests/e2e/functional/serve-wp.sh). Core and the official SQLite drop-in
+# (see tests/e2e/functional/environment/serve-wp.sh). Core and the official SQLite drop-in
 # are baked in at build time, version-pinned, so test runs make no network
 # fetches. Bumping WP_VERSION is a deliberate one-line change that CI fully
 # exercises. Credentials/DB config happen at boot time, not here.
