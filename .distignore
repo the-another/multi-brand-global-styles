@@ -12,9 +12,13 @@
 /coverage/
 
 # Tests (tests/Unit PHPUnit, tests/e2e Playwright), docs, tooling
+# (readme.txt is the shipped user doc; the .md files below are repo/dev-oriented)
 /tests/
 /docs/
 /CLAUDE.md
+/README.md
+/CONTRIBUTORS.md
+/CHANGELOG.md
 /scripts/
 /Makefile
 /Dockerfile
