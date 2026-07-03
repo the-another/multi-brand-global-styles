@@ -56,41 +56,48 @@ export default defineConfig( {
 	],
 	globalSetup: './global-setup.ts',
 	webServer: {
-		// --auto-mount mode-detects this plugin from cwd (see cwd: ROOT
-		// below), matching wp-now's old plugin-mode detection. --mount adds
-		// the permalink mu-plugin directly into the running instance's
-		// mu-plugins directory, replacing wp-now's old approach of copying
-		// it into a shared, machine-global ~/.wp-now/mu-plugins/ directory.
+		// Explicit --mount flags for exactly the plugin's own runtime files
+		// (main file, includes/, vendor/, readme.txt), not --auto-mount:
+		// --auto-mount names the plugin's wp-content/plugins/ folder after
+		// the mounted host directory's basename, which inside this repo's
+		// Docker image is /app (the container's WORKDIR), not the plugin's
+		// real slug — confirmed empirically, this broke the Blueprint's own
+		// activatePlugin step below ("Plugin /wordpress/wp-content/plugins
+		// /app could not be activated"). Explicit mounts also keep dev-only
+		// directories (node_modules/, .git/, tests/, docs/) out of the
+		// mounted plugin folder entirely, rather than relying on WordPress's
+		// plugin-file scanner to skip over them.
+		//
+		// --site-url matches BASE_URL (http://localhost:<port>): without
+		// it, @wp-playground/cli defaults WordPress's own site URL to
+		// http://127.0.0.1:<port>. Both resolve to the same server, but a
+		// browser treats them as different origins — client-side REST API
+		// fetches from any admin page (loaded at the localhost origin) were
+		// blocked by CORS against the 127.0.0.1-rooted API root WordPress
+		// advertised, confirmed empirically via the browser's own console
+		// error ("blocked by CORS policy... Redirect is not allowed for a
+		// preflight request").
+		//
 		// No --reset: unlike wp-now, `server` mode uses ephemeral temp
 		// storage per spawn already, so every fresh spawn starts from a
 		// clean site with no flag needed. No --login: the Blueprint already
 		// supplies "login": true, and combining it with a CLI --login flag
 		// causes a cookie-path conflict (see the check-plugin suite's own
 		// history in CLAUDE.md). --workers=6, not the CLI's own default
-		// (min(6, cpus-1)): each worker is an independent thread with its
-		// own PHP runtime, so total concurrent request capacity literally
-		// equals the worker count, and the CLI's own boot-time warning
-		// treats 6 as a hard safe floor, not a ratio to available cores
-		// ("Running fewer than 6 workers may increase the likelihood of
-		// deadlock due to workers blocking on file locks"). This is a
-		// defensible floor regardless of host: on a 6-CPU Docker host the
-		// default computes to 5 -- one below that floor -- while this
-		// suite was hanging past both webServer.timeout and
-		// waitForRealReadiness's own 60s deadline (see the "unexplained
-		// hang" gotcha history in CLAUDE.md). NOT independently confirmed
-		// to fix that hang, though: a retry with --workers=6 explicit
-		// still hung identically on the same heavily-oversubscribed local
-		// Docker host (~20 unrelated containers, load average 15-21+),
-		// which points at least as strongly at host contention as at
-		// worker count. Keep this pinned at 6 on its own merits; treat a
-		// clean CI run (a dedicated, uncontended runner) as the real
-		// verification this fix needed but didn't get locally.
-		command: `npx @wp-playground/cli server --auto-mount --blueprint=tests/e2e/functional/functional-blueprint.json --mount=tests/e2e/functional/e2e-environment.php:/wordpress/wp-content/mu-plugins/e2e-environment.php --port=${ PORT } --php=8.3 --workers=6`,
-		// @wp-playground/cli's --auto-mount detects from its cwd like
-		// wp-now did; Playwright defaults webServer.cwd to this config
-		// file's directory, which would mount tests/e2e/functional instead
-		// of the plugin. Pin the repo root (also keeps the
-		// --blueprint/--mount paths above stable).
+		// (min(6, cpus-1), which computes to only 5 on a 6-CPU host): the
+		// CLI's own boot-time warning treats 6 as a hard safe floor, not a
+		// ratio to available cores ("Running fewer than 6 workers may
+		// increase the likelihood of deadlock due to workers blocking on
+		// file locks"). Kept on those documented merits, though it wasn't
+		// the fix for this suite's specific historical "unexplained hang"
+		// (see CLAUDE.md) — that traced to two other bugs (the mount-path
+		// issue above, and functional-blueprint.json's activatePlugin step
+		// replacing a runtime REST call that had no request timeout and
+		// could hang indefinitely).
+		command: `npx @wp-playground/cli server --site-url=${ BASE_URL } --mount=the-another-multi-brand-global-styles.php:/wordpress/wp-content/plugins/the-another-multi-brand-global-styles/the-another-multi-brand-global-styles.php --mount=includes:/wordpress/wp-content/plugins/the-another-multi-brand-global-styles/includes --mount=vendor:/wordpress/wp-content/plugins/the-another-multi-brand-global-styles/vendor --mount=readme.txt:/wordpress/wp-content/plugins/the-another-multi-brand-global-styles/readme.txt --mount=tests/e2e/functional/e2e-environment.php:/wordpress/wp-content/mu-plugins/e2e-environment.php --blueprint=tests/e2e/functional/functional-blueprint.json --port=${ PORT } --php=8.3 --workers=6`,
+		// Playwright defaults webServer.cwd to this config file's
+		// directory; pin the repo root instead so the relative --mount and
+		// --blueprint paths above resolve correctly.
 		cwd: ROOT,
 		// Not `url: BASE_URL`: @wp-playground/cli's Blueprint "login": true
 		// step 302-redirects-to-self on every request from a client that
