@@ -8,11 +8,7 @@ const BASE_URL = `http://localhost:${ PORT }`;
 process.env.WP_BASE_URL = BASE_URL;
 
 export default defineConfig( {
-	testDir: './tests/e2e',
-	// plugin-check.spec.ts runs against playwright.check.config.ts's own
-	// dedicated server (a fresh install from the packaged zip, not this
-	// config's wp-now dev-mounted source) — must never run here too.
-	testIgnore: 'plugin-check.spec.ts',
+	testDir: './tests/e2e/functional',
 	fullyParallel: false,
 	forbidOnly: !! process.env.CI,
 	timeout: process.env.CI ? 60_000 : 30_000,
@@ -43,10 +39,10 @@ export default defineConfig( {
 			dependencies: [ 'setup' ],
 		},
 	],
-	globalSetup: './tests/e2e/global-setup.ts',
-	globalTeardown: './tests/e2e/global-teardown.ts',
+	globalSetup: './tests/e2e/functional/global-setup.ts',
+	globalTeardown: './tests/e2e/functional/global-teardown.ts',
 	webServer: {
-		command: `npx wp-now start --port=${ PORT } --php=8.3 --reset --skip-browser --blueprint=tests/e2e/functional-blueprint.json`,
+		command: `npx wp-now start --port=${ PORT } --php=8.3 --reset --skip-browser --blueprint=tests/e2e/functional/functional-blueprint.json`,
 		url: BASE_URL,
 		reuseExistingServer: ! process.env.CI,
 		timeout: 120_000,

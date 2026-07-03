@@ -34,10 +34,10 @@ process.env.STORAGE_STATE_PATH = STORAGE_STATE_PATH;
 // activation with a persistent "database tables are unavailable" error
 // (root cause not pinned down further; the fix is simply the install
 // order). Do not reorder those two installPlugin steps.
-const BLUEPRINT = path.resolve( __dirname, 'tests/e2e/check-plugin-blueprint.json' );
+const BLUEPRINT = path.resolve( __dirname, 'tests/e2e/check-plugin/check-plugin-blueprint.json' );
 
 export default defineConfig( {
-	testDir: './tests/e2e',
+	testDir: './tests/e2e/check-plugin',
 	testMatch: 'plugin-check.spec.ts',
 	fullyParallel: false,
 	retries: 0,
@@ -54,7 +54,7 @@ export default defineConfig( {
 			  }
 			: {},
 	},
-	globalSetup: './tests/e2e/check-plugin-global-setup.ts',
+	globalSetup: './tests/e2e/check-plugin/check-plugin-global-setup.ts',
 	webServer: {
 		command: [
 			'npx @wp-playground/cli server',
