@@ -43,6 +43,41 @@ RUN curl -sSL https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-c
 	chmod +x /usr/local/bin/wp && \
 	wp package install https://github.com/wp-cli/dist-archive-command/archive/refs/tags/v3.1.0.zip --allow-root
 
+# --- Native-PHP WordPress for the functional e2e suite -----------------------
+# (see tests/e2e/functional/serve-wp.sh). Core and the official SQLite drop-in
+# are baked in at build time, version-pinned, so test runs make no network
+# fetches. Bumping WP_VERSION is a deliberate one-line change that CI fully
+# exercises. Credentials/DB config happen at boot time, not here.
+ARG WP_VERSION=7.0
+ARG SQLITE_PLUGIN_VERSION=2.2.23
+# v2.0.15, not the newest tag (v2.0.19): same constraint as the
+# dist-archive-command pin above — v2.0.16+ declare wp-cli/wp-cli ^2.13,
+# which has not been released, so they refuse to install against the 2.12.0
+# wp-cli.phar baked in here. v2.0.15 is the newest release requiring ^2.12.
+ARG WP_CLI_SERVER_COMMAND_VERSION=v2.0.15
+
+# Extensions the SQLite drop-in and WordPress need at runtime (pdo_sqlite,
+# sqlite3), plus gd for WP image handling and unzip for the plugin download.
+RUN apk add --no-cache \
+	php83-pdo \
+	php83-pdo_sqlite \
+	php83-sqlite3 \
+	php83-gd \
+	unzip
+
+# `-d memory_limit=-1`: Alpine's php83 package defaults to a compiled-in
+# 128M memory_limit with no php.ini override. wp-cli's PharData-based
+# Extractor needs more than that to unpack WordPress core's several
+# thousand files in one pass and dies with "Allowed memory size... exhausted"
+# at the default limit — confirmed by reproducing it, then rerunning
+# unlimited. Scoped to just this invocation rather than a global php.ini
+# change, since nothing else in this image extracts an archive this size.
+RUN php -d memory_limit=-1 /usr/local/bin/wp core download --version=${WP_VERSION} --path=/opt/wp-core --allow-root && \
+	curl -sSL "https://downloads.wordpress.org/plugin/sqlite-database-integration.${SQLITE_PLUGIN_VERSION}.zip" -o /tmp/sqlite.zip && \
+	unzip -q /tmp/sqlite.zip -d /opt && \
+	rm /tmp/sqlite.zip && \
+	wp package install "https://github.com/wp-cli/server-command/archive/refs/tags/${WP_CLI_SERVER_COMMAND_VERSION}.zip" --allow-root
+
 # Alpine's own Chromium build (musl-compatible). PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
 # stops `npm install`/`npx playwright install` from fetching Playwright's own
 # glibc-linked Chromium, which does not run here. The functional suite's
