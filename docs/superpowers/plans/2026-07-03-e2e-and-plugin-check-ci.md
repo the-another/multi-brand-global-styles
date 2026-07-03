@@ -82,9 +82,12 @@ git commit -m "test(e2e): add explicit predefined-admin Blueprint for the functi
 
 ### Task 2: Plugin Check suite — Blueprint-driven predefined admin login
 
+**REVISED 2026-07-03 after an empirical spike by the Task 2 implementer hit a real blocker.** Adding the Blueprint's `"login": true` (Step 1 below) alone causes the WordPress instance to boot into a genuine infinite self-redirect loop (`GET /` → `302` → `/` → `302` → ... forever), which manifests as Playwright's `config.webServer` health check timing out after 180s — a failure that happens *before* `globalSetup.ts` even runs, so the originally-documented fallback (which only edits `globalSetup.ts`) cannot address it. Root cause, confirmed via a controlled A/B (identical boot command, only the Blueprint's `"login": true` toggled): `playwright.check.config.ts`'s `webServer.command` already passes a pre-existing `--login` CLI flag straight to `@wp-playground/cli server` (committed in 8a982f8, before this task). That flag and the Blueprint's own `login` step are two independent auto-login mechanisms that clobber each other's auth-cookie path (observed: `set-cookie: ...; path=/wp-content/plugins` instead of `/`). Removing the CLI flag (now redundant with the Blueprint) resolves it — boots cleanly to `200 OK` in ~25s. Task 2's scope is expanded to include that removal.
+
 **Files:**
 - Modify: `tests/e2e/check-plugin-blueprint.json`
 - Modify: `tests/e2e/check-plugin-global-setup.ts`
+- Modify: `playwright.check.config.ts`
 
 **Interfaces:**
 - Consumes: `waitForRealReadiness()` from `tests/e2e/wait-for-real-readiness.ts` (unchanged, still called first)
@@ -156,7 +159,33 @@ export default async function globalSetup( config: FullConfig ) {
 }
 ```
 
-- [ ] **Step 3: Run the Plugin Check suite end-to-end**
+- [ ] **Step 3: Remove the now-redundant (and conflicting) `--login` CLI flag**
+
+In `playwright.check.config.ts`, the `webServer.command` array currently includes a `'--login',` entry (passed straight to `@wp-playground/cli server`, predating this task). It is now redundant with the Blueprint's own `"login": true`, and empirically the two combined cause an infinite self-redirect boot loop (see this task's revision note above). Remove that one line so the array reads:
+
+```ts
+	webServer: {
+		command: [
+			'npx @wp-playground/cli server',
+			`--port=${ PORT }`,
+			'--php=8.3',
+			'--wp=latest',
+			// Pinned to a single worker: with the default multi-worker pool,
+			// the login POST (in global setup) and the later page navigation
+			// can land on different worker threads. If each worker's runtime
+			// isn't sharing identical wp-config.php auth salts, a cookie
+			// issued by one worker fails auth-cookie hash validation on
+			// another — the suspected cause of a real-cookie-present,
+			// still-"not allowed" failure seen during development.
+			'--workers=1',
+			`--blueprint=${ BLUEPRINT }`,
+			`--mount=${ BUILD_DIR }:/tests-artifacts`,
+		].join( ' ' ),
+```
+
+(Only the `'--login',` line is removed; nothing else in this array changes, including its surrounding comment, which still applies.)
+
+- [ ] **Step 4: Run the Plugin Check suite end-to-end**
 
 Run:
 ```bash
@@ -165,12 +194,14 @@ npm run plugin-zip:check
 npx playwright install chromium
 npm run check:plugin
 ```
-Expected: `plugin-check.spec.ts`'s test PASSES — specifically, the `page.goto('/wp-admin/tools.php?page=plugin-check...')` navigation must reach the real Plugin Check admin page (asserted via `toContainText('Plugin Check')`), not a login wall or a "Sorry, you are not allowed to access this page" error. **If it fails at that assertion**, the auto-login-by-constant mechanism did not take effect for this CLI invocation — as a fallback, restore a real login POST in this file's `globalSetup`, using the exact approach the file had before this task (`requestUtils.request.post('wp-login.php', { form: { log: 'admin', pwd: 'password' } })` after `waitForRealReadiness`, then `requestUtils.request.storageState({ path: storageStatePath })`), and re-run this step.
+(If `wp`/wp-cli isn't on the host PATH, build the zip in Docker instead, matching this project's own documented split — zip build in Docker, Playwright on the host: `docker run --rm -v $PWD:/app -w /app the-another-multi-domain-global-styles-runner:latest sh -c "npm install --no-audit --no-fund && npm run plugin-zip:check"`, then run `npx playwright install chromium` and `npm run check:plugin` on the host as normal.)
 
-- [ ] **Step 4: Commit**
+Expected: the webServer boots cleanly (no 180s timeout, no infinite-redirect loop — confirm with `curl -sD - http://127.0.0.1:8883/` if in doubt: a single `200 OK` or a single `302` to a real destination, never repeating `/` → `/`), and `plugin-check.spec.ts`'s test PASSES — specifically, the `page.goto('/wp-admin/tools.php?page=plugin-check...')` navigation must reach the real Plugin Check admin page (asserted via `toContainText('Plugin Check')`), not a login wall or a "Sorry, you are not allowed to access this page" error. **If it fails at that assertion** (webServer boots fine, but the page itself shows a permission error), the auto-login-by-constant mechanism did not take effect for this CLI invocation — as a fallback, restore a real login POST in `check-plugin-global-setup.ts`'s `globalSetup`, using the exact approach the file had before this task (`requestUtils.request.post('wp-login.php', { form: { log: 'admin', pwd: 'password' } })` after `waitForRealReadiness`, then `requestUtils.request.storageState({ path: storageStatePath })`), and re-run this step. If instead the webServer itself fails to boot again in any form, stop and report BLOCKED — do not guess further.
+
+- [ ] **Step 5: Commit**
 
 ```bash
-git add tests/e2e/check-plugin-blueprint.json tests/e2e/check-plugin-global-setup.ts
+git add tests/e2e/check-plugin-blueprint.json tests/e2e/check-plugin-global-setup.ts playwright.check.config.ts
 git commit -m "test(e2e): drive Plugin Check auth from the Blueprint's predefined admin login"
 ```
 
