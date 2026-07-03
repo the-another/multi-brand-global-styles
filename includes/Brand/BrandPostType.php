@@ -264,13 +264,15 @@ class BrandPostType {
 					'post_type'      => self::POST_TYPE,
 					'posts_per_page' => -1,
 					'fields'         => 'ids',
-					'post__not_in'   => array( $post_id ),
 					'post_status'    => 'any',
-					'meta_key'       => '_mbgs_is_default',
-					'meta_value'     => '1',
+					'meta_key'       => '_mbgs_is_default', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Save-time flag lookup over the handful of Brands a site defines.
+					'meta_value'     => '1', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- Save-time flag lookup over the handful of Brands a site defines.
 				)
 			);
 			foreach ( $others as $other_id ) {
+				if ( $other_id === $post_id ) {
+					continue;
+				}
 				delete_post_meta( $other_id, '_mbgs_is_default' );
 			}
 		}
@@ -285,7 +287,7 @@ class BrandPostType {
 	 * @return void
 	 */
 	private function save_styles( int $post_id ): void {
-		$raw = isset( $_POST['mbgs_styles_json'] ) ? wp_unslash( $_POST['mbgs_styles_json'] ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in save() before delegation.
+		$raw = isset( $_POST['mbgs_styles_json'] ) && is_string( $_POST['mbgs_styles_json'] ) ? wp_unslash( $_POST['mbgs_styles_json'] ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce verified in save() before delegation; raw JSON would be corrupted by sanitize_*(), so it is validated instead: json_decode() below discards anything that is not a JSON object, and only a wp_json_encode() re-encoding of the parsed settings/styles subtrees is ever persisted.
 
 		$decoded = json_decode( $raw, true );
 
