@@ -39,6 +39,18 @@ if ( ! function_exists( 'is_wp_error' ) ) {
 	}
 }
 
+if ( ! class_exists( 'WP_Post' ) ) {
+	class WP_Post {
+		public $ID;
+		public $post_type;
+
+		public function __construct( int $id = 0, string $post_type = '' ) {
+			$this->ID        = $id;
+			$this->post_type = $post_type;
+		}
+	}
+}
+
 // Do NOT define esc_html() (or other Brain Monkey-stubable WP functions) here:
 // a real definition blocks Brain Monkey/Patchwork from redefining them per-test.
 // Tests that need them stub via Functions\when() in their own setUp().

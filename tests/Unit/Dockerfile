@@ -16,6 +16,7 @@ RUN apk add --no-cache \
 	php83-json \
 	php83-mbstring \
 	php83-openssl \
+	php83-pecl-xdebug \
 	php83-phar \
 	php83-session \
 	php83-simplexml \
@@ -30,6 +31,11 @@ RUN apk add --no-cache \
 	git \
 	zip \
 	curl
+
+# Alpine's php83-pecl-xdebug package ships with its zend_extension line
+# commented out in conf.d, so xdebug is installed but NOT loaded by default —
+# `make lint`/`make test` are unaffected. `make coverage` loads it explicitly
+# per-invocation via `php -dzend_extension=xdebug.so -dxdebug.mode=coverage`.
 
 # Alpine's `composer` package depends on the distro's default PHP (8.5 on
 # 3.24+), which would silently run the toolchain on a different PHP series

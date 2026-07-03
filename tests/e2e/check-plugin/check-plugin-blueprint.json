@@ -15,6 +15,24 @@
 				"path": "/tests-artifacts/the-another-multi-brand-global-styles-test.zip"
 			},
 			"options": { "activate": true }
+		},
+		{
+			"step": "cp",
+			"fromPath": "/wordpress/wp-content/plugins/plugin-check/drop-ins/object-cache.copy.php",
+			"toPath": "/wordpress/wp-content/object-cache.php"
+		},
+		{
+			"step": "wp-cli",
+			"command": "wp plugin check the-another-multi-brand-global-styles --format=json --require=/pcp-harness/pcp-cli-shim.php"
+		},
+		{
+			"step": "cp",
+			"fromPath": "/wordpress/wp-content/plugins/plugin-check/drop-ins/object-cache.copy.php",
+			"toPath": "/wordpress/wp-content/object-cache.php"
+		},
+		{
+			"step": "wp-cli",
+			"command": "wp plugin check the-another-multi-brand-global-styles --format=json --checks=enqueued_scripts_size,enqueued_styles_size,enqueued_styles_scope,enqueued_scripts_scope,non_blocking_scripts --require=/pcp-harness/pcp-cli-shim.php"
 		}
 	]
 }

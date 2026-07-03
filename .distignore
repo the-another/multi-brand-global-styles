@@ -11,7 +11,8 @@
 /.phpunit.cache/
 /coverage/
 
-# Tests (tests/Unit PHPUnit, tests/e2e Playwright), docs, tooling
+# Tests (tests/Unit PHPUnit + its Dockerfile, tests/e2e suites + their
+# Dockerfile and Playwright config), docs, tooling
 # (readme.txt is the shipped user doc; the .md files below are repo/dev-oriented)
 /tests/
 /docs/
@@ -21,10 +22,6 @@
 /CHANGELOG.md
 /scripts/
 /Makefile
-/Dockerfile
-/Dockerfile.e2e
-/playwright.config.ts
-/playwright.check.config.ts
 /artifacts/
 /test-results/
 /playwright-report/

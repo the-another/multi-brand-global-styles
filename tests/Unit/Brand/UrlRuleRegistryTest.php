@@ -45,6 +45,7 @@ class UrlRuleRegistryTest extends TestCase {
 			'unicode host rejected'    => array( 'münchen.de', '' ),
 			'host with space rejected' => array( 'exam ple.com', '' ),
 			'punycode host accepted'   => array( 'xn--mnchen-3ya.de', 'xn--mnchen-3ya.de' ),
+			'scheme url with no host'  => array( 'http:///no-host-here', '' ),
 		);
 	}
 

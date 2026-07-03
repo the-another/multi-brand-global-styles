@@ -1,6 +1,6 @@
 FROM alpine:3.24.1
 
-# PHP 8.3 toolchain, matching the existing Dockerfile exactly — this image
+# PHP 8.3 toolchain, matching tests/Unit/Dockerfile exactly — this image
 # builds the release zip itself (composer build + wp dist-archive) before
 # running Plugin Check against it, so it needs the same PHP/Composer/wp-cli
 # stack, plus Node for Playwright and Alpine's own Chromium for the browser.
@@ -36,19 +36,20 @@ RUN ln -sf /usr/bin/php83 /usr/local/bin/php && \
 	php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer && \
 	rm /tmp/composer-setup.php
 
-# wp-cli + dist-archive-command, pinned to the same version as the existing
-# Dockerfile for the same reason (see that file's comment: v3.2.x requires
-# wp-cli ^2.13, which has not been released).
+# wp-cli + dist-archive-command, pinned to the same version as
+# tests/Unit/Dockerfile for the same reason (see that file's comment:
+# v3.2.x requires wp-cli ^2.13, which has not been released).
 RUN curl -sSL https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar -o /usr/local/bin/wp && \
 	chmod +x /usr/local/bin/wp && \
 	wp package install https://github.com/wp-cli/dist-archive-command/archive/refs/tags/v3.1.0.zip --allow-root
 
 # Alpine's own Chromium build (musl-compatible). PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
 # stops `npm install`/`npx playwright install` from fetching Playwright's own
-# glibc-linked Chromium, which does not run here. playwright.config.ts and
-# playwright.check.config.ts point launchOptions.executablePath at
-# CHROMIUM_EXECUTABLE_PATH when it's set, so an unmodified host run (macOS/glibc
-# Linux, this var unset) still uses Playwright's own downloaded browser.
+# glibc-linked Chromium, which does not run here. The functional suite's
+# tests/e2e/functional/playwright.config.ts points launchOptions.executablePath
+# at CHROMIUM_EXECUTABLE_PATH when it's set, so an unmodified host run
+# (macOS/glibc Linux, this var unset) still uses Playwright's own downloaded
+# browser. (The check-plugin suite is browserless — wp-cli based.)
 RUN apk add --no-cache \
 	chromium \
 	nss \
@@ -61,7 +62,7 @@ RUN apk add --no-cache \
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 ENV CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
-# Both Playwright configs set video: 'on' / include video capture, which
+# The functional suite's Playwright config sets video: 'on', which
 # shells out to an ffmpeg binary Playwright resolves from its own registry
 # cache (~/.cache/ms-playwright/ffmpeg-<revision>/ffmpeg-linux) — there is no
 # launchOptions-style override for it like there is for the browser itself.
@@ -78,7 +79,8 @@ RUN apk add --no-cache ffmpeg && \
 	ln -sf /usr/bin/ffmpeg /root/.cache/ms-playwright/ffmpeg-1011/ffmpeg-linux && \
 	touch /root/.cache/ms-playwright/ffmpeg-1011/INSTALLATION_COMPLETE
 
-# @wp-playground/cli (used by check-plugin's webServer) depends on
+# @wp-playground/cli (boots the check-plugin suite's WordPress; see
+# tests/e2e/check-plugin/run-plugin-check.mjs) depends on
 # fs-ext-extra-prebuilt, a native addon shipped only as glibc-linked prebuilt
 # .node binaries — they fail to `require()` under musl here (same class of
 # issue as Chromium and ffmpeg above), and npm's own install script silently

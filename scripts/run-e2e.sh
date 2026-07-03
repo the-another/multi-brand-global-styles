@@ -1,8 +1,9 @@
 #!/bin/sh
 # Shared entrypoint for both e2e Make targets (test-e2e, check-plugin), run
-# inside Dockerfile.e2e. Keeping this logic in exactly one script — instead
-# of duplicated across two Make recipes — is what guarantees the functional
-# suite and the Plugin Check suite can never drift from what CI actually runs.
+# inside the e2e image (tests/e2e/Dockerfile). Keeping this logic in exactly
+# one script — instead of duplicated across two Make recipes — is what
+# guarantees the functional suite and the Plugin Check suite can never drift
+# from what CI actually runs.
 #
 # Usage: sh scripts/run-e2e.sh <functional|plugin-check>
 set -e
@@ -17,9 +18,11 @@ fi
 npm ci --no-audit --no-fund
 
 if [ "$SUITE" = "functional" ]; then
-	WP_BASE_URL=http://localhost:8881 npx playwright test --config playwright.config.ts
+	WP_BASE_URL=http://localhost:8881 npx playwright test --config tests/e2e/functional/playwright.config.ts
 else
 	rm -f build/the-another-multi-brand-global-styles-test.zip
 	npm run plugin-zip:check
-	npx playwright test --config playwright.check.config.ts
+	# No Playwright/browser here: Plugin Check runs via its WP-CLI runner
+	# inside @wp-playground/cli — see tests/e2e/check-plugin/run-plugin-check.mjs.
+	node tests/e2e/check-plugin/run-plugin-check.mjs
 fi
