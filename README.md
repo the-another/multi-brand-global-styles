@@ -52,7 +52,7 @@ make install-dev     # composer install (with dev deps)
 make lint            # PHPCS (WordPress + VIP-Go standards; errors gate)
 make format          # PHPCBF (modifies source)
 make test            # PHPUnit unit tests
-make test-e2e        # functional wp-now + Playwright suite
+make test-e2e        # functional @wp-playground/cli + Playwright suite
 make check-plugin    # WordPress.org Plugin Check against the packaged zip
 make release         # lint + test gates, then build/<name>-<version>.zip
 make version-patch   # (or -minor / -major) bump all version markers
@@ -64,7 +64,7 @@ Run a single unit test: `./vendor/bin/phpunit --filter test_method_name`.
 
 - **Unit** (`tests/Unit/`) — PHPUnit 11 + Brain Monkey + Mockery, no WordPress test suite and no database (WP functions are mocked).
 - **End-to-end** (`tests/e2e/`), two independent Playwright suites, both run inside `Dockerfile.e2e` via the shared `scripts/run-e2e.sh` entrypoint:
-  - `tests/e2e/functional/` — wp-now dev-mounted source: activation, save-time rule validation, per-URL style scoping, a Navigation-block render canary, and variable substitution.
+  - `tests/e2e/functional/` — `@wp-playground/cli` dev-mounted source: activation, save-time rule validation, per-URL style scoping, a Navigation-block render canary, and variable substitution.
   - `tests/e2e/check-plugin/` — `@wp-playground/cli` fresh-install-from-zip: WordPress.org's official Plugin Check (PCP) against the packaged release zip.
 
 CI runs both via `.github/workflows/e2e.yml`.
