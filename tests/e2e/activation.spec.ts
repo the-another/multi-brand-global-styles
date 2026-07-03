@@ -20,6 +20,37 @@ test.describe( 'activation', () => {
 		expect( ours!.status ).toBe( 'active' );
 	} );
 
+	test( 'plugin can be deactivated and reactivated through wp-admin', async ( {
+		page,
+		requestUtils,
+	} ) => {
+		await requestUtils.deactivatePlugin(
+			'the-another-multi-domain-global-styles'
+		);
+
+		await page.goto( '/wp-admin/plugins.php' );
+		const row = page.locator(
+			'tr[data-slug="the-another-multi-domain-global-styles"]'
+		);
+		await row.getByRole( 'link', { name: 'Activate' } ).click();
+
+		await expect( page.locator( '#message.updated' ) ).toContainText(
+			'activated'
+		);
+
+		const plugins = await requestUtils.rest<
+			Array< { plugin: string; status: string } >
+		>( {
+			method: 'GET',
+			path: '/wp/v2/plugins',
+		} );
+		const ours = plugins.find( ( p ) =>
+			p.plugin.includes( 'the-another-multi-domain-global-styles' )
+		);
+		expect( ours ).toBeDefined();
+		expect( ours!.status ).toBe( 'active' );
+	} );
+
 	test( 'frontend responds without fatals', async ( { page } ) => {
 		const response = await page.goto( '/' );
 		expect( response!.status() ).toBe( 200 );
