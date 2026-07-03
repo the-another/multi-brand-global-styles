@@ -17,6 +17,7 @@
 /scripts/
 /Makefile
 /Dockerfile
+/Dockerfile.e2e
 /playwright.config.ts
 /playwright.check.config.ts
 /artifacts/
