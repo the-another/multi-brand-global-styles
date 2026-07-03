@@ -139,7 +139,3 @@ Both suites run inside `Dockerfile.e2e` via the single shared entrypoint `script
 - **`make check-plugin` currently fails, on purpose-known grounds.** 5 of Plugin Check's 32 checks (`enqueued_scripts_size`, `enqueued_styles_size`, `enqueued_styles_scope`, `enqueued_scripts_scope`, `non_blocking_scripts`) can't run in `@wp-playground/cli`'s WASM-hosted environment — they appear to make an internal loopback HTTP request that the environment can't service. This reproduces regardless of login mechanism and is **unrelated to plugin code**. The CI `check-plugin` job runs with `continue-on-error: true` so it stays visible without hard-blocking, pending a decision (exclude those 5 checks vs. switch that suite's engine). The other 27 checks pass and have surfaced real findings.
 - **`wp_theme_json_data_user` (not `wp_theme_json_data_theme`) is the filter actually used** for the per-Brand override — match the code, not the earlier design draft.
 - **No activation/deactivation/uninstall hooks yet** and no `uninstall.php`. Cleanup of a Brand's `wp_global_styles` post on delete, and uninstall cleanup, are known open follow-ups — don't assume they exist.
-
-## Reference docs
-
-Design spec and implementation plans (including the full history of the e2e/CI work and its empirical course-corrections) live under `docs/superpowers/specs/` and `docs/superpowers/plans/`.
