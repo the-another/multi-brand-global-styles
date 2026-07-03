@@ -120,17 +120,6 @@ RUN apk add --no-cache ffmpeg && \
 	ln -sf /usr/bin/ffmpeg /root/.cache/ms-playwright/ffmpeg-1011/ffmpeg-linux && \
 	touch /root/.cache/ms-playwright/ffmpeg-1011/INSTALLATION_COMPLETE
 
-# @wp-playground/cli (boots the check-plugin suite's WordPress; see
-# tests/e2e/check-plugin/run-plugin-check.mjs) depends on
-# fs-ext-extra-prebuilt, a native addon shipped only as glibc-linked prebuilt
-# .node binaries — they fail to `require()` under musl here (same class of
-# issue as Chromium and ffmpeg above), and npm's own install script silently
-# swallows that failure and reports a generic "no prebuilt binary" error that
-# obscures the real cause. Its install script auto-falls-back to compiling
-# from bundled source via node-gyp when the prebuilt require fails, so a
-# plain C/C++ toolchain here is enough — no other project code changes.
-RUN apk add --no-cache python3 g++
-
 # The project directory is always bind-mounted to /app at run time, so the
 # image deliberately contains no project files.
 WORKDIR /app
