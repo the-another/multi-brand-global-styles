@@ -32,7 +32,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -64,6 +64,10 @@ if ( ! existsSync( ZIP_PATH ) ) {
 	);
 	process.exit( 1 );
 }
+
+// A stale results file from a previous run must not survive an early exit
+// below and mislead a post-mortem (e.g. CI's failure-artifact upload).
+rmSync( RESULTS_FILE, { force: true } );
 
 console.log( 'Provisioning ephemeral WordPress (native PHP + SQLite drop-in)…' );
 const prov = spawnSync( 'sh', [ path.join( HERE, 'provision-pcp-wp.sh' ) ], {
