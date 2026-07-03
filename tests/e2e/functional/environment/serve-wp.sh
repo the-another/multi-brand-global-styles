@@ -1,15 +1,13 @@
 #!/bin/sh
-# Boot a real, ephemeral WordPress (native PHP + the official SQLite drop-in)
-# for the functional e2e suite. Invoked by playwright.config.ts's
-# webServer.command; requires the tests/e2e/Dockerfile image (baked core at
-# /opt/wp-core, drop-in at /opt/sqlite-database-integration, wp-cli with the
-# server-command package).
+# Boot a real, ephemeral WordPress for the functional e2e suite. Invoked by
+# playwright.config.ts's webServer.command; requires the tests/e2e/Dockerfile
+# image. Provisioning (baked core, SQLite drop-in, config, install) lives in
+# the shared tests/e2e/lib/provision-wp.sh — this script adds only the
+# functional-suite specifics: the packaged -test zip, pretty permalinks, and
+# the actual server.
 #
-# Ordering matters twice here:
-#  - the SQLite drop-in (wp-content/db.php) must be in place BEFORE
-#    `wp core install`, or install would try to reach MySQL;
-#  - installation completes BEFORE the server binds the port, which is what
-#    makes Playwright's plain webServer.url readiness check truthful.
+# Installation completes BEFORE the server binds the port — that ordering is
+# what makes Playwright's plain webServer.url readiness check truthful.
 set -e
 
 PORT="${WP_E2E_PORT:-8881}"
@@ -21,31 +19,9 @@ if [ ! -f "$ZIP" ]; then
 	exit 1
 fi
 
-# Fresh temp copy of the baked core: clean site every run, same ephemeral
-# semantics the Playground server had.
-WP_DIR="$(mktemp -d /tmp/mbgs-e2e-wp.XXXXXX)"
-cp -a /opt/wp-core/. "$WP_DIR"/
-
-# SQLite drop-in: plugin files first, then db.php generated from the
-# plugin's own db.copy template (its documented manual-install procedure).
-cp -a /opt/sqlite-database-integration "$WP_DIR/wp-content/plugins/"
-sed -e "s#{SQLITE_IMPLEMENTATION_FOLDER_PATH}#$WP_DIR/wp-content/plugins/sqlite-database-integration#" \
-	-e "s#{SQLITE_PLUGIN}#sqlite-database-integration/load.php#" \
-	"$WP_DIR/wp-content/plugins/sqlite-database-integration/db.copy" \
-	> "$WP_DIR/wp-content/db.php"
-
-# DB credentials are dummies — the drop-in ignores them (hence --skip-check).
-wp config create --path="$WP_DIR" --dbname=wordpress --dbuser=wordpress \
-	--dbpass=wordpress --skip-check --allow-root
-# Ephemeral test instance: PHP errors straight onto the page is pure upside
-# (turns investigations into "check the screenshot").
-wp config set WP_DEBUG true --raw --path="$WP_DIR" --allow-root
-wp config set WP_DEBUG_DISPLAY true --raw --path="$WP_DIR" --allow-root
-
-# admin/password are RequestUtils' defaults — keep them exactly.
-wp core install --path="$WP_DIR" --url="http://localhost:$PORT" \
-	--title="MBGS E2E" --admin_user=admin --admin_password=password \
-	--admin_email=admin@example.com --skip-email --allow-root
+WP_SITE_URL="http://localhost:$PORT"
+. "$REPO_ROOT/tests/e2e/lib/provision-wp.sh"
+provision_wp
 
 # The same packaged artifact the check-plugin suite gates — never a
 # file-by-file source copy, so packaging bugs (missing file, wrong
