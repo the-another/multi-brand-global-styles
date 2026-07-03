@@ -40,7 +40,7 @@ export default defineConfig( {
 	globalSetup: './tests/e2e/global-setup.ts',
 	globalTeardown: './tests/e2e/global-teardown.ts',
 	webServer: {
-		command: `npx wp-now start --port=${ PORT } --php=8.3 --reset --skip-browser`,
+		command: `npx wp-now start --port=${ PORT } --php=8.3 --reset --skip-browser --blueprint=tests/e2e/functional-blueprint.json`,
 		url: BASE_URL,
 		reuseExistingServer: ! process.env.CI,
 		timeout: 120_000,
