@@ -115,6 +115,10 @@ function runCheck( extraArgs ) {
 		`--require=${ MARKER_REQUIRE }`,
 		`--path=${ WP_DIR }`,
 		'--allow-root',
+		// wp-cli colorizes its own stderr (e.g. WP_CLI::error()'s "Error:"
+		// prefix) with ANSI SGR codes even without a TTY, which would
+		// otherwise defeat the plain `/^Error:/` gate below.
+		'--no-color',
 		...extraArgs,
 	];
 	const cmd = `wp ${ args.join( ' ' ) }`;
@@ -181,9 +185,18 @@ for ( const run of runs ) {
 	}
 	// Fatals on stderr cut a run short — always gate. wp-cli's own phar
 	// deprecation notices under PHP 8.3 are expected noise, not failures.
+	// Also gate wp-cli's own `Error:` lines (WP_CLI::error()'s stderr
+	// prefix): e.g. a future PCP_VERSION bump that renames/removes a
+	// runtime check slug makes the canary run print
+	// "Error: Invalid check slugs…" and exit nonzero — but exit codes are
+	// deliberately untrusted, early_init is still yes, and stdout parses to
+	// zero findings, so without this gate the suite would pass silently.
 	for ( const line of run.stderr.split( '\n' ) ) {
 		if ( /Fatal error/.test( line ) && ! /Deprecated/.test( line ) ) {
 			fail( `PHP fatal error during "${ run.cmd }": ${ line.slice( 0, 300 ) }` );
+		}
+		if ( /^Error:/.test( line.trim() ) ) {
+			fail( `wp-cli error during "${ run.cmd }": ${ line.slice( 0, 300 ) }` );
 		}
 	}
 }
