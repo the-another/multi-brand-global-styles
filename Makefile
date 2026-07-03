@@ -7,7 +7,11 @@ DOCKER_RUN = docker run --rm -v $(PWD):/app -w /app $(DOCKER_IMAGE)
 # Separate, Chromium-capable image for the e2e/Plugin Check Make targets —
 # kept apart from DOCKER_IMAGE so lint/test/release stay small and fast.
 DOCKER_IMAGE_E2E = the-another-multi-brand-global-styles-e2e-runner:latest
-DOCKER_RUN_E2E = docker run --rm -v $(PWD):/app -w /app $(DOCKER_IMAGE_E2E)
+# -e CI forwards the host's CI value (unset locally, "true" in GitHub
+# Actions) into the container — playwright.config.ts's retries/timeout/
+# forbidOnly all key off process.env.CI, so without this the container never
+# sees it and CI silently runs with local (non-CI) settings.
+DOCKER_RUN_E2E = docker run --rm -e CI -v $(PWD):/app -w /app $(DOCKER_IMAGE_E2E)
 
 # Build the e2e Docker image (Dockerfile lives with the e2e suites; build
 # context stays the repo root — the image copies no project files anyway)
@@ -66,7 +70,7 @@ coverage: docker-build
 release: install-dev lint test
 	$(DOCKER_RUN) sh -c "npm install --no-audit --no-fund && npm run plugin-zip"
 
-# Run the functional wp-now + Playwright suite (activation, admin rules,
+# Run the functional native-PHP + Playwright suite (activation, admin rules,
 # style scoping, content variables) inside Docker. Both this target and
 # check-plugin below call the same shared script — see scripts/run-e2e.sh.
 test-e2e: docker-build-e2e
