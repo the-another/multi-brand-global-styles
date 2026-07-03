@@ -24,6 +24,12 @@ export default defineConfig( {
 		trace: 'retain-on-failure',
 		screenshot: 'only-on-failure',
 		video: 'on',
+		launchOptions: process.env.CHROMIUM_EXECUTABLE_PATH
+			? {
+					executablePath: process.env.CHROMIUM_EXECUTABLE_PATH,
+					args: [ '--no-sandbox' ],
+			  }
+			: {},
 	},
 	projects: [
 		{

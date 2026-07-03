@@ -47,6 +47,12 @@ export default defineConfig( {
 	use: {
 		baseURL: BASE_URL,
 		storageState: STORAGE_STATE_PATH,
+		launchOptions: process.env.CHROMIUM_EXECUTABLE_PATH
+			? {
+					executablePath: process.env.CHROMIUM_EXECUTABLE_PATH,
+					args: [ '--no-sandbox' ],
+			  }
+			: {},
 	},
 	globalSetup: './tests/e2e/check-plugin-global-setup.ts',
 	webServer: {
