@@ -2,14 +2,14 @@
 /**
  * Global Styles Override Service
  *
- * @package MultiDomainGlobalStyles
+ * @package MultiBrandGlobalStyles
  * @since 1.0.0
  */
 
-namespace TheAnother\Plugin\MultiDomainGlobalStyles\GlobalStyles;
+namespace TheAnother\Plugin\MultiBrandGlobalStyles\GlobalStyles;
 
-use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\BrandResolver;
-use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\BrandRepository;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandResolver;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandRepository;
 
 /**
  * Class GlobalStylesOverride

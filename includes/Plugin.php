@@ -2,21 +2,21 @@
 /**
  * Plugin Orchestrator Class
  *
- * @package MultiDomainGlobalStyles
+ * @package MultiBrandGlobalStyles
  * @since 1.0.0
  */
 
-namespace TheAnother\Plugin\MultiDomainGlobalStyles;
+namespace TheAnother\Plugin\MultiBrandGlobalStyles;
 
-use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\AdminNotices;
-use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\BrandPostType;
-use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\UrlRuleRegistry;
-use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\BrandResolver;
-use TheAnother\Plugin\MultiDomainGlobalStyles\GlobalStyles\GlobalStylesOverride;
-use TheAnother\Plugin\MultiDomainGlobalStyles\GlobalStyles\GlobalStylesPostService;
-use TheAnother\Plugin\MultiDomainGlobalStyles\ContentVariables\VariableParser;
-use TheAnother\Plugin\MultiDomainGlobalStyles\ContentVariables\VariableSubstitutionService;
-use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\BrandRepository;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\AdminNotices;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandPostType;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\UrlRuleRegistry;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandResolver;
+use TheAnother\Plugin\MultiBrandGlobalStyles\GlobalStyles\GlobalStylesOverride;
+use TheAnother\Plugin\MultiBrandGlobalStyles\GlobalStyles\GlobalStylesPostService;
+use TheAnother\Plugin\MultiBrandGlobalStyles\ContentVariables\VariableParser;
+use TheAnother\Plugin\MultiBrandGlobalStyles\ContentVariables\VariableSubstitutionService;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandRepository;
 
 /**
  * Class Plugin

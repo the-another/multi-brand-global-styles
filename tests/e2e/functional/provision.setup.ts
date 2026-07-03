@@ -24,7 +24,7 @@ test( 'provision: brands and token content', async ( {
 	// Idempotency guard: with reuseExistingServer a re-run hits an already
 	// provisioned database, where re-creating the brands would self-conflict
 	// (their rules are already owned by the first run's posts).
-	await page.goto( '/wp-admin/edit.php?post_type=mdgs_brand' );
+	await page.goto( '/wp-admin/edit.php?post_type=mbgs_brand' );
 	const alreadyProvisioned = await page
 		.getByRole( 'link', { name: ROOT_BRAND.title, exact: true } )
 		.isVisible()

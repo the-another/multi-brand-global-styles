@@ -2,11 +2,11 @@
 /**
  * Admin Notices
  *
- * @package MultiDomainGlobalStyles
+ * @package MultiBrandGlobalStyles
  * @since 1.0.0
  */
 
-namespace TheAnother\Plugin\MultiDomainGlobalStyles\Brand;
+namespace TheAnother\Plugin\MultiBrandGlobalStyles\Brand;
 
 /**
  * Class AdminNotices
@@ -22,7 +22,7 @@ class AdminNotices {
 	 */
 	public function render(): void {
 		$user_id       = get_current_user_id();
-		$transient_key = 'mdgs_rule_conflict_' . $user_id;
+		$transient_key = 'mbgs_rule_conflict_' . $user_id;
 		$rejected      = get_transient( $transient_key );
 
 		if ( empty( $rejected ) ) {
@@ -36,7 +36,7 @@ class AdminNotices {
 			esc_html(
 				sprintf(
 					/* translators: %s: comma-separated list of rejected URL rules */
-					__( 'The following URL rules were not saved because they are already assigned to another Brand: %s', 'the-another-multi-domain-global-styles' ),
+					__( 'The following URL rules were not saved because they are already assigned to another Brand: %s', 'the-another-multi-brand-global-styles' ),
 					implode( ', ', (array) $rejected )
 				)
 			)

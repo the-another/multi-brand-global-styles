@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace TheAnother\Plugin\MultiDomainGlobalStyles\Tests\Brand;
+namespace TheAnother\Plugin\MultiBrandGlobalStyles\Tests\Brand;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
@@ -9,7 +9,7 @@ use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\UrlRuleRegistry;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\UrlRuleRegistry;
 
 #[CoversClass( UrlRuleRegistry::class )]
 class UrlRuleRegistryTest extends TestCase {
@@ -118,7 +118,7 @@ class UrlRuleRegistryTest extends TestCase {
 	public function test_get_rule_map_returns_cached_value_when_present(): void {
 		Functions\expect( 'get_transient' )
 			->once()
-			->with( 'mdgs_rule_map' )
+			->with( 'mbgs_rule_map' )
 			->andReturn( array( 'auctionbill.com' => array( '' => 5 ) ) );
 
 		$this->assertSame( array( 'auctionbill.com' => array( '' => 5 ) ), $this->registry->get_rule_map() );
@@ -131,16 +131,16 @@ class UrlRuleRegistryTest extends TestCase {
 			->andReturn( array( 5, 9 ) );
 		Functions\expect( 'get_post_meta' )
 			->once()
-			->with( 5, '_mdgs_rules', true )
+			->with( 5, '_mbgs_rules', true )
 			->andReturn( array( 'auctionbill.com', 'beta.auctionbill.com' ) );
 		Functions\expect( 'get_post_meta' )
 			->once()
-			->with( 9, '_mdgs_rules', true )
+			->with( 9, '_mbgs_rules', true )
 			->andReturn( array( 'site.com/farm', 'site2.com/farm' ) );
 		Functions\expect( 'set_transient' )
 			->once()
 			->with(
-				'mdgs_rule_map',
+				'mbgs_rule_map',
 				array(
 					'auctionbill.com'      => array( '' => 5 ),
 					'beta.auctionbill.com' => array( '' => 5 ),
@@ -168,11 +168,11 @@ class UrlRuleRegistryTest extends TestCase {
 		Functions\expect( 'get_posts' )->once()->andReturn( array( 7, 9 ) );
 		Functions\expect( 'get_post_meta' )
 			->once()
-			->with( 7, '_mdgs_rules', true )
+			->with( 7, '_mbgs_rules', true )
 			->andReturn( array( 'site.com' ) );
 		Functions\expect( 'get_post_meta' )
 			->once()
-			->with( 9, '_mdgs_rules', true )
+			->with( 9, '_mbgs_rules', true )
 			->andReturn( array( 'site.com/farm' ) );
 		Functions\expect( 'set_transient' )->once();
 
@@ -192,9 +192,9 @@ class UrlRuleRegistryTest extends TestCase {
 		Functions\expect( 'get_posts' )->once()->andReturn( array( 11 ) );
 		Functions\expect( 'get_post_meta' )
 			->once()
-			->with( 11, '_mdgs_rules', true )
+			->with( 11, '_mbgs_rules', true )
 			->andReturn( '' );
-		Functions\expect( 'set_transient' )->once()->with( 'mdgs_rule_map', array(), 0 );
+		Functions\expect( 'set_transient' )->once()->with( 'mbgs_rule_map', array(), 0 );
 
 		$this->assertSame( array(), $this->registry->get_rule_map() );
 	}
@@ -225,7 +225,7 @@ class UrlRuleRegistryTest extends TestCase {
 	}
 
 	public function test_invalidate_cache_deletes_transient(): void {
-		Functions\expect( 'delete_transient' )->once()->with( 'mdgs_rule_map' );
+		Functions\expect( 'delete_transient' )->once()->with( 'mbgs_rule_map' );
 
 		$this->registry->invalidate_cache();
 	}

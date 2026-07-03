@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
-<ruleset name="MultiDomainGlobalStyles">
-	<description>WordPress Coding Standards and Automattic VIP Coding Standards for Multi-Domain Global Styles plugin</description>
+<ruleset name="MultiBrandGlobalStyles">
+	<description>WordPress Coding Standards and Automattic VIP Coding Standards for Multi-Brand Global Styles plugin</description>
 
 	<file>./includes</file>
-	<file>./the-another-multi-domain-global-styles.php</file>
+	<file>./the-another-multi-brand-global-styles.php</file>
 	<exclude-pattern>*/vendor/*</exclude-pattern>
 	<exclude-pattern>*/node_modules/*</exclude-pattern>
 	<exclude-pattern>*/.git/*</exclude-pattern>

@@ -1,12 +1,12 @@
 .PHONY: docker-build docker-build-e2e install install-dev require update dump-autoload lint format test test-e2e release check-plugin version-patch version-minor version-major all clean
 
 # Docker image names
-DOCKER_IMAGE = the-another-multi-domain-global-styles-runner:latest
+DOCKER_IMAGE = the-another-multi-brand-global-styles-runner:latest
 DOCKER_RUN = docker run --rm -v $(PWD):/app -w /app $(DOCKER_IMAGE)
 
 # Separate, Chromium-capable image for the e2e/Plugin Check Make targets —
 # kept apart from DOCKER_IMAGE so lint/test/release stay small and fast.
-DOCKER_IMAGE_E2E = the-another-multi-domain-global-styles-e2e-runner:latest
+DOCKER_IMAGE_E2E = the-another-multi-brand-global-styles-e2e-runner:latest
 DOCKER_RUN_E2E = docker run --rm -v $(PWD):/app -w /app $(DOCKER_IMAGE_E2E)
 
 # Build the e2e Docker image

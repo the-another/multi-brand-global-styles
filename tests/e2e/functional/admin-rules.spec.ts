@@ -25,7 +25,7 @@ test.describe( 'admin rule validation', () => {
 
 		// The conflicting rule was dropped, not saved.
 		await expect(
-			page.locator( 'textarea[name="mdgs_rules"]' )
+			page.locator( 'textarea[name="mbgs_rules"]' )
 		).toHaveValue( '' );
 	} );
 
@@ -34,7 +34,7 @@ test.describe( 'admin rule validation', () => {
 	} ) => {
 		// Both provisioned brands kept their rules even though one is a
 		// path inside the other's host scope.
-		await page.goto( '/wp-admin/edit.php?post_type=mdgs_brand' );
+		await page.goto( '/wp-admin/edit.php?post_type=mbgs_brand' );
 
 		const rootRow = page.getByRole( 'link', {
 			name: 'Root Brand',
@@ -49,7 +49,7 @@ test.describe( 'admin rule validation', () => {
 
 		await farmRow.click();
 		await expect(
-			page.locator( 'textarea[name="mdgs_rules"]' )
+			page.locator( 'textarea[name="mbgs_rules"]' )
 		).toHaveValue( 'localhost/sample-page' );
 	} );
 
@@ -66,7 +66,7 @@ test.describe( 'admin rule validation', () => {
 		} );
 
 		await expect(
-			page.locator( 'textarea[name="mdgs_rules"]' )
+			page.locator( 'textarea[name="mbgs_rules"]' )
 		).toHaveValue( `example.com/${ section }` );
 	} );
 } );

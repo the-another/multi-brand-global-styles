@@ -19,7 +19,7 @@ npm ci --no-audit --no-fund
 if [ "$SUITE" = "functional" ]; then
 	WP_BASE_URL=http://localhost:8881 npx playwright test --config playwright.config.ts
 else
-	rm -f build/the-another-multi-domain-global-styles-test.zip
+	rm -f build/the-another-multi-brand-global-styles-test.zip
 	npm run plugin-zip:check
 	npx playwright test --config playwright.check.config.ts
 fi

@@ -1,10 +1,10 @@
-# The Another Multi-Domain Global Styles
+# The Another Multi-Brand Global Styles
 
 Define **Brands** — URL match rules with per-Brand global-style overrides and content variables — on a **single** WordPress installation serving multiple domains and/or path sections.
 
 - **Requires:** WordPress 6.9+, PHP 8.3+
 - **License:** GPL-2.0-or-later
-- **Homepage:** <https://theanother.org/plugin/multi-domain-global-styles/>
+- **Homepage:** <https://theanother.org/plugin/multi-brand-global-styles/>
 
 > This is the developer-facing README. For the WordPress.org listing, see [`readme.txt`](readme.txt). For working in this codebase with Claude Code, see [`CLAUDE.md`](CLAUDE.md).
 
@@ -27,7 +27,7 @@ includes/
 ├── Container.php            # DI container (lazy factories, singletons)
 ├── HookManager.php          # tracked add_action/add_filter registration
 ├── Plugin.php               # orchestrator — the single hook-wiring map
-├── Brand/                   # the mdgs_brand aggregate + URL matching
+├── Brand/                   # the mbgs_brand aggregate + URL matching
 │   ├── BrandPostType.php    #   CPT, meta boxes, save handler
 │   ├── UrlRuleRegistry.php  #   rule normalize/dedupe/conflict + cached rule map
 │   ├── BrandRepository.php  #   read helpers
@@ -41,7 +41,7 @@ includes/
     └── VariableSubstitutionService.php   # template_redirect output buffer
 ```
 
-The `mdgs_brand` custom post type is the aggregate root and is gated behind the `edit_theme_options` capability. See [`CLAUDE.md`](CLAUDE.md) for the full data model (meta keys, hooks, transients).
+The `mbgs_brand` custom post type is the aggregate root and is gated behind the `edit_theme_options` capability. See [`CLAUDE.md`](CLAUDE.md) for the full data model (meta keys, hooks, transients).
 
 ## Development
 
@@ -73,7 +73,7 @@ CI runs both via `.github/workflows/e2e.yml`.
 
 ## Contributing
 
-See [`CONTRIBUTORS.md`](CONTRIBUTORS.md) for the contributor list and [`CHANGELOG.md`](CHANGELOG.md) for release history. Follow the existing conventions: namespace `TheAnother\Plugin\MultiDomainGlobalStyles`, underscore-free StudlyCaps file/class names, PSR-4, WordPress + VIP coding standards. Lint and tests must pass (`make lint && make test`) before a change is merged.
+See [`CONTRIBUTORS.md`](CONTRIBUTORS.md) for the contributor list and [`CHANGELOG.md`](CHANGELOG.md) for release history. Follow the existing conventions: namespace `TheAnother\Plugin\MultiBrandGlobalStyles`, underscore-free StudlyCaps file/class names, PSR-4, WordPress + VIP coding standards. Lint and tests must pass (`make lint && make test`) before a change is merged.
 
 ## License
 

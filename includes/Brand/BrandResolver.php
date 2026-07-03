@@ -2,11 +2,11 @@
 /**
  * Brand Resolver Service
  *
- * @package MultiDomainGlobalStyles
+ * @package MultiBrandGlobalStyles
  * @since 1.0.0
  */
 
-namespace TheAnother\Plugin\MultiDomainGlobalStyles\Brand;
+namespace TheAnother\Plugin\MultiBrandGlobalStyles\Brand;
 
 /**
  * Class BrandResolver

@@ -1,6 +1,6 @@
-=== The Another Multi-Domain Global Styles ===
+=== The Another Multi-Brand Global Styles ===
 Contributors: theanother, ziontrooper
-Tags: multi-domain, global styles, branding, theme-json, variables
+Tags: multi-brand, global styles, branding, theme-json, variables
 Requires at least: 6.9
 Tested up to: 6.9
 Requires PHP: 8.3
@@ -12,7 +12,7 @@ Define Brands — URL match rules with per-Brand global style overrides and cont
 
 == Description ==
 
-Multi-Domain Global Styles lets administrators define Brands on a single WordPress installation. A Brand bundles three things:
+Multi-Brand Global Styles lets administrators define Brands on a single WordPress installation. A Brand bundles three things:
 
 * **URL match rules** — a Brand can cover whole domains (`auctionbill.com`, `beta.auctionbill.com`) or path sections of one or more sites (`site.com/farm/*`, `site2.com/farm/*`). The most specific rule wins, and prefixes match on path segment boundaries.
 * **Global style overrides** — each Brand carries its own theme.json-shaped styles (colors, typography, spacing, per-element and per-block styles) merged over the active theme at request time. The theme itself is never modified and no child theme is created.
@@ -22,7 +22,7 @@ An optional default Brand acts as a fallback for requests that match no rule.
 
 == Installation ==
 
-1. Upload the plugin files to the `/wp-content/plugins/the-another-multi-domain-global-styles` directory, or install the plugin through the WordPress plugins screen directly.
+1. Upload the plugin files to the `/wp-content/plugins/the-another-multi-brand-global-styles` directory, or install the plugin through the WordPress plugins screen directly.
 2. Activate the plugin through the 'Plugins' screen in WordPress.
 3. Create Brands under the new "Brands" menu: add URL rules (one per line), content variables (`key = value` per line), styles JSON, and optionally mark one Brand as the default.
 

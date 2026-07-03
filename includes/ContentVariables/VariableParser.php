@@ -2,11 +2,11 @@
 /**
  * Variable Parser Service
  *
- * @package MultiDomainGlobalStyles
+ * @package MultiBrandGlobalStyles
  * @since 1.0.0
  */
 
-namespace TheAnother\Plugin\MultiDomainGlobalStyles\ContentVariables;
+namespace TheAnother\Plugin\MultiBrandGlobalStyles\ContentVariables;
 
 /**
  * Class VariableParser

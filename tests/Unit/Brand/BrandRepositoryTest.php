@@ -1,14 +1,14 @@
 <?php
 declare(strict_types=1);
 
-namespace TheAnother\Plugin\MultiDomainGlobalStyles\Tests\Brand;
+namespace TheAnother\Plugin\MultiBrandGlobalStyles\Tests\Brand;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\BrandRepository;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandRepository;
 
 #[CoversClass( BrandRepository::class )]
 class BrandRepositoryTest extends TestCase {
@@ -31,7 +31,7 @@ class BrandRepositoryTest extends TestCase {
 	public function test_get_rules_returns_array_meta(): void {
 		Functions\expect( 'get_post_meta' )
 			->once()
-			->with( 5, '_mdgs_rules', true )
+			->with( 5, '_mbgs_rules', true )
 			->andReturn( array( 'example.com' ) );
 
 		$this->assertSame( array( 'example.com' ), $this->repository->get_rules( 5 ) );
@@ -46,7 +46,7 @@ class BrandRepositoryTest extends TestCase {
 	public function test_get_variables_returns_array_meta(): void {
 		Functions\expect( 'get_post_meta' )
 			->once()
-			->with( 5, '_mdgs_variables', true )
+			->with( 5, '_mbgs_variables', true )
 			->andReturn( array( 'name' => 'Acme' ) );
 
 		$this->assertSame( array( 'name' => 'Acme' ), $this->repository->get_variables( 5 ) );
@@ -63,11 +63,11 @@ class BrandRepositoryTest extends TestCase {
 			->once()
 			->with(
 				array(
-					'post_type'      => 'mdgs_brand',
+					'post_type'      => 'mbgs_brand',
 					'post_status'    => 'publish',
 					'posts_per_page' => 1,
 					'fields'         => 'ids',
-					'meta_key'       => '_mdgs_is_default',
+					'meta_key'       => '_mbgs_is_default',
 					'meta_value'     => '1',
 				)
 			)
@@ -85,7 +85,7 @@ class BrandRepositoryTest extends TestCase {
 	public function test_get_global_styles_post_id_returns_int_when_set(): void {
 		Functions\expect( 'get_post_meta' )
 			->once()
-			->with( 5, '_mdgs_global_styles_post_id', true )
+			->with( 5, '_mbgs_global_styles_post_id', true )
 			->andReturn( '42' );
 
 		$this->assertSame( 42, $this->repository->get_global_styles_post_id( 5 ) );

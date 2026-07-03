@@ -15,5 +15,5 @@ trap 'rm -rf "$STAGE"' EXIT
 
 tar cf - --exclude='.git' --exclude='node_modules' --exclude='build' . | tar xf - -C "$STAGE"
 
-wp dist-archive "$STAGE" "$(pwd)/the-another-multi-domain-global-styles.zip" \
-	--plugin-dirname=the-another-multi-domain-global-styles --force --allow-root > /dev/null
+wp dist-archive "$STAGE" "$(pwd)/the-another-multi-brand-global-styles.zip" \
+	--plugin-dirname=the-another-multi-brand-global-styles --force --allow-root > /dev/null

@@ -4,11 +4,11 @@
  *
  * Manages WordPress hook registration and deregistration with tracking.
  *
- * @package MultiDomainGlobalStyles
+ * @package MultiBrandGlobalStyles
  * @since 1.0.0
  */
 
-namespace TheAnother\Plugin\MultiDomainGlobalStyles;
+namespace TheAnother\Plugin\MultiBrandGlobalStyles;
 
 /**
  * Class HookManager
