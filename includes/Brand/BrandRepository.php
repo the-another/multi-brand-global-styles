@@ -51,8 +51,8 @@ class BrandRepository {
 				'post_status'    => 'publish',
 				'posts_per_page' => 1,
 				'fields'         => 'ids',
-				'meta_key'       => '_mbgs_is_default',
-				'meta_value'     => '1',
+				'meta_key'       => '_mbgs_is_default', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Single-row flag lookup over the handful of Brands a site defines.
+				'meta_value'     => '1', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- Single-row flag lookup over the handful of Brands a site defines.
 			)
 		);
 

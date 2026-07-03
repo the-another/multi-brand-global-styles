@@ -343,13 +343,12 @@ class BrandPostTypeTest extends TestCase {
 					'post_type'      => 'mbgs_brand',
 					'posts_per_page' => -1,
 					'fields'         => 'ids',
-					'post__not_in'   => array( 5 ),
 					'post_status'    => 'any',
 					'meta_key'       => '_mbgs_is_default',
 					'meta_value'     => '1',
 				)
 			)
-			->andReturn( array( 7 ) );
+			->andReturn( array( 7, 5 ) );
 		Functions\expect( 'delete_post_meta' )->once()->with( 7, '_mbgs_is_default' );
 
 		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_rules', array() )->once();
@@ -408,6 +407,35 @@ class BrandPostTypeTest extends TestCase {
 		$_POST['mbgs_rules']       = '';
 		$_POST['mbgs_variables']   = '';
 		$_POST['mbgs_styles_json'] = '{not valid json';
+
+		$url_rule_registry = Mockery::mock( UrlRuleRegistry::class );
+		$url_rule_registry->shouldReceive( 'parse_rules_input' )->andReturn( array() );
+		$url_rule_registry->shouldReceive( 'invalidate_cache' )->once();
+
+		$variable_parser = Mockery::mock( VariableParser::class );
+		$variable_parser->shouldReceive( 'parse' )->andReturn( array() );
+
+		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
+		$global_styles_post_service->shouldReceive( 'ensure_global_styles_post' )
+			->once()
+			->with( 5 )
+			->andReturn( 42 );
+
+		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_rules', array() )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_variables', array() )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_is_default', '' )->once();
+
+		Functions\expect( 'wp_update_post' )->never();
+
+		$post_type = $this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service );
+
+		$post_type->save( 5 );
+	}
+
+	public function test_save_skips_styles_write_when_json_field_is_not_a_string(): void {
+		$_POST['mbgs_rules']       = '';
+		$_POST['mbgs_variables']   = '';
+		$_POST['mbgs_styles_json'] = array( 'not', 'a', 'string' );
 
 		$url_rule_registry = Mockery::mock( UrlRuleRegistry::class );
 		$url_rule_registry->shouldReceive( 'parse_rules_input' )->andReturn( array() );
