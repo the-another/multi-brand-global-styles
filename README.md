@@ -45,14 +45,14 @@ The `mbgs_brand` custom post type is the aggregate root and is gated behind the 
 
 ## Development
 
-All quality/build targets run inside Docker for a reproducible toolchain. Two images: `Dockerfile` (Alpine + PHP 8.3 + Composer + wp-cli + Node) for lint/test/release, and `Dockerfile.e2e` (the above plus Chromium) for the end-to-end suites.
+All quality/build targets run inside Docker for a reproducible toolchain. Two images: `tests/Unit/Dockerfile` (Alpine + PHP 8.3 + Composer + wp-cli + Node) for lint/test/release, and `tests/e2e/Dockerfile` (the above plus Chromium and ffmpeg) for the end-to-end suites.
 
 ```bash
 make install-dev     # composer install (with dev deps)
 make lint            # PHPCS (WordPress + VIP-Go standards; errors gate)
 make format          # PHPCBF (modifies source)
 make test            # PHPUnit unit tests
-make test-e2e        # functional @wp-playground/cli + Playwright suite
+make test-e2e        # functional native-PHP + Playwright suite
 make check-plugin    # WordPress.org Plugin Check against the packaged zip
 make release         # lint + test gates, then build/<name>-<version>.zip
 make version-patch   # (or -minor / -major) bump all version markers
@@ -63,13 +63,11 @@ Run a single unit test: `./vendor/bin/phpunit --filter test_method_name`.
 ## Testing
 
 - **Unit** (`tests/Unit/`) — PHPUnit 11 + Brain Monkey + Mockery, no WordPress test suite and no database (WP functions are mocked).
-- **End-to-end** (`tests/e2e/`), two independent Playwright suites, both run inside `Dockerfile.e2e` via the shared `scripts/run-e2e.sh` entrypoint:
-  - `tests/e2e/functional/` — `@wp-playground/cli` dev-mounted source: activation, save-time rule validation, per-URL style scoping, a Navigation-block render canary, and variable substitution.
-  - `tests/e2e/check-plugin/` — `@wp-playground/cli` fresh-install-from-zip: WordPress.org's official Plugin Check (PCP) against the packaged release zip.
+- **End-to-end** (`tests/e2e/`), two independent suites, both run inside `tests/e2e/Dockerfile` via the shared `scripts/run-e2e.sh` entrypoint, and both installing the plugin from the packaged `-test` zip built fresh each run:
+  - `tests/e2e/functional/` — native PHP 8.3 + the official SQLite drop-in, driven by Playwright: activation, save-time rule validation, per-URL style scoping, a Navigation-block render canary, and variable substitution.
+  - `tests/e2e/check-plugin/` — no browser: a plain Node runner provisions WordPress the same way and runs WordPress.org's official Plugin Check (PCP) natively against the packaged zip — all checks, including the 5 runtime ones. ERROR findings gate; WARNINGs are reported only.
 
 CI runs both via `.github/workflows/e2e.yml`.
-
-> **Known limitation:** the `check-plugin` suite currently fails on 5 of Plugin Check's 32 checks (`enqueued_scripts_size`, `enqueued_styles_size`, `enqueued_styles_scope`, `enqueued_scripts_scope`, `non_blocking_scripts`) — a limitation of `@wp-playground/cli`'s WASM-hosted environment, not of the plugin. Its CI job runs with `continue-on-error` pending resolution. See [`CLAUDE.md`](CLAUDE.md).
 
 ## Contributing
 
