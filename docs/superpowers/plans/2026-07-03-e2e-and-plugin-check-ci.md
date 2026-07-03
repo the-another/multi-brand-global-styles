@@ -20,78 +20,37 @@
 
 ---
 
-### Task 1: Functional suite — Blueprint-driven permalinks, remove the shared mu-plugin hack
+### Task 1: Functional suite — explicit predefined-admin Blueprint (permalink mu-plugin stays)
+
+**REVISED 2026-07-03 after an empirical spike by the Task 1 implementer hit a real blocker.** The original version of this task planned to replace `tests/e2e/e2e-environment.php` (a mu-plugin copied into wp-now's shared `~/.wp-now/mu-plugins/` directory that sets pretty permalinks on first load) with a Blueprint `runPHP` step. That does not work: tracing `node_modules/@wp-now/wp-now/main.js`'s `startWPNow()`, blueprint steps (`runBlueprintSteps`) execute *before* `installationStep2(php)` — the call that actually installs WordPress (creates tables, sets default options). Empirically confirmed by starting wp-now directly with a blueprint containing the exact `runPHP` permalink code from the original plan: the live site continued serving plain-permalink links (`/?page_id=2`, `?feed=rss2`) and the REST API's discovery `Link` header still advertised `index.php?rest_route=/`, proving `installationStep2` resets `permalink_structure` back to empty *after* the blueprint's write. There is no blueprint step or ordering override available in this wp-now version to run PHP after installation completes — only a persistent runtime hook (like the existing mu-plugin's `init` action, which fires on every real HTTP request, long after installation is done) can do it. So: **the mu-plugin stays, unchanged.** The shared-`~/.wp-now/mu-plugins/`-directory characteristic this was trying to avoid turns out to be an inherent trait of wp-now's "plugin mode" itself — `mountMuPlugins()` in `main.js` hardcodes that shared directory as the *only* mu-plugins mount point for every project mode; wp-now's own bundled mu-plugins (`0-allow-wp-org.php`, `1-pretty-permalinks.php`, `2-deactivate-sqlite-plugin.php`) already live there unconditionally, so this isn't a risk our code specifically introduced.
+
+What Task 1 keeps from the original design: the user's actual ask was a Blueprint with a **predefined admin user** so the suite doesn't have to deal with the auth process — that part works fine and is unaffected by the install-ordering bug (the `login` step defines a `PLAYGROUND_AUTO_LOGIN_AS_USER` PHP constant, a wp-config.php-level change, not a database write, so `installationStep2` can't reset it). wp-now already calls this unconditionally after every blueprint run regardless, so adding it explicitly is redundant in practice but makes the predefined-admin-user intent explicit and inspectable in a checked-in file, matching what was actually asked for.
 
 **Files:**
 - Create: `tests/e2e/functional-blueprint.json`
-- Modify: `tests/e2e/global-setup.ts`
 - Modify: `playwright.config.ts`
-- Delete: `tests/e2e/global-teardown.ts`
-- Delete: `tests/e2e/e2e-environment.php`
 
 **Interfaces:**
-- Consumes: `RequestUtils.setup()`, `RequestUtils.activatePlugin()` (both from `@wordpress/e2e-test-utils-playwright`, unchanged signatures)
-- Produces: nothing new consumed by later tasks — this task's only downstream effect is that Tasks 3/4's new tests run against a Blueprint-provisioned environment instead of the old mu-plugin one.
-
-Background: `node_modules/@wp-now/wp-now/main.js` confirms wp-now's default `documentRoot` is the fixed constant `/var/www/html` (not the `/wordpress` convention used by the general Playground gallery), and that wp-now already ships its own built-in `1-pretty-permalinks.php` mu-plugin (`add_filter('got_url_rewrite', '__return_true')`) unconditionally for every project — so the *only* thing our removed `e2e-environment.php` needs to keep doing is the one-time permalink-structure set + rewrite-flush, which is a perfect fit for a Blueprint `runPHP` step. `node_modules/@wp-playground/blueprints/index.js` confirms a top-level `"login": true` property compiles (via `compileBlueprint`) into a `login` step that defines the `PLAYGROUND_AUTO_LOGIN_AS_USER` PHP constant — every request is then server-side auto-authenticated as `admin` regardless of cookies. wp-now's `main.js` already calls this unconditionally after every blueprint run, so `"login": true` here is belt-and-suspenders (harmless, and makes the predefined-admin-user intent explicit in the Blueprint file itself, per the design spec).
+- Consumes: nothing new
+- Produces: nothing new consumed by later tasks. `tests/e2e/e2e-environment.php` and `tests/e2e/global-setup.ts` are explicitly OUT of scope for this task — do not touch them.
 
 - [ ] **Step 1: Confirm the current suite passes before changing anything**
 
 Run: `npx playwright install chromium && WP_BASE_URL=http://localhost:8881 npx playwright test --config playwright.config.ts`
 Expected: All specs in `activation.spec.ts`, `admin-rules.spec.ts`, `style-scoping.spec.ts`, `variables.spec.ts` PASS (this is the baseline "before" state — record any pre-existing failures unrelated to this task before proceeding).
 
-- [ ] **Step 2: Create the functional Blueprint**
+- [ ] **Step 2: Create the functional Blueprint (predefined admin login only — no steps)**
 
 ```json
 {
 	"login": true,
-	"steps": [
-		{
-			"step": "runPHP",
-			"code": "<?php require '/var/www/html/wp-load.php'; global $wp_rewrite; $wp_rewrite->set_permalink_structure( '/%postname%/' ); flush_rewrite_rules();"
-		}
-	]
+	"steps": []
 }
 ```
 
 Save as `tests/e2e/functional-blueprint.json`.
 
-- [ ] **Step 3: Simplify global-setup.ts — remove the mu-plugin copy**
-
-Replace the full contents of `tests/e2e/global-setup.ts` with:
-
-```ts
-import type { FullConfig } from '@playwright/test';
-import { RequestUtils } from '@wordpress/e2e-test-utils-playwright';
-
-export default async function globalSetup( config: FullConfig ) {
-	const { baseURL } = config.projects[ 0 ].use as { baseURL: string };
-	const storageStatePath = 'artifacts/storage-states/admin.json';
-
-	const requestUtils = await RequestUtils.setup( {
-		baseURL,
-		storageStatePath,
-	} );
-
-	// wp-now auto-activates the mounted plugin in plugin mode; this is the
-	// explicit safety net (and the activation assertion for a --reset run).
-	try {
-		await requestUtils.activatePlugin(
-			'the-another-multi-domain-global-styles'
-		);
-	} catch {
-		// Already active.
-	}
-}
-```
-
-- [ ] **Step 4: Delete the now-unused files**
-
-```bash
-rm tests/e2e/global-teardown.ts tests/e2e/e2e-environment.php
-```
-
-- [ ] **Step 5: Update playwright.config.ts — pass the blueprint, drop globalTeardown**
+- [ ] **Step 3: Update playwright.config.ts — pass the blueprint**
 
 In `playwright.config.ts`, change the `webServer.command` line from:
 
@@ -105,23 +64,18 @@ to:
 		command: `npx wp-now start --port=${ PORT } --php=8.3 --reset --skip-browser --blueprint=tests/e2e/functional-blueprint.json`,
 ```
 
-And remove this line entirely (there is nothing left to tear down):
+Do not touch `globalTeardown` or any other line in this file — the mu-plugin mechanism it supports is unchanged.
 
-```ts
-	globalTeardown: './tests/e2e/global-teardown.ts',
-```
-
-- [ ] **Step 6: Run the suite and confirm it still passes**
+- [ ] **Step 4: Run the suite and confirm it still passes**
 
 Run: `WP_BASE_URL=http://localhost:8881 npx playwright test --config playwright.config.ts`
-Expected: All specs still PASS, including `style-scoping.spec.ts`'s permalink-dependent URLs (`/sample-page/`, `/sample-page/tractors/`, `/sample-pagex/`) — this proves the Blueprint's `runPHP` step successfully replaced the mu-plugin's permalink behavior. If any permalink-dependent test fails with a 404, the `runPHP` step's `set_permalink_structure`/`flush_rewrite_rules` call did not take effect — verify by adding a temporary `error_log()` inside the Blueprint's PHP code and checking wp-now's console output before retrying.
+Expected: All specs still PASS, exactly as in Step 1's baseline — passing the (redundant but explicit) `--blueprint` flag must not change behavior. If anything fails differently than the Step 1 baseline, the blueprint flag is interfering with wp-now's own startup — stop and report BLOCKED with the diff in behavior; do not attempt to work around it by modifying the mu-plugin or global-setup.ts.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add tests/e2e/functional-blueprint.json tests/e2e/global-setup.ts playwright.config.ts
-git rm tests/e2e/global-teardown.ts tests/e2e/e2e-environment.php
-git commit -m "test(e2e): replace shared mu-plugin hack with a Blueprint runPHP step"
+git add tests/e2e/functional-blueprint.json playwright.config.ts
+git commit -m "test(e2e): add explicit predefined-admin Blueprint for the functional suite"
 ```
 
 ---
