@@ -21,8 +21,8 @@ export default defineConfig( {
 	// workaround: @wp-playground/cli server's request concurrency is sized
 	// by --workers (one worker THREAD per in-flight request — a different
 	// "workers" than Playwright's own test-runner `workers: 1` below), and
-	// we let it default to min(6, cpus-1) rather than override it — see the
-	// webServer.command comment.
+	// webServer.command pins it to 6 rather than trusting the CLI's own
+	// default — see that comment.
 	retries: 2,
 	workers: 1,
 	reporter: 'list',
@@ -66,17 +66,26 @@ export default defineConfig( {
 		// clean site with no flag needed. No --login: the Blueprint already
 		// supplies "login": true, and combining it with a CLI --login flag
 		// causes a cookie-path conflict (see the check-plugin suite's own
-		// history in CLAUDE.md). No --workers override: the CLI's own
-		// default (min(6, cpus-1)) already improves on wp-now's old
-		// hardcoded, unconfigurable 5-instance concurrency cap — each
-		// worker is an independent thread with its own PHP runtime, so
-		// total concurrent request capacity literally equals the worker
-		// count. An explicit `--workers=auto` (uncapped cpus-1) was
-		// considered and rejected: on a small-core CI runner that can
-		// undershoot the CLI's own documented safe floor of 6 workers (it
-		// warns of file-lock deadlocks below that), where the capped
-		// default degrades more gracefully.
-		command: `npx @wp-playground/cli server --auto-mount --blueprint=tests/e2e/functional/functional-blueprint.json --mount=tests/e2e/functional/e2e-environment.php:/wordpress/wp-content/mu-plugins/e2e-environment.php --port=${ PORT } --php=8.3`,
+		// history in CLAUDE.md). --workers=6, not the CLI's own default
+		// (min(6, cpus-1)): each worker is an independent thread with its
+		// own PHP runtime, so total concurrent request capacity literally
+		// equals the worker count, and the CLI's own boot-time warning
+		// treats 6 as a hard safe floor, not a ratio to available cores
+		// ("Running fewer than 6 workers may increase the likelihood of
+		// deadlock due to workers blocking on file locks"). This is a
+		// defensible floor regardless of host: on a 6-CPU Docker host the
+		// default computes to 5 -- one below that floor -- while this
+		// suite was hanging past both webServer.timeout and
+		// waitForRealReadiness's own 60s deadline (see the "unexplained
+		// hang" gotcha history in CLAUDE.md). NOT independently confirmed
+		// to fix that hang, though: a retry with --workers=6 explicit
+		// still hung identically on the same heavily-oversubscribed local
+		// Docker host (~20 unrelated containers, load average 15-21+),
+		// which points at least as strongly at host contention as at
+		// worker count. Keep this pinned at 6 on its own merits; treat a
+		// clean CI run (a dedicated, uncontended runner) as the real
+		// verification this fix needed but didn't get locally.
+		command: `npx @wp-playground/cli server --auto-mount --blueprint=tests/e2e/functional/functional-blueprint.json --mount=tests/e2e/functional/e2e-environment.php:/wordpress/wp-content/mu-plugins/e2e-environment.php --port=${ PORT } --php=8.3 --workers=6`,
 		// @wp-playground/cli's --auto-mount detects from its cwd like
 		// wp-now did; Playwright defaults webServer.cwd to this config
 		// file's directory, which would mount tests/e2e/functional instead
