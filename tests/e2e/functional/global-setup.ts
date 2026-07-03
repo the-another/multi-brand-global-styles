@@ -1,15 +1,16 @@
 import type { FullConfig } from '@playwright/test';
 import { RequestUtils } from '@wordpress/e2e-test-utils-playwright';
-import { waitForRealReadiness } from './wait-for-real-readiness';
 
+// Logs in as admin (RequestUtils' default admin/password credentials —
+// serve-wp.sh installs WordPress with exactly those) and persists the
+// authenticated storage state to STORAGE_STATE_PATH, where the config's
+// use.storageState and the per-worker requestUtils fixture pick it up.
 export default async function globalSetup( config: FullConfig ) {
 	const { baseURL } = config.projects[ 0 ].use as { baseURL: string };
-	const storageStatePath = 'artifacts/storage-states/admin.json';
 
 	const requestUtils = await RequestUtils.setup( {
 		baseURL,
-		storageStatePath,
+		storageStatePath: process.env.STORAGE_STATE_PATH,
 	} );
-
-	await waitForRealReadiness( requestUtils.request, baseURL );
+	await requestUtils.setupRest();
 }

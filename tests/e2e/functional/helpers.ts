@@ -50,16 +50,17 @@ export async function createBrand(
 		await page.locator( 'input[name="mbgs_is_default"]' ).check();
 	}
 
-	// force: the classic publish button is a plain form submit, but WP
-	// admin's postbox layout under the PHP-wasm engine never settles
-	// enough to pass Playwright's "stable" actionability check.
+	// force: confirmed empirically on native PHP (no wasm involved) — the
+	// classic publish button is a plain form submit, but WP admin's postbox
+	// layout never settles enough to pass Playwright's "stable"
+	// actionability check, so the click hangs until the test's own timeout
+	// closes the page. The postbox instability was never wasm-specific.
 	await page.locator( '#publish' ).click( { force: true } );
 
 	// Classic editor redirects back to post.php with a success notice.
-	// Generous timeout: the first post save under php-wasm is slow.
 	await expect(
 		page.locator( '#message.notice-success, #message.updated' )
-	).toBeVisible( { timeout: 30_000 } );
+	).toBeVisible();
 }
 
 /**
