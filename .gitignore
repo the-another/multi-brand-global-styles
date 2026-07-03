@@ -10,3 +10,6 @@
 /artifacts/
 /test-results/
 /playwright-report/
+
+# Local planning/spec docs (removed from history)
+docs/superpowers/
