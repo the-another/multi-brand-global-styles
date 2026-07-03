@@ -5,6 +5,7 @@ namespace TheAnother\Plugin\MultiBrandGlobalStyles\Tests\Brand;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
+use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
@@ -95,5 +96,53 @@ class BrandRepositoryTest extends TestCase {
 		Functions\expect( 'get_post_meta' )->once()->andReturn( '' );
 
 		$this->assertNull( $this->repository->get_global_styles_post_id( 5 ) );
+	}
+
+	public function test_get_identity_returns_array_meta(): void {
+		Functions\when( 'get_post_meta' )->alias(
+			static fn( $id, $key ) => '_mbgs_identity' === $key ? array( 'title' => 'Acme' ) : ''
+		);
+
+		$this->assertSame( array( 'title' => 'Acme' ), ( new BrandRepository() )->get_identity( 5 ) );
+	}
+
+	public function test_get_identity_returns_empty_array_for_non_array_meta(): void {
+		Functions\when( 'get_post_meta' )->justReturn( '' );
+
+		$this->assertSame( array(), ( new BrandRepository() )->get_identity( 5 ) );
+	}
+
+	public function test_get_image_map_returns_array_meta(): void {
+		Functions\when( 'get_post_meta' )->alias(
+			static fn( $id, $key ) => '_mbgs_image_map' === $key ? array( 10 => 20 ) : ''
+		);
+
+		$this->assertSame( array( 10 => 20 ), ( new BrandRepository() )->get_image_map( 5 ) );
+	}
+
+	public function test_get_image_url_map_returns_empty_array_for_non_array_meta(): void {
+		Functions\when( 'get_post_meta' )->justReturn( false );
+
+		$this->assertSame( array(), ( new BrandRepository() )->get_image_url_map( 5 ) );
+	}
+
+	public function test_get_brand_ids_queries_any_status(): void {
+		Functions\expect( 'get_posts' )->once()->with(
+			Mockery::on(
+				static fn( array $args ): bool => 'mbgs_brand' === $args['post_type'] && 'any' === $args['post_status']
+			)
+		)->andReturn( array( '3', '7' ) );
+
+		$this->assertSame( array( 3, 7 ), ( new BrandRepository() )->get_brand_ids() );
+	}
+
+	public function test_get_published_brand_ids_queries_publish_status(): void {
+		Functions\expect( 'get_posts' )->once()->with(
+			Mockery::on(
+				static fn( array $args ): bool => 'publish' === $args['post_status']
+			)
+		)->andReturn( array( 3 ) );
+
+		$this->assertSame( array( 3 ), ( new BrandRepository() )->get_published_brand_ids() );
 	}
 }
