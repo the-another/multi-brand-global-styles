@@ -1,0 +1,68 @@
+FROM alpine:3.24.1
+
+# PHP 8.3 toolchain, matching the existing Dockerfile exactly — this image
+# builds the release zip itself (composer build + wp dist-archive) before
+# running Plugin Check against it, so it needs the same PHP/Composer/wp-cli
+# stack, plus Node for Playwright and Alpine's own Chromium for the browser.
+RUN apk add --no-cache \
+	php83 \
+	php83-cli \
+	php83-common \
+	php83-ctype \
+	php83-curl \
+	php83-dom \
+	php83-fileinfo \
+	php83-iconv \
+	php83-json \
+	php83-mbstring \
+	php83-openssl \
+	php83-phar \
+	php83-session \
+	php83-simplexml \
+	php83-tokenizer \
+	php83-xml \
+	php83-xmlreader \
+	php83-xmlwriter \
+	php83-zip \
+	nodejs \
+	npm \
+	make \
+	git \
+	zip \
+	curl
+
+RUN ln -sf /usr/bin/php83 /usr/local/bin/php && \
+	curl -sS https://getcomposer.org/installer -o /tmp/composer-setup.php && \
+	php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer && \
+	rm /tmp/composer-setup.php
+
+# wp-cli + dist-archive-command, pinned to the same version as the existing
+# Dockerfile for the same reason (see that file's comment: v3.2.x requires
+# wp-cli ^2.13, which has not been released).
+RUN curl -sSL https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar -o /usr/local/bin/wp && \
+	chmod +x /usr/local/bin/wp && \
+	wp package install https://github.com/wp-cli/dist-archive-command/archive/refs/tags/v3.1.0.zip --allow-root
+
+# Alpine's own Chromium build (musl-compatible). PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
+# stops `npm install`/`npx playwright install` from fetching Playwright's own
+# glibc-linked Chromium, which does not run here. playwright.config.ts and
+# playwright.check.config.ts point launchOptions.executablePath at
+# CHROMIUM_EXECUTABLE_PATH when it's set, so an unmodified host run (macOS/glibc
+# Linux, this var unset) still uses Playwright's own downloaded browser.
+RUN apk add --no-cache \
+	chromium \
+	nss \
+	freetype \
+	freetype-dev \
+	harfbuzz \
+	ca-certificates \
+	ttf-freefont
+
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+ENV CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
+# The project directory is always bind-mounted to /app at run time, so the
+# image deliberately contains no project files.
+WORKDIR /app
+
+CMD ["sh"]
