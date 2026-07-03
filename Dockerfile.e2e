@@ -61,6 +61,33 @@ RUN apk add --no-cache \
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 ENV CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
+# Both Playwright configs set video: 'on' / include video capture, which
+# shells out to an ffmpeg binary Playwright resolves from its own registry
+# cache (~/.cache/ms-playwright/ffmpeg-<revision>/ffmpeg-linux) — there is no
+# launchOptions-style override for it like there is for the browser itself.
+# PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD (above) also blocks that binary from ever
+# being fetched, and Playwright's own build is glibc-linked (won't run here)
+# regardless. Fix: install Alpine's musl-native ffmpeg package and pre-seed
+# the exact path Playwright's registry expects with a symlink to it, so the
+# lookup's plain file-access check succeeds and the real system ffmpeg runs.
+# Revision "1011" is playwright-core 1.61.1's pinned ffmpeg revision per
+# package-lock.json (see node_modules/playwright-core/browsers.json after
+# `npm install`) — bump this if that lockfile version ever changes.
+RUN apk add --no-cache ffmpeg && \
+	mkdir -p /root/.cache/ms-playwright/ffmpeg-1011 && \
+	ln -sf /usr/bin/ffmpeg /root/.cache/ms-playwright/ffmpeg-1011/ffmpeg-linux && \
+	touch /root/.cache/ms-playwright/ffmpeg-1011/INSTALLATION_COMPLETE
+
+# @wp-playground/cli (used by check-plugin's webServer) depends on
+# fs-ext-extra-prebuilt, a native addon shipped only as glibc-linked prebuilt
+# .node binaries — they fail to `require()` under musl here (same class of
+# issue as Chromium and ffmpeg above), and npm's own install script silently
+# swallows that failure and reports a generic "no prebuilt binary" error that
+# obscures the real cause. Its install script auto-falls-back to compiling
+# from bundled source via node-gyp when the prebuilt require fails, so a
+# plain C/C++ toolchain here is enough — no other project code changes.
+RUN apk add --no-cache python3 g++
+
 # The project directory is always bind-mounted to /app at run time, so the
 # image deliberately contains no project files.
 WORKDIR /app

@@ -1,8 +1,17 @@
-.PHONY: docker-build install install-dev require update dump-autoload lint format test release check-plugin version-patch version-minor version-major all clean
+.PHONY: docker-build docker-build-e2e install install-dev require update dump-autoload lint format test test-e2e release check-plugin version-patch version-minor version-major all clean
 
-# Docker image name
+# Docker image names
 DOCKER_IMAGE = the-another-multi-domain-global-styles-runner:latest
 DOCKER_RUN = docker run --rm -v $(PWD):/app -w /app $(DOCKER_IMAGE)
+
+# Separate, Chromium-capable image for the e2e/Plugin Check Make targets —
+# kept apart from DOCKER_IMAGE so lint/test/release stay small and fast.
+DOCKER_IMAGE_E2E = the-another-multi-domain-global-styles-e2e-runner:latest
+DOCKER_RUN_E2E = docker run --rm -v $(PWD):/app -w /app $(DOCKER_IMAGE_E2E)
+
+# Build the e2e Docker image
+docker-build-e2e:
+	docker build -f Dockerfile.e2e -t $(DOCKER_IMAGE_E2E) .
 
 # Build Docker image
 docker-build:
@@ -49,20 +58,20 @@ test: docker-build
 release: install-dev lint test
 	$(DOCKER_RUN) sh -c "npm install --no-audit --no-fund && npm run plugin-zip"
 
-# Build the plugin zip (labeled -test, never the real version — see
-# scripts/version-zip.js's --label flag) and run WordPress.org's official
-# Plugin Check against it in a fresh WordPress instance installed FROM that
-# zip. Deliberately not the dev-mounted source the regular e2e suite uses:
-# the whole point is to catch packaging bugs (missing files, wrong
-# autoloader) that a source mount would never surface. Zip build runs in
-# Docker; the check itself runs on the host via Playwright +
-# @wp-playground/cli, since that needs a real browser (not available in the
-# Docker runner image).
-check-plugin: docker-build
-	rm -f build/the-another-multi-domain-global-styles-test.zip
-	$(DOCKER_RUN) sh -c "npm install --no-audit --no-fund && npm run plugin-zip:check"
-	npx playwright install chromium
-	npm run check:plugin
+# Run the functional wp-now + Playwright suite (activation, admin rules,
+# style scoping, content variables) inside Docker. Both this target and
+# check-plugin below call the same shared script — see scripts/run-e2e.sh.
+test-e2e: docker-build-e2e
+	$(DOCKER_RUN_E2E) sh scripts/run-e2e.sh functional
+
+# Build a throwaway release zip (labeled -test, never the real version —
+# see scripts/version-zip.js's --label flag) and run WordPress.org's
+# official Plugin Check against it in a fresh WordPress instance installed
+# FROM that zip — catches packaging bugs (missing files, wrong autoloader)
+# a source-directory mount would never surface. Entirely inside Docker via
+# the same shared script as test-e2e.
+check-plugin: docker-build-e2e
+	$(DOCKER_RUN_E2E) sh scripts/run-e2e.sh plugin-check
 
 # Bump version (package.json, composer.json, plugin header, VERSION constant,
 # readme.txt stable tag + changelog stub, lock files) — runs in Docker, no
