@@ -1,5 +1,5 @@
 === The Another Multi-Domain Global Styles ===
-Contributors: theanother
+Contributors: theanother, ziontrooper
 Tags: multi-domain, global styles, branding, theme-json, variables
 Requires at least: 6.9
 Tested up to: 6.9
