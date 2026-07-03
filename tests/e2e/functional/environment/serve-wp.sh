@@ -13,11 +13,11 @@
 set -e
 
 PORT="${WP_E2E_PORT:-8881}"
-PLUGIN_SLUG="the-another-multi-brand-global-styles"
 REPO_ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
 
-if [ ! -f "$REPO_ROOT/vendor/autoload.php" ]; then
-	echo "vendor/autoload.php missing — run 'make install' first" >&2
+ZIP="$REPO_ROOT/build/the-another-multi-brand-global-styles-test.zip"
+if [ ! -f "$ZIP" ]; then
+	echo "$ZIP missing — run via scripts/run-e2e.sh functional (or make test-e2e), which builds it" >&2
 	exit 1
 fi
 
@@ -47,17 +47,11 @@ wp core install --path="$WP_DIR" --url="http://localhost:$PORT" \
 	--title="MBGS E2E" --admin_user=admin --admin_password=password \
 	--admin_email=admin@example.com --skip-email --allow-root
 
-# Exactly the plugin's four runtime paths, copied (not symlinked: PHP
-# resolves symlinks in __FILE__ and WordPress only realpath-maps whole-dir
-# plugin symlinks, so per-file symlinks can break plugin_basename()).
-PLUGIN_DIR="$WP_DIR/wp-content/plugins/$PLUGIN_SLUG"
-mkdir -p "$PLUGIN_DIR"
-cp "$REPO_ROOT/$PLUGIN_SLUG.php" "$PLUGIN_DIR/"
-cp "$REPO_ROOT/readme.txt" "$PLUGIN_DIR/"
-cp -a "$REPO_ROOT/includes" "$PLUGIN_DIR/includes"
-cp -a "$REPO_ROOT/vendor" "$PLUGIN_DIR/vendor"
-
-wp plugin activate "$PLUGIN_SLUG" --path="$WP_DIR" --allow-root
+# The same packaged artifact the check-plugin suite gates — never a
+# file-by-file source copy, so packaging bugs (missing file, wrong
+# autoloader, bad .distignore exclusion) fail functionally too. The zip's
+# inner dirname is already the real slug (dist-archive's --plugin-dirname).
+wp plugin install "$ZIP" --activate --path="$WP_DIR" --allow-root
 
 # Pretty permalinks: path-scoped Brand rules need real path URLs. A direct
 # option write via wp-cli (unlike the admin UI, it doesn't sanitize the
