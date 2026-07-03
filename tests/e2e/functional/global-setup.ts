@@ -12,15 +12,4 @@ export default async function globalSetup( config: FullConfig ) {
 	} );
 
 	await waitForRealReadiness( requestUtils.request, baseURL );
-
-	// @wp-playground/cli's --auto-mount auto-activates the mounted plugin in
-	// plugin mode (confirmed empirically); this is the explicit safety net
-	// (and the activation assertion for a freshly spawned server).
-	try {
-		await requestUtils.activatePlugin(
-			'the-another-multi-brand-global-styles'
-		);
-	} catch {
-		// Already active.
-	}
 }
