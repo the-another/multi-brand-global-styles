@@ -10,13 +10,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 - Developer documentation: `CLAUDE.md`, `README.md`, `CONTRIBUTORS.md`, and this `CHANGELOG.md`.
-- End-to-end test infrastructure: a Playwright + `@wp-playground/cli` functional suite (`tests/e2e/functional/`) and an `@wp-playground/cli` WP-CLI-runner Plugin Check suite (`tests/e2e/check-plugin/`), a dedicated `Dockerfile.e2e`, a shared `scripts/run-e2e.sh` entrypoint, and a GitHub Actions workflow.
+- End-to-end test infrastructure: a native-PHP (+ official SQLite drop-in) Playwright functional suite (`tests/e2e/functional/`) and a WP-CLI-runner WordPress.org Plugin Check suite (`tests/e2e/check-plugin/`) covering all checks including the 5 runtime ones, both installing the plugin from the packaged `-test` zip built fresh each run, a dedicated e2e image (`tests/e2e/Dockerfile`), a shared `scripts/run-e2e.sh` entrypoint, and a GitHub Actions workflow.
 
-### Changed
-- Functional e2e suite's dev server switched from the deprecated `wp-now` to `@wp-playground/cli`, matching the Plugin Check suite. No test behavior changed; see `CLAUDE.md`'s gotchas for the readiness-check and concurrency fixes this required.
-
-### Known issues
-- The Plugin Check (`check-plugin`) e2e suite fails on 5 of 32 checks (`enqueued_scripts_size`, `enqueued_styles_size`, `enqueued_styles_scope`, `enqueued_scripts_scope`, `non_blocking_scripts`) due to a limitation of `@wp-playground/cli`'s WASM-hosted environment, not the plugin. Its CI job runs with `continue-on-error` pending resolution.
+### Fixed
+- Array input to the Brand styles-JSON admin field (`mbgs_styles_json[]=`) caused a PHP `TypeError` fatal in the save handler; non-string input is now rejected.
+- Cleared all six Plugin Check / PHPCS warnings (an exclusionary `post__not_in` query, default-Brand flag-lookup slow-query warnings, and the unsanitized styles-JSON input) — `make check-plugin` now reports 0 errors, 0 warnings.
 
 ## [0.1.0] - 2026-07-02
 
