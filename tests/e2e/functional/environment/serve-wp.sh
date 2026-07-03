@@ -67,7 +67,13 @@ wp rewrite structure '/%postname%/' --path="$WP_DIR" --allow-root
 wp rewrite flush --path="$WP_DIR" --allow-root
 
 # Multiple built-in-server workers so WordPress's own loopback requests
-# (cron spawn, site health) can't deadlock the single PHP process.
-echo "MBGS e2e WordPress ready: serving $WP_DIR on port $PORT"
+# (cron spawn, site health) can't deadlock the single PHP process. The
+# running server's output is spooled to a file rather than Playwright's
+# console: php -S logs every request (Accepted/Closing/status lines), which
+# drowns the test output. Boot-phase output above still reaches the console,
+# and real PHP errors still surface on-page via WP_DEBUG_DISPLAY (and thus
+# in failure screenshots); the spool file covers the rest if a run needs a
+# post-mortem inside the container.
+echo "MBGS e2e WordPress ready: serving $WP_DIR on port $PORT (server log: $WP_DIR/php-server.log)"
 PHP_CLI_SERVER_WORKERS=6 exec wp server --host=0.0.0.0 --port="$PORT" \
-	--path="$WP_DIR" --allow-root
+	--path="$WP_DIR" --allow-root >>"$WP_DIR/php-server.log" 2>&1
