@@ -84,6 +84,8 @@ git commit -m "test(e2e): add explicit predefined-admin Blueprint for the functi
 
 **REVISED 2026-07-03 after an empirical spike by the Task 2 implementer hit a real blocker.** Adding the Blueprint's `"login": true` (Step 1 below) alone causes the WordPress instance to boot into a genuine infinite self-redirect loop (`GET /` → `302` → `/` → `302` → ... forever), which manifests as Playwright's `config.webServer` health check timing out after 180s — a failure that happens *before* `globalSetup.ts` even runs, so the originally-documented fallback (which only edits `globalSetup.ts`) cannot address it. Root cause, confirmed via a controlled A/B (identical boot command, only the Blueprint's `"login": true` toggled): `playwright.check.config.ts`'s `webServer.command` already passes a pre-existing `--login` CLI flag straight to `@wp-playground/cli server` (committed in 8a982f8, before this task). That flag and the Blueprint's own `login` step are two independent auto-login mechanisms that clobber each other's auth-cookie path (observed: `set-cookie: ...; path=/wp-content/plugins` instead of `/`). Removing the CLI flag (now redundant with the Blueprint) resolves it — boots cleanly to `200 OK` in ~25s. Task 2's scope is expanded to include that removal.
 
+**REVISED AGAIN 2026-07-03 after a second empirical spike found a deeper, distinct blocker.** Removing `--login` (above) does fix the cookie-path conflict (confirmed: a real cookie-jar client settles to a stable `200` in ~8s, with correct `Set-Cookie` paths). But `npm run check:plugin` still times out at the webServer stage. Root cause, confirmed by reading `node_modules/playwright-core/lib/coreBundle.js`'s `httpRequest`/`httpStatusCode` (Playwright Test's own built-in `webServer.url` readiness poller) and by an independent empirical test (30/30 cookie-less requests to `/` came back `302`, never `200`): that poller follows `Location` redirects itself but **never forwards `Set-Cookie` as `Cookie` on the next hop** — it has no cookie jar. The Blueprint's `"login": true` step makes the *first* hit to any normal front-end URL redirect-to-self once while it sets the auth cookie (fine for a real browser, which carries the cookie forward) — but Playwright's cookie-blind prober re-triggers that same fresh, not-yet-logged-in redirect forever. This is independent of the `--login` CLI flag question and cannot be fixed by anything in the Blueprint or the CLI command; it requires pointing the readiness check at a URL that does not go through that redirect-on-first-hit behavior. `wp-json/` (the REST API index) is the fix: REST API requests are dispatched via `rest_api_loaded()`, which outputs JSON and exits before WordPress ever reaches the normal front-end `template_redirect` hook that the login-redirect-to-self behavior is presumably hooked on — so a REST request should get a stable, non-redirecting JSON response on the very first hit, cookie or no cookie. This must be verified empirically (the same way the `--login` cookie-path diagnosis was) before relying on it, since nothing about `PLAYGROUND_AUTO_LOGIN_AS_USER`'s exact hook point has been read from source. Task 2 gains one more step for this.
+
 **Files:**
 - Modify: `tests/e2e/check-plugin-blueprint.json`
 - Modify: `tests/e2e/check-plugin-global-setup.ts`
@@ -185,7 +187,31 @@ In `playwright.check.config.ts`, the `webServer.command` array currently include
 
 (Only the `'--login',` line is removed; nothing else in this array changes, including its surrounding comment, which still applies.)
 
-- [ ] **Step 4: Run the Plugin Check suite end-to-end**
+- [ ] **Step 4: Verify a REST endpoint doesn't trigger the login-redirect-to-self, then point webServer.url at it**
+
+First, empirically confirm the candidate endpoint is stable before wiring it in — do not skip this, it's the exact kind of assumption that broke the previous two attempts. Boot the server manually once (`npx @wp-playground/cli server --port=8883 --php=8.3 --wp=latest --workers=1 --blueprint=tests/e2e/check-plugin-blueprint.json --mount=$(pwd)/build:/tests-artifacts` — omit `--login`, matching Step 3), wait for its `Ready!` log line, then in a separate terminal/command hit it 10 times in a row with a **fresh, cookie-less** connection each time (no `-c`/`-b`, matching how Playwright's own prober behaves):
+
+```bash
+for i in $(seq 1 10); do curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8883/wp-json/; done
+```
+
+Expected: all 10 return `200` (or at least some stable non-3xx code), never `302`. If `/wp-json/` still redirects, try `http://127.0.0.1:8883/index.php?rest_route=/` instead (the same REST dispatch, reachable without depending on pretty permalinks being active) and repeat the same 10x check. Use whichever of the two is confirmed stable. Kill the manual server once confirmed (`pkill -f "wp-playground/cli server"` or equivalent).
+
+Then, in `playwright.check.config.ts`, change the `webServer.url` line from:
+
+```ts
+		url: BASE_URL,
+```
+
+to (using whichever endpoint you just confirmed):
+
+```ts
+		url: `${ BASE_URL }/wp-json/`,
+```
+
+(This only affects Playwright's own startup readiness poll — `use.baseURL` stays `BASE_URL` unchanged, and nothing else about how tests navigate the site changes.)
+
+- [ ] **Step 5: Run the Plugin Check suite end-to-end**
 
 Run:
 ```bash
@@ -196,9 +222,9 @@ npm run check:plugin
 ```
 (If `wp`/wp-cli isn't on the host PATH, build the zip in Docker instead, matching this project's own documented split — zip build in Docker, Playwright on the host: `docker run --rm -v $PWD:/app -w /app the-another-multi-domain-global-styles-runner:latest sh -c "npm install --no-audit --no-fund && npm run plugin-zip:check"`, then run `npx playwright install chromium` and `npm run check:plugin` on the host as normal.)
 
-Expected: the webServer boots cleanly (no 180s timeout, no infinite-redirect loop — confirm with `curl -sD - http://127.0.0.1:8883/` if in doubt: a single `200 OK` or a single `302` to a real destination, never repeating `/` → `/`), and `plugin-check.spec.ts`'s test PASSES — specifically, the `page.goto('/wp-admin/tools.php?page=plugin-check...')` navigation must reach the real Plugin Check admin page (asserted via `toContainText('Plugin Check')`), not a login wall or a "Sorry, you are not allowed to access this page" error. **If it fails at that assertion** (webServer boots fine, but the page itself shows a permission error), the auto-login-by-constant mechanism did not take effect for this CLI invocation — as a fallback, restore a real login POST in `check-plugin-global-setup.ts`'s `globalSetup`, using the exact approach the file had before this task (`requestUtils.request.post('wp-login.php', { form: { log: 'admin', pwd: 'password' } })` after `waitForRealReadiness`, then `requestUtils.request.storageState({ path: storageStatePath })`), and re-run this step. If instead the webServer itself fails to boot again in any form, stop and report BLOCKED — do not guess further.
+Expected: the webServer boots cleanly (no 180s timeout — Playwright's own log should show a single successful readiness check, not silence until a timeout), and `plugin-check.spec.ts`'s test PASSES — specifically, the `page.goto('/wp-admin/tools.php?page=plugin-check...')` navigation must reach the real Plugin Check admin page (asserted via `toContainText('Plugin Check')`), not a login wall or a "Sorry, you are not allowed to access this page" error. **If it fails at that assertion** (webServer boots fine, but the page itself shows a permission error), the auto-login-by-constant mechanism did not take effect for this CLI invocation — as a fallback, restore a real login POST in `check-plugin-global-setup.ts`'s `globalSetup`, using the exact approach the file had before this task (`requestUtils.request.post('wp-login.php', { form: { log: 'admin', pwd: 'password' } })` after `waitForRealReadiness`, then `requestUtils.request.storageState({ path: storageStatePath })`), and re-run this step. If instead the webServer itself still fails to boot, stop and report BLOCKED with full diagnostic detail (this would be a third distinct issue) — do not guess further or attempt a fourth workaround without a human decision.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add tests/e2e/check-plugin-blueprint.json tests/e2e/check-plugin-global-setup.ts playwright.check.config.ts
