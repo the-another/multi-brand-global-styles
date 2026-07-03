@@ -2,20 +2,20 @@
 /**
  * Brand Post Type
  *
- * @package MultiDomainGlobalStyles
+ * @package MultiBrandGlobalStyles
  * @since 1.0.0
  */
 
-namespace TheAnother\Plugin\MultiDomainGlobalStyles\Brand;
+namespace TheAnother\Plugin\MultiBrandGlobalStyles\Brand;
 
-use TheAnother\Plugin\MultiDomainGlobalStyles\GlobalStyles\GlobalStylesPostService;
-use TheAnother\Plugin\MultiDomainGlobalStyles\ContentVariables\VariableParser;
+use TheAnother\Plugin\MultiBrandGlobalStyles\GlobalStyles\GlobalStylesPostService;
+use TheAnother\Plugin\MultiBrandGlobalStyles\ContentVariables\VariableParser;
 use WP_Post;
 
 /**
  * Class BrandPostType
  *
- * Registers the `mdgs_brand` CPT: URL rules, content variables, default
+ * Registers the `mbgs_brand` CPT: URL rules, content variables, default
  * flag, and an interim raw-JSON global styles editor (Task 10 of the
  * foundation plan; replaced by a Site Editor redirect in the follow-up plan).
  */
@@ -26,7 +26,7 @@ class BrandPostType {
 	 *
 	 * @var string
 	 */
-	public const POST_TYPE = 'mdgs_brand';
+	public const POST_TYPE = 'mbgs_brand';
 
 	/**
 	 * URL rule registry.
@@ -67,7 +67,7 @@ class BrandPostType {
 	}
 
 	/**
-	 * Register the mdgs_brand post type. Hooked to `init`.
+	 * Register the mbgs_brand post type. Hooked to `init`.
 	 *
 	 * @return void
 	 */
@@ -76,10 +76,10 @@ class BrandPostType {
 			self::POST_TYPE,
 			array(
 				'labels'       => array(
-					'name'          => __( 'Brands', 'the-another-multi-domain-global-styles' ),
-					'singular_name' => __( 'Brand', 'the-another-multi-domain-global-styles' ),
-					'add_new_item'  => __( 'Add New Brand', 'the-another-multi-domain-global-styles' ),
-					'edit_item'     => __( 'Edit Brand', 'the-another-multi-domain-global-styles' ),
+					'name'          => __( 'Brands', 'the-another-multi-brand-global-styles' ),
+					'singular_name' => __( 'Brand', 'the-another-multi-brand-global-styles' ),
+					'add_new_item'  => __( 'Add New Brand', 'the-another-multi-brand-global-styles' ),
+					'edit_item'     => __( 'Edit Brand', 'the-another-multi-brand-global-styles' ),
 				),
 				'public'       => false,
 				'show_ui'      => true,
@@ -107,10 +107,10 @@ class BrandPostType {
 	 * @return void
 	 */
 	public function register_meta_boxes(): void {
-		add_meta_box( 'mdgs_rules', __( 'URL Rules', 'the-another-multi-domain-global-styles' ), array( $this, 'render_rules_meta_box' ), self::POST_TYPE, 'normal', 'high' );
-		add_meta_box( 'mdgs_variables', __( 'Content Variables', 'the-another-multi-domain-global-styles' ), array( $this, 'render_variables_meta_box' ), self::POST_TYPE, 'normal', 'default' );
-		add_meta_box( 'mdgs_default', __( 'Default Brand', 'the-another-multi-domain-global-styles' ), array( $this, 'render_default_meta_box' ), self::POST_TYPE, 'side', 'default' );
-		add_meta_box( 'mdgs_styles', __( 'Global Styles (raw JSON)', 'the-another-multi-domain-global-styles' ), array( $this, 'render_styles_meta_box' ), self::POST_TYPE, 'normal', 'default' );
+		add_meta_box( 'mbgs_rules', __( 'URL Rules', 'the-another-multi-brand-global-styles' ), array( $this, 'render_rules_meta_box' ), self::POST_TYPE, 'normal', 'high' );
+		add_meta_box( 'mbgs_variables', __( 'Content Variables', 'the-another-multi-brand-global-styles' ), array( $this, 'render_variables_meta_box' ), self::POST_TYPE, 'normal', 'default' );
+		add_meta_box( 'mbgs_default', __( 'Default Brand', 'the-another-multi-brand-global-styles' ), array( $this, 'render_default_meta_box' ), self::POST_TYPE, 'side', 'default' );
+		add_meta_box( 'mbgs_styles', __( 'Global Styles (raw JSON)', 'the-another-multi-brand-global-styles' ), array( $this, 'render_styles_meta_box' ), self::POST_TYPE, 'normal', 'default' );
 	}
 
 	/**
@@ -120,13 +120,13 @@ class BrandPostType {
 	 * @return void
 	 */
 	public function render_rules_meta_box( WP_Post $post ): void {
-		$rules = get_post_meta( $post->ID, '_mdgs_rules', true );
+		$rules = get_post_meta( $post->ID, '_mbgs_rules', true );
 		$rules = is_array( $rules ) ? $rules : array();
 
-		wp_nonce_field( 'mdgs_save_brand', 'mdgs_brand_nonce' );
+		wp_nonce_field( 'mbgs_save_brand', 'mbgs_brand_nonce' );
 		?>
-		<p><?php esc_html_e( 'One rule per line. A bare hostname matches the whole domain (auctionbill.com); add a path to match one section only (site.com/farm/*).', 'the-another-multi-domain-global-styles' ); ?></p>
-		<textarea name="mdgs_rules" rows="5" style="width:100%;"><?php echo esc_textarea( implode( "\n", $rules ) ); ?></textarea>
+		<p><?php esc_html_e( 'One rule per line. A bare hostname matches the whole domain (auctionbill.com); add a path to match one section only (site.com/farm/*).', 'the-another-multi-brand-global-styles' ); ?></p>
+		<textarea name="mbgs_rules" rows="5" style="width:100%;"><?php echo esc_textarea( implode( "\n", $rules ) ); ?></textarea>
 		<?php
 	}
 
@@ -137,7 +137,7 @@ class BrandPostType {
 	 * @return void
 	 */
 	public function render_variables_meta_box( WP_Post $post ): void {
-		$variables = get_post_meta( $post->ID, '_mdgs_variables', true );
+		$variables = get_post_meta( $post->ID, '_mbgs_variables', true );
 		$variables = is_array( $variables ) ? $variables : array();
 
 		$lines = array();
@@ -145,8 +145,8 @@ class BrandPostType {
 			$lines[] = "{$key} = {$value}";
 		}
 		?>
-		<p><?php esc_html_e( 'One variable per line, e.g. name = Acme Auctions. Reference in content as %%brand.name%%.', 'the-another-multi-domain-global-styles' ); ?></p>
-		<textarea name="mdgs_variables" rows="5" style="width:100%;"><?php echo esc_textarea( implode( "\n", $lines ) ); ?></textarea>
+		<p><?php esc_html_e( 'One variable per line, e.g. name = Acme Auctions. Reference in content as %%brand.name%%.', 'the-another-multi-brand-global-styles' ); ?></p>
+		<textarea name="mbgs_variables" rows="5" style="width:100%;"><?php echo esc_textarea( implode( "\n", $lines ) ); ?></textarea>
 		<?php
 	}
 
@@ -157,11 +157,11 @@ class BrandPostType {
 	 * @return void
 	 */
 	public function render_default_meta_box( WP_Post $post ): void {
-		$is_default = get_post_meta( $post->ID, '_mdgs_is_default', true );
+		$is_default = get_post_meta( $post->ID, '_mbgs_is_default', true );
 		?>
 		<label>
-			<input type="checkbox" name="mdgs_is_default" value="1" <?php checked( $is_default, '1' ); ?> />
-			<?php esc_html_e( 'Use as fallback for unmatched domains', 'the-another-multi-domain-global-styles' ); ?>
+			<input type="checkbox" name="mbgs_is_default" value="1" <?php checked( $is_default, '1' ); ?> />
+			<?php esc_html_e( 'Use as fallback for unmatched domains', 'the-another-multi-brand-global-styles' ); ?>
 		</label>
 		<?php
 	}
@@ -173,22 +173,22 @@ class BrandPostType {
 	 * @return void
 	 */
 	public function render_styles_meta_box( WP_Post $post ): void {
-		$global_styles_post_id = get_post_meta( $post->ID, '_mdgs_global_styles_post_id', true );
+		$global_styles_post_id = get_post_meta( $post->ID, '_mbgs_global_styles_post_id', true );
 		$data                  = $global_styles_post_id ? $this->global_styles_post_service->get_global_styles_data( (int) $global_styles_post_id ) : array();
 		?>
-		<p><?php esc_html_e( 'Raw theme.json-shaped settings/styles for this Brand. A richer visual editor is planned; this is the interim editing UI.', 'the-another-multi-domain-global-styles' ); ?></p>
-		<textarea name="mdgs_styles_json" rows="12" style="width:100%;font-family:monospace;"><?php echo esc_textarea( wp_json_encode( $data, JSON_PRETTY_PRINT ) ); ?></textarea>
+		<p><?php esc_html_e( 'Raw theme.json-shaped settings/styles for this Brand. A richer visual editor is planned; this is the interim editing UI.', 'the-another-multi-brand-global-styles' ); ?></p>
+		<textarea name="mbgs_styles_json" rows="12" style="width:100%;font-family:monospace;"><?php echo esc_textarea( wp_json_encode( $data, JSON_PRETTY_PRINT ) ); ?></textarea>
 		<?php
 	}
 
 	/**
-	 * Save handler. Hooked to `save_post_mdgs_brand`.
+	 * Save handler. Hooked to `save_post_mbgs_brand`.
 	 *
 	 * @param int $post_id Post ID being saved.
 	 * @return void
 	 */
 	public function save( int $post_id ): void {
-		if ( ! isset( $_POST['mdgs_brand_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['mdgs_brand_nonce'] ) ), 'mdgs_save_brand' ) ) {
+		if ( ! isset( $_POST['mbgs_brand_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['mbgs_brand_nonce'] ) ), 'mbgs_save_brand' ) ) {
 			return;
 		}
 
@@ -216,7 +216,7 @@ class BrandPostType {
 	 * @return void
 	 */
 	private function save_rules( int $post_id ): void {
-		$raw   = isset( $_POST['mdgs_rules'] ) ? sanitize_textarea_field( wp_unslash( $_POST['mdgs_rules'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in save() before delegation.
+		$raw   = isset( $_POST['mbgs_rules'] ) ? sanitize_textarea_field( wp_unslash( $_POST['mbgs_rules'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in save() before delegation.
 		$rules = $this->url_rule_registry->parse_rules_input( $raw );
 
 		$accepted = array();
@@ -231,10 +231,10 @@ class BrandPostType {
 		}
 
 		if ( ! empty( $rejected ) ) {
-			set_transient( 'mdgs_rule_conflict_' . get_current_user_id(), $rejected, 30 );
+			set_transient( 'mbgs_rule_conflict_' . get_current_user_id(), $rejected, 30 );
 		}
 
-		update_post_meta( $post_id, '_mdgs_rules', $accepted );
+		update_post_meta( $post_id, '_mbgs_rules', $accepted );
 	}
 
 	/**
@@ -244,9 +244,9 @@ class BrandPostType {
 	 * @return void
 	 */
 	private function save_variables( int $post_id ): void {
-		$raw = isset( $_POST['mdgs_variables'] ) ? sanitize_textarea_field( wp_unslash( $_POST['mdgs_variables'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in save() before delegation.
+		$raw = isset( $_POST['mbgs_variables'] ) ? sanitize_textarea_field( wp_unslash( $_POST['mbgs_variables'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in save() before delegation.
 
-		update_post_meta( $post_id, '_mdgs_variables', $this->variable_parser->parse( $raw ) );
+		update_post_meta( $post_id, '_mbgs_variables', $this->variable_parser->parse( $raw ) );
 	}
 
 	/**
@@ -256,7 +256,7 @@ class BrandPostType {
 	 * @return void
 	 */
 	private function save_default_flag( int $post_id ): void {
-		$is_default = ! empty( $_POST['mdgs_is_default'] ) ? '1' : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in save() before delegation.
+		$is_default = ! empty( $_POST['mbgs_is_default'] ) ? '1' : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in save() before delegation.
 
 		if ( '1' === $is_default ) {
 			$others = get_posts(
@@ -266,16 +266,16 @@ class BrandPostType {
 					'fields'         => 'ids',
 					'post__not_in'   => array( $post_id ),
 					'post_status'    => 'any',
-					'meta_key'       => '_mdgs_is_default',
+					'meta_key'       => '_mbgs_is_default',
 					'meta_value'     => '1',
 				)
 			);
 			foreach ( $others as $other_id ) {
-				delete_post_meta( $other_id, '_mdgs_is_default' );
+				delete_post_meta( $other_id, '_mbgs_is_default' );
 			}
 		}
 
-		update_post_meta( $post_id, '_mdgs_is_default', $is_default );
+		update_post_meta( $post_id, '_mbgs_is_default', $is_default );
 	}
 
 	/**
@@ -285,7 +285,7 @@ class BrandPostType {
 	 * @return void
 	 */
 	private function save_styles( int $post_id ): void {
-		$raw = isset( $_POST['mdgs_styles_json'] ) ? wp_unslash( $_POST['mdgs_styles_json'] ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in save() before delegation.
+		$raw = isset( $_POST['mbgs_styles_json'] ) ? wp_unslash( $_POST['mbgs_styles_json'] ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in save() before delegation.
 
 		$decoded = json_decode( $raw, true );
 

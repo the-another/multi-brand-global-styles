@@ -5,8 +5,8 @@ const path = require('path');
 const { execSync } = require('child_process');
 
 // Configuration
-const MAIN_PLUGIN_FILE = 'the-another-multi-domain-global-styles.php';
-const VERSION_CONSTANT_NAME = 'THE_ANOTHER_MULTI_DOMAIN_GLOBAL_STYLES_VERSION';
+const MAIN_PLUGIN_FILE = 'the-another-multi-brand-global-styles.php';
+const VERSION_CONSTANT_NAME = 'THE_ANOTHER_MULTI_BRAND_GLOBAL_STYLES_VERSION';
 
 // Get version type argument (patch, minor, major)
 const versionType = process.argv[2];
@@ -105,7 +105,7 @@ console.log('✓ Updated readme.txt');
 const changelogFile = path.join(__dirname, '../CHANGELOG.md');
 if (fs.existsSync(changelogFile) && newVersion !== previousVersion) {
   let changelogContent = fs.readFileSync(changelogFile, 'utf8');
-  const repo = 'https://github.com/theanother/the-another-multi-domain-global-styles';
+  const repo = 'https://github.com/theanother/the-another-multi-brand-global-styles';
 
   if (/## \[Unreleased\]/.test(changelogContent)) {
     // Rename the current [Unreleased] heading to a dated release and insert

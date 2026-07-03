@@ -4,11 +4,11 @@
  *
  * Dependency injection container with lazy loading and hook management.
  *
- * @package MultiDomainGlobalStyles
+ * @package MultiBrandGlobalStyles
  * @since 1.0.0
  */
 
-namespace TheAnother\Plugin\MultiDomainGlobalStyles;
+namespace TheAnother\Plugin\MultiBrandGlobalStyles;
 
 use Exception;
 

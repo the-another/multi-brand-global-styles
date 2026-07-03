@@ -1,6 +1,6 @@
 # Contributors
 
-The Another Multi-Domain Global Styles is maintained by The Another and the people listed below.
+The Another Multi-Brand Global Styles is maintained by The Another and the people listed below.
 
 The WordPress.org contributor usernames are mirrored in the `Contributors:` header of [`readme.txt`](readme.txt).
 
@@ -15,7 +15,7 @@ The WordPress.org contributor usernames are mirrored in the `Contributors:` head
 
 - Website: <https://theanother.org>
 - Email: <hello@theanother.org>
-- Plugin homepage: <https://theanother.org/plugin/multi-domain-global-styles/>
+- Plugin homepage: <https://theanother.org/plugin/multi-brand-global-styles/>
 
 ## Adding yourself
 

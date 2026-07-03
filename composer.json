@@ -1,5 +1,5 @@
 {
-  "name": "theanother/the-another-multi-domain-global-styles",
+  "name": "theanother/the-another-multi-brand-global-styles",
   "description": "Define Brands - URL match rules (whole domains or path sections) with per-Brand global style overrides and content variables - on a single WordPress install.",
   "type": "wordpress-plugin",
   "license": "GPL-2.0-or-later",
@@ -12,10 +12,10 @@
   "keywords": [
     "wordpress",
     "plugin",
-    "multi-domain",
+    "multi-brand",
     "global-styles"
   ],
-  "homepage": "https://theanother.org/plugin/multi-domain-global-styles/",
+  "homepage": "https://theanother.org/plugin/multi-brand-global-styles/",
   "require": {
     "php": ">=8.3"
   },
@@ -31,12 +31,12 @@
   },
   "autoload": {
     "psr-4": {
-      "TheAnother\\Plugin\\MultiDomainGlobalStyles\\": "includes/"
+      "TheAnother\\Plugin\\MultiBrandGlobalStyles\\": "includes/"
     }
   },
   "autoload-dev": {
     "psr-4": {
-      "TheAnother\\Plugin\\MultiDomainGlobalStyles\\Tests\\": "tests/Unit/"
+      "TheAnother\\Plugin\\MultiBrandGlobalStyles\\Tests\\": "tests/Unit/"
     }
   },
   "config": {

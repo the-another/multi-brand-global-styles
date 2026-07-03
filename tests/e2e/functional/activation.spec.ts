@@ -14,7 +14,7 @@ test.describe( 'activation', () => {
 		} );
 
 		const ours = plugins.find( ( p ) =>
-			p.plugin.includes( 'the-another-multi-domain-global-styles' )
+			p.plugin.includes( 'the-another-multi-brand-global-styles' )
 		);
 		expect( ours ).toBeDefined();
 		expect( ours!.status ).toBe( 'active' );
@@ -25,12 +25,12 @@ test.describe( 'activation', () => {
 		requestUtils,
 	} ) => {
 		await requestUtils.deactivatePlugin(
-			'the-another-multi-domain-global-styles'
+			'the-another-multi-brand-global-styles'
 		);
 
 		await page.goto( '/wp-admin/plugins.php' );
 		const row = page.locator(
-			'tr[data-slug="the-another-multi-domain-global-styles"]'
+			'tr[data-slug="the-another-multi-brand-global-styles"]'
 		);
 		await row.getByRole( 'link', { name: 'Activate' } ).click();
 
@@ -45,7 +45,7 @@ test.describe( 'activation', () => {
 			path: '/wp/v2/plugins',
 		} );
 		const ours = plugins.find( ( p ) =>
-			p.plugin.includes( 'the-another-multi-domain-global-styles' )
+			p.plugin.includes( 'the-another-multi-brand-global-styles' )
 		);
 		expect( ours ).toBeDefined();
 		expect( ours!.status ).toBe( 'active' );
@@ -60,7 +60,7 @@ test.describe( 'activation', () => {
 	} );
 
 	test( 'Brands admin menu and list screen exist', async ( { page } ) => {
-		await page.goto( '/wp-admin/edit.php?post_type=mdgs_brand' );
+		await page.goto( '/wp-admin/edit.php?post_type=mbgs_brand' );
 		await expect(
 			page.getByRole( 'heading', { name: 'Brands' } )
 		).toBeVisible();
@@ -69,10 +69,10 @@ test.describe( 'activation', () => {
 	test( 'Brand edit screen renders all four meta boxes', async ( {
 		page,
 	} ) => {
-		await page.goto( '/wp-admin/post-new.php?post_type=mdgs_brand' );
-		await expect( page.locator( '#mdgs_rules' ) ).toBeVisible();
-		await expect( page.locator( '#mdgs_variables' ) ).toBeVisible();
-		await expect( page.locator( '#mdgs_default' ) ).toBeVisible();
-		await expect( page.locator( '#mdgs_styles' ) ).toBeVisible();
+		await page.goto( '/wp-admin/post-new.php?post_type=mbgs_brand' );
+		await expect( page.locator( '#mbgs_rules' ) ).toBeVisible();
+		await expect( page.locator( '#mbgs_variables' ) ).toBeVisible();
+		await expect( page.locator( '#mbgs_default' ) ).toBeVisible();
+		await expect( page.locator( '#mbgs_styles' ) ).toBeVisible();
 	} );
 } );

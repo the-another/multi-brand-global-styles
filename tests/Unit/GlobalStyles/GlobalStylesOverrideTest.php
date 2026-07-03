@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace TheAnother\Plugin\MultiDomainGlobalStyles\Tests\GlobalStyles;
+namespace TheAnother\Plugin\MultiBrandGlobalStyles\Tests\GlobalStyles;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
@@ -9,10 +9,10 @@ use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\BrandResolver;
-use TheAnother\Plugin\MultiDomainGlobalStyles\GlobalStyles\GlobalStylesOverride;
-use TheAnother\Plugin\MultiDomainGlobalStyles\GlobalStyles\GlobalStylesPostService;
-use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\BrandRepository;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandResolver;
+use TheAnother\Plugin\MultiBrandGlobalStyles\GlobalStyles\GlobalStylesOverride;
+use TheAnother\Plugin\MultiBrandGlobalStyles\GlobalStyles\GlobalStylesPostService;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandRepository;
 
 /**
  * Minimal stand-in for WP_Theme_JSON_Data, which isn't available outside a

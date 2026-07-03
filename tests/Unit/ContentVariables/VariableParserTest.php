@@ -1,13 +1,13 @@
 <?php
 declare(strict_types=1);
 
-namespace TheAnother\Plugin\MultiDomainGlobalStyles\Tests\ContentVariables;
+namespace TheAnother\Plugin\MultiBrandGlobalStyles\Tests\ContentVariables;
 
 use Brain\Monkey;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use TheAnother\Plugin\MultiDomainGlobalStyles\ContentVariables\VariableParser;
+use TheAnother\Plugin\MultiBrandGlobalStyles\ContentVariables\VariableParser;
 
 #[CoversClass( VariableParser::class )]
 class VariableParserTest extends TestCase {

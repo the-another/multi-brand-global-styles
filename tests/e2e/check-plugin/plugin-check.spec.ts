@@ -15,7 +15,7 @@ import { test, expect } from '@wordpress/e2e-test-utils-playwright';
 import { waitForRealReadiness } from './wait-for-real-readiness';
 
 const PLUGIN_BASENAME =
-	'the-another-multi-domain-global-styles/the-another-multi-domain-global-styles.php';
+	'the-another-multi-brand-global-styles/the-another-multi-brand-global-styles.php';
 
 interface PluginCheckResult {
 	success: boolean;

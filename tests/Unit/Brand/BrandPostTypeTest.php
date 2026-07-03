@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace TheAnother\Plugin\MultiDomainGlobalStyles\Tests\Brand;
+namespace TheAnother\Plugin\MultiBrandGlobalStyles\Tests\Brand;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
@@ -9,10 +9,10 @@ use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\BrandPostType;
-use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\UrlRuleRegistry;
-use TheAnother\Plugin\MultiDomainGlobalStyles\GlobalStyles\GlobalStylesPostService;
-use TheAnother\Plugin\MultiDomainGlobalStyles\ContentVariables\VariableParser;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandPostType;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\UrlRuleRegistry;
+use TheAnother\Plugin\MultiBrandGlobalStyles\GlobalStyles\GlobalStylesPostService;
+use TheAnother\Plugin\MultiBrandGlobalStyles\ContentVariables\VariableParser;
 
 #[CoversClass( BrandPostType::class )]
 class BrandPostTypeTest extends TestCase {
@@ -29,7 +29,7 @@ class BrandPostTypeTest extends TestCase {
 		Functions\when( 'current_user_can' )->justReturn( true );
 		Functions\when( 'get_current_user_id' )->justReturn( 1 );
 
-		$_POST['mdgs_brand_nonce'] = 'valid';
+		$_POST['mbgs_brand_nonce'] = 'valid';
 	}
 
 	protected function tearDown(): void {
@@ -56,7 +56,7 @@ class BrandPostTypeTest extends TestCase {
 		Functions\expect( 'register_post_type' )
 			->once()
 			->with(
-				'mdgs_brand',
+				'mbgs_brand',
 				Mockery::on(
 					function ( $args ) {
 						return isset( $args['capabilities'] )
@@ -72,7 +72,7 @@ class BrandPostTypeTest extends TestCase {
 	}
 
 	public function test_save_skips_when_nonce_missing(): void {
-		unset( $_POST['mdgs_brand_nonce'] );
+		unset( $_POST['mbgs_brand_nonce'] );
 
 		$url_rule_registry = Mockery::mock( UrlRuleRegistry::class );
 		$url_rule_registry->shouldNotReceive( 'parse_rules_input' );
@@ -85,8 +85,8 @@ class BrandPostTypeTest extends TestCase {
 	}
 
 	public function test_save_accepts_rules_without_conflicts(): void {
-		$_POST['mdgs_rules']   = "example.com\nexample.org";
-		$_POST['mdgs_variables'] = '';
+		$_POST['mbgs_rules']   = "example.com\nexample.org";
+		$_POST['mbgs_variables'] = '';
 
 		$url_rule_registry = Mockery::mock( UrlRuleRegistry::class );
 		$url_rule_registry->shouldReceive( 'parse_rules_input' )
@@ -102,9 +102,9 @@ class BrandPostTypeTest extends TestCase {
 		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
 		$global_styles_post_service->shouldReceive( 'ensure_global_styles_post' )->once()->with( 5 )->andReturn( 42 );
 
-		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_rules', array( 'example.com', 'example.org' ) )->once();
-		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_variables', array() )->once();
-		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_is_default', '' )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_rules', array( 'example.com', 'example.org' ) )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_variables', array() )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_is_default', '' )->once();
 
 		$post_type = $this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service );
 
@@ -112,8 +112,8 @@ class BrandPostTypeTest extends TestCase {
 	}
 
 	public function test_save_drops_conflicting_rule_and_records_rejection(): void {
-		$_POST['mdgs_rules']   = "example.com\ntaken.com";
-		$_POST['mdgs_variables'] = '';
+		$_POST['mbgs_rules']   = "example.com\ntaken.com";
+		$_POST['mbgs_variables'] = '';
 
 		$url_rule_registry = Mockery::mock( UrlRuleRegistry::class );
 		$url_rule_registry->shouldReceive( 'parse_rules_input' )->andReturn( array( 'example.com', 'taken.com' ) );
@@ -127,12 +127,12 @@ class BrandPostTypeTest extends TestCase {
 		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
 		$global_styles_post_service->shouldReceive( 'ensure_global_styles_post' )->andReturn( 42 );
 
-		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_rules', array( 'example.com' ) )->once();
-		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_variables', array() )->once();
-		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_is_default', '' )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_rules', array( 'example.com' ) )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_variables', array() )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_is_default', '' )->once();
 		Functions\expect( 'set_transient' )
 			->once()
-			->with( 'mdgs_rule_conflict_1', array( 'taken.com' ), 30 );
+			->with( 'mbgs_rule_conflict_1', array( 'taken.com' ), 30 );
 
 		$post_type = $this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service );
 
@@ -140,8 +140,8 @@ class BrandPostTypeTest extends TestCase {
 	}
 
 	public function test_save_stores_parsed_variables(): void {
-		$_POST['mdgs_rules']   = '';
-		$_POST['mdgs_variables'] = 'name = Acme';
+		$_POST['mbgs_rules']   = '';
+		$_POST['mbgs_variables'] = 'name = Acme';
 
 		$url_rule_registry = Mockery::mock( UrlRuleRegistry::class );
 		$url_rule_registry->shouldReceive( 'parse_rules_input' )->andReturn( array() );
@@ -153,9 +153,9 @@ class BrandPostTypeTest extends TestCase {
 		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
 		$global_styles_post_service->shouldReceive( 'ensure_global_styles_post' )->andReturn( 42 );
 
-		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_rules', array() )->once();
-		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_variables', array( 'name' => 'Acme' ) )->once();
-		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_is_default', '' )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_rules', array() )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_variables', array( 'name' => 'Acme' ) )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_is_default', '' )->once();
 
 		$post_type = $this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service );
 
@@ -163,9 +163,9 @@ class BrandPostTypeTest extends TestCase {
 	}
 
 	public function test_save_clears_other_defaults_when_marked_default(): void {
-		$_POST['mdgs_rules']    = '';
-		$_POST['mdgs_variables']  = '';
-		$_POST['mdgs_is_default'] = '1';
+		$_POST['mbgs_rules']    = '';
+		$_POST['mbgs_variables']  = '';
+		$_POST['mbgs_is_default'] = '1';
 
 		$url_rule_registry = Mockery::mock( UrlRuleRegistry::class );
 		$url_rule_registry->shouldReceive( 'parse_rules_input' )->andReturn( array() );
@@ -181,21 +181,21 @@ class BrandPostTypeTest extends TestCase {
 			->once()
 			->with(
 				array(
-					'post_type'      => 'mdgs_brand',
+					'post_type'      => 'mbgs_brand',
 					'posts_per_page' => -1,
 					'fields'         => 'ids',
 					'post__not_in'   => array( 5 ),
 					'post_status'    => 'any',
-					'meta_key'       => '_mdgs_is_default',
+					'meta_key'       => '_mbgs_is_default',
 					'meta_value'     => '1',
 				)
 			)
 			->andReturn( array( 7 ) );
-		Functions\expect( 'delete_post_meta' )->once()->with( 7, '_mdgs_is_default' );
+		Functions\expect( 'delete_post_meta' )->once()->with( 7, '_mbgs_is_default' );
 
-		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_rules', array() )->once();
-		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_variables', array() )->once();
-		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_is_default', '1' )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_rules', array() )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_variables', array() )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_is_default', '1' )->once();
 
 		$post_type = $this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service );
 
@@ -203,9 +203,9 @@ class BrandPostTypeTest extends TestCase {
 	}
 
 	public function test_save_persists_valid_styles_json(): void {
-		$_POST['mdgs_rules']       = '';
-		$_POST['mdgs_variables']   = '';
-		$_POST['mdgs_styles_json'] = '{"settings":{"color":{"palette":[]}},"styles":{}}';
+		$_POST['mbgs_rules']       = '';
+		$_POST['mbgs_variables']   = '';
+		$_POST['mbgs_styles_json'] = '{"settings":{"color":{"palette":[]}},"styles":{}}';
 
 		$url_rule_registry = Mockery::mock( UrlRuleRegistry::class );
 		$url_rule_registry->shouldReceive( 'parse_rules_input' )->andReturn( array() );
@@ -220,9 +220,9 @@ class BrandPostTypeTest extends TestCase {
 			->with( 5 )
 			->andReturn( 42 );
 
-		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_rules', array() )->once();
-		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_variables', array() )->once();
-		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_is_default', '' )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_rules', array() )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_variables', array() )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_is_default', '' )->once();
 
 		Functions\expect( 'wp_slash' )->once()->andReturnUsing( fn( $v ) => $v );
 		Functions\expect( 'wp_json_encode' )->andReturnUsing( 'json_encode' );
@@ -246,9 +246,9 @@ class BrandPostTypeTest extends TestCase {
 	}
 
 	public function test_save_skips_styles_write_when_json_invalid(): void {
-		$_POST['mdgs_rules']       = '';
-		$_POST['mdgs_variables']   = '';
-		$_POST['mdgs_styles_json'] = '{not valid json';
+		$_POST['mbgs_rules']       = '';
+		$_POST['mbgs_variables']   = '';
+		$_POST['mbgs_styles_json'] = '{not valid json';
 
 		$url_rule_registry = Mockery::mock( UrlRuleRegistry::class );
 		$url_rule_registry->shouldReceive( 'parse_rules_input' )->andReturn( array() );
@@ -263,9 +263,9 @@ class BrandPostTypeTest extends TestCase {
 			->with( 5 )
 			->andReturn( 42 );
 
-		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_rules', array() )->once();
-		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_variables', array() )->once();
-		Functions\expect( 'update_post_meta' )->with( 5, '_mdgs_is_default', '' )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_rules', array() )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_variables', array() )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_is_default', '' )->once();
 
 		Functions\expect( 'wp_update_post' )->never();
 

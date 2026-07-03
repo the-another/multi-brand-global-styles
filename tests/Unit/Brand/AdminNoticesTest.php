@@ -1,14 +1,14 @@
 <?php
 declare(strict_types=1);
 
-namespace TheAnother\Plugin\MultiDomainGlobalStyles\Tests\Brand;
+namespace TheAnother\Plugin\MultiBrandGlobalStyles\Tests\Brand;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\AdminNotices;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\AdminNotices;
 
 #[CoversClass( AdminNotices::class )]
 class AdminNoticesTest extends TestCase {
@@ -26,7 +26,7 @@ class AdminNoticesTest extends TestCase {
 
 	public function test_render_outputs_nothing_when_no_rejection_recorded(): void {
 		Functions\expect( 'get_current_user_id' )->once()->andReturn( 1 );
-		Functions\expect( 'get_transient' )->once()->with( 'mdgs_rule_conflict_1' )->andReturn( false );
+		Functions\expect( 'get_transient' )->once()->with( 'mbgs_rule_conflict_1' )->andReturn( false );
 
 		$notices = new AdminNotices();
 
@@ -39,8 +39,8 @@ class AdminNoticesTest extends TestCase {
 
 	public function test_render_outputs_notice_and_clears_transient_when_rejection_recorded(): void {
 		Functions\expect( 'get_current_user_id' )->once()->andReturn( 1 );
-		Functions\expect( 'get_transient' )->once()->with( 'mdgs_rule_conflict_1' )->andReturn( array( 'taken.com' ) );
-		Functions\expect( 'delete_transient' )->once()->with( 'mdgs_rule_conflict_1' );
+		Functions\expect( 'get_transient' )->once()->with( 'mbgs_rule_conflict_1' )->andReturn( array( 'taken.com' ) );
+		Functions\expect( 'delete_transient' )->once()->with( 'mbgs_rule_conflict_1' );
 		Functions\when( '__' )->returnArg();
 		Functions\when( 'esc_html' )->returnArg();
 

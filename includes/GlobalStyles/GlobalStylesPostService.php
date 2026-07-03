@@ -2,11 +2,11 @@
 /**
  * Global Styles Post Service
  *
- * @package MultiDomainGlobalStyles
+ * @package MultiBrandGlobalStyles
  * @since 1.0.0
  */
 
-namespace TheAnother\Plugin\MultiDomainGlobalStyles\GlobalStyles;
+namespace TheAnother\Plugin\MultiBrandGlobalStyles\GlobalStyles;
 
 use RuntimeException;
 
@@ -27,7 +27,7 @@ class GlobalStylesPostService {
 	 *
 	 * @var string
 	 */
-	private const META_KEY = '_mdgs_global_styles_post_id';
+	private const META_KEY = '_mbgs_global_styles_post_id';
 
 	/**
 	 * Ensure a Brand has a wp_global_styles post, creating one if missing, trashed, or otherwise not published.

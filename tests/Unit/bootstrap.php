@@ -1,8 +1,8 @@
 <?php
 /**
- * PHPUnit bootstrap file for Multi-Domain Global Styles plugin tests.
+ * PHPUnit bootstrap file for Multi-Brand Global Styles plugin tests.
  *
- * @package TheAnother\Plugin\MultiDomainGlobalStyles\Tests
+ * @package TheAnother\Plugin\MultiBrandGlobalStyles\Tests
  */
 
 declare(strict_types=1);

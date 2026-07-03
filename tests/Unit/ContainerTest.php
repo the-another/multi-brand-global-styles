@@ -1,14 +1,14 @@
 <?php
 declare(strict_types=1);
 
-namespace TheAnother\Plugin\MultiDomainGlobalStyles\Tests;
+namespace TheAnother\Plugin\MultiBrandGlobalStyles\Tests;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use TheAnother\Plugin\MultiDomainGlobalStyles\Container;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Container;
 
 #[CoversClass( Container::class )]
 class ContainerTest extends TestCase {
@@ -84,7 +84,7 @@ class ContainerTest extends TestCase {
 		$container = Container::get_instance();
 
 		$this->assertInstanceOf(
-			\TheAnother\Plugin\MultiDomainGlobalStyles\HookManager::class,
+			\TheAnother\Plugin\MultiBrandGlobalStyles\HookManager::class,
 			$container->get_hook_manager()
 		);
 	}

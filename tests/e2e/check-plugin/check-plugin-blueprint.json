@@ -12,7 +12,7 @@
 			"step": "installPlugin",
 			"pluginData": {
 				"resource": "vfs",
-				"path": "/tests-artifacts/the-another-multi-domain-global-styles-test.zip"
+				"path": "/tests-artifacts/the-another-multi-brand-global-styles-test.zip"
 			},
 			"options": { "activate": true }
 		}

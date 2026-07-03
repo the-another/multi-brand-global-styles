@@ -27,27 +27,27 @@ export async function createBrand(
 	page: Page,
 	options: CreateBrandOptions
 ): Promise< void > {
-	await page.goto( '/wp-admin/post-new.php?post_type=mdgs_brand' );
+	await page.goto( '/wp-admin/post-new.php?post_type=mbgs_brand' );
 
 	await page.locator( '#title' ).fill( options.title );
 	await page
-		.locator( 'textarea[name="mdgs_rules"]' )
+		.locator( 'textarea[name="mbgs_rules"]' )
 		.fill( options.rules );
 
 	if ( options.variables !== undefined ) {
 		await page
-			.locator( 'textarea[name="mdgs_variables"]' )
+			.locator( 'textarea[name="mbgs_variables"]' )
 			.fill( options.variables );
 	}
 
 	if ( options.stylesJson !== undefined ) {
 		await page
-			.locator( 'textarea[name="mdgs_styles_json"]' )
+			.locator( 'textarea[name="mbgs_styles_json"]' )
 			.fill( JSON.stringify( options.stylesJson ) );
 	}
 
 	if ( options.isDefault ) {
-		await page.locator( 'input[name="mdgs_is_default"]' ).check();
+		await page.locator( 'input[name="mbgs_is_default"]' ).check();
 	}
 
 	// force: the classic publish button is a plain form submit, but WP

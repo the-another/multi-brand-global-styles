@@ -47,7 +47,7 @@ export default async function globalSetup( config: FullConfig ) {
 	// explicit safety net (and the activation assertion for a --reset run).
 	try {
 		await requestUtils.activatePlugin(
-			'the-another-multi-domain-global-styles'
+			'the-another-multi-brand-global-styles'
 		);
 	} catch {
 		// Already active.

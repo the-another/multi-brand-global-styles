@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace TheAnother\Plugin\MultiDomainGlobalStyles\Tests\Brand;
+namespace TheAnother\Plugin\MultiBrandGlobalStyles\Tests\Brand;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
@@ -9,9 +9,9 @@ use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\BrandRepository;
-use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\BrandResolver;
-use TheAnother\Plugin\MultiDomainGlobalStyles\Brand\UrlRuleRegistry;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandRepository;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandResolver;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\UrlRuleRegistry;
 
 #[CoversClass( BrandResolver::class )]
 class BrandResolverTest extends TestCase {

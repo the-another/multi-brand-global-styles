@@ -5,7 +5,7 @@
  * Installed as a wp-now mu-plugin by the Playwright global setup.
  * Never loaded by the main plugin; not shipped in production releases.
  *
- * @package MultiDomainGlobalStyles
+ * @package MultiBrandGlobalStyles
  * @since 0.1.0
  */
 

@@ -2,11 +2,11 @@
 /**
  * URL Rule Registry Service
  *
- * @package MultiDomainGlobalStyles
+ * @package MultiBrandGlobalStyles
  * @since 1.0.0
  */
 
-namespace TheAnother\Plugin\MultiDomainGlobalStyles\Brand;
+namespace TheAnother\Plugin\MultiBrandGlobalStyles\Brand;
 
 /**
  * Class UrlRuleRegistry
@@ -21,7 +21,7 @@ class UrlRuleRegistry {
 	 *
 	 * @var string
 	 */
-	private const CACHE_KEY = 'mdgs_rule_map';
+	private const CACHE_KEY = 'mbgs_rule_map';
 
 	/**
 	 * Normalize a hostname: lowercase, strip scheme/path, strip port, strip leading www.
@@ -167,7 +167,7 @@ class UrlRuleRegistry {
 		$map       = array();
 		$brand_ids = get_posts(
 			array(
-				'post_type'      => 'mdgs_brand',
+				'post_type'      => 'mbgs_brand',
 				'post_status'    => 'publish',
 				'posts_per_page' => -1,
 				'fields'         => 'ids',
@@ -175,7 +175,7 @@ class UrlRuleRegistry {
 		);
 
 		foreach ( $brand_ids as $brand_id ) {
-			$rules = get_post_meta( $brand_id, '_mdgs_rules', true );
+			$rules = get_post_meta( $brand_id, '_mbgs_rules', true );
 
 			if ( ! is_array( $rules ) ) {
 				continue;
