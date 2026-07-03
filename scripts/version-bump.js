@@ -15,6 +15,7 @@ const validTypes = ['patch', 'minor', 'major'];
 // Load package.json
 const packageJsonPath = path.join(__dirname, '../package.json');
 const packageJson = require(packageJsonPath);
+const previousVersion = packageJson.version;
 let newVersion = packageJson.version;
 
 // If version type is provided, increment the version
@@ -94,6 +95,40 @@ readmeContent = readmeContent.replace(
 
 fs.writeFileSync(readmeFile, readmeContent, 'utf8');
 console.log('✓ Updated readme.txt');
+
+// Update CHANGELOG.md — promote the "[Unreleased]" section into a dated
+// release entry and open a fresh, empty "[Unreleased]" above it (Keep a
+// Changelog convention), then retarget the comparison links at the bottom.
+// Only runs on a real version change, not a same-version re-sync, so
+// whatever notes contributors accumulated under [Unreleased] become the
+// new release's notes.
+const changelogFile = path.join(__dirname, '../CHANGELOG.md');
+if (fs.existsSync(changelogFile) && newVersion !== previousVersion) {
+  let changelogContent = fs.readFileSync(changelogFile, 'utf8');
+  const repo = 'https://github.com/theanother/the-another-multi-domain-global-styles';
+
+  if (/## \[Unreleased\]/.test(changelogContent)) {
+    // Rename the current [Unreleased] heading to a dated release and insert
+    // a fresh, empty [Unreleased] above it.
+    changelogContent = changelogContent.replace(
+      /## \[Unreleased\]/,
+      `## [Unreleased]\n\n## [${newVersion}] - ${today}`
+    );
+
+    // Retarget the [Unreleased] compare link at the new tag, and add a
+    // compare link for the freshly promoted version.
+    changelogContent = changelogContent.replace(
+      /\[Unreleased\]:\s*\S+/,
+      `[Unreleased]: ${repo}/compare/v${newVersion}...HEAD\n` +
+        `[${newVersion}]: ${repo}/compare/v${previousVersion}...v${newVersion}`
+    );
+
+    fs.writeFileSync(changelogFile, changelogContent, 'utf8');
+    console.log('✓ Updated CHANGELOG.md');
+  } else {
+    console.warn('⚠ CHANGELOG.md has no "## [Unreleased]" section — skipped');
+  }
+}
 
 // Sync lock files with updated versions
 const rootDir = path.join(__dirname, '..');

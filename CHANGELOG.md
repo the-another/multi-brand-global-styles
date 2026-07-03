@@ -4,7 +4,7 @@ All notable changes to The Another Multi-Domain Global Styles are documented her
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-> Note: `make version-patch|version-minor|version-major` auto-updates the changelog in [`readme.txt`](readme.txt) (the WordPress.org listing), not this file. Keep this file's entries in sync by hand when cutting a release.
+> How releases are cut: add notes under **[Unreleased]** as you work. Running `make version-patch|version-minor|version-major` promotes the `[Unreleased]` section here into a dated release entry, opens a fresh empty `[Unreleased]`, and retargets the comparison links below. (It separately appends a `* Version bump` stub to [`readme.txt`](readme.txt), the WordPress.org listing — replace that stub with the same notes when curating a release.)
 
 ## [Unreleased]
 
