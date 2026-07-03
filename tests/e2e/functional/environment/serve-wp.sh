@@ -1,10 +1,11 @@
 #!/bin/sh
 # Boot a real, ephemeral WordPress for the functional e2e suite. Invoked by
 # playwright.config.ts's webServer.command; requires the tests/e2e/Dockerfile
-# image. Provisioning (baked core, SQLite drop-in, config, install) lives in
-# the shared tests/e2e/lib/provision-wp.sh — this script adds only the
-# functional-suite specifics: the packaged -test zip, pretty permalinks, and
-# the actual server.
+# image, including its baked wp-cli server-command package (the `wp server`
+# subcommand this script execs). Provisioning (baked core, SQLite drop-in,
+# config, install) lives in the shared tests/e2e/lib/provision-wp.sh — this
+# script adds only the functional-suite specifics: the packaged -test zip,
+# pretty permalinks, and the actual server.
 #
 # Installation completes BEFORE the server binds the port — that ordering is
 # what makes Playwright's plain webServer.url readiness check truthful.

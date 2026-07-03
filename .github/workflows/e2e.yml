@@ -33,7 +33,7 @@ jobs:
           retention-days: 7
 
   # Runs Plugin Check natively via wp-cli (no browser, no Playwright) —
-  # all 32 checks including the 5 runtime ones. Gating again: the old
+  # all checks, including the 5 runtime ones. Gating again: the old
   # 5-runtime-checks failure was root-caused (cookie auth cannot survive
   # PCP's pc_-table swap in the wp-admin AJAX flow) and fixed by switching
   # this suite to the CLI runner. See the "Plugin Check runtime checks"
