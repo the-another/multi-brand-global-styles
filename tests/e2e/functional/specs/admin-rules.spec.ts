@@ -4,7 +4,7 @@
  */
 
 import { test, expect } from '@wordpress/e2e-test-utils-playwright';
-import { createBrand } from './helpers';
+import { createBrand } from '../support/helpers';
 
 test.describe( 'admin rule validation', () => {
 	test( 'exact duplicate rule is rejected with a warning notice', async ( {

@@ -14,7 +14,7 @@ set -e
 
 PORT="${WP_E2E_PORT:-8881}"
 PLUGIN_SLUG="the-another-multi-brand-global-styles"
-REPO_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
 
 if [ ! -f "$REPO_ROOT/vendor/autoload.php" ]; then
 	echo "vendor/autoload.php missing — run 'make install' first" >&2
