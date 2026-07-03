@@ -55,6 +55,7 @@ ARG SQLITE_PLUGIN_VERSION=2.2.23
 # which has not been released, so they refuse to install against the 2.12.0
 # wp-cli.phar baked in here. v2.0.15 is the newest release requiring ^2.12.
 ARG WP_CLI_SERVER_COMMAND_VERSION=v2.0.15
+ARG PCP_VERSION=2.0.0
 
 # Extensions the SQLite drop-in and WordPress need at runtime (pdo_sqlite,
 # sqlite3), plus gd for WP image handling and unzip for the plugin download.
@@ -77,6 +78,11 @@ RUN php -d memory_limit=-1 /usr/local/bin/wp core download --version=${WP_VERSIO
 	unzip -q /tmp/sqlite.zip -d /opt && \
 	rm /tmp/sqlite.zip && \
 	wp package install "https://github.com/wp-cli/server-command/archive/refs/tags/${WP_CLI_SERVER_COMMAND_VERSION}.zip" --allow-root
+
+# WordPress.org Plugin Check, pinned — the check-plugin suite installs it
+# from here instead of downloading at test time (reproducible CI, zero
+# network in the run; new upstream checks arrive via deliberate ARG bumps).
+RUN curl -sSL "https://downloads.wordpress.org/plugin/plugin-check.${PCP_VERSION}.zip" -o /opt/plugin-check.zip
 
 # Alpine's own Chromium build (musl-compatible). PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
 # stops `npm install`/`npx playwright install` from fetching Playwright's own
