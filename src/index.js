@@ -3,3 +3,5 @@
  */
 import './editor/store';
 import './editor/replacements-panel';
+import './editor/canvas-swap';
+import './editor/brand-preview';
