@@ -150,7 +150,7 @@ const runs = [
 	runCheck( [ `--checks=${ RUNTIME_CHECKS.join( ',' ) }` ] ),
 ].filter( Boolean );
 
-// Keep the CI failure artifact (uploaded by .github/workflows/e2e.yml).
+// Keep the CI failure artifact (uploaded by the ci.yml/release.yml workflows).
 writeFileSync(
 	RESULTS_FILE,
 	runs
