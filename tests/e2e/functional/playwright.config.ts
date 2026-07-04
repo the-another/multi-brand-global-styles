@@ -42,9 +42,12 @@ export default defineConfig( {
 		trace: 'retain-on-failure',
 		screenshot: 'only-on-failure',
 		video: 'on',
-		launchOptions: process.env.CHROMIUM_EXECUTABLE_PATH
+		// Playwright's own Chromium everywhere; --no-sandbox only where the
+		// sandbox cannot work — the root-run Docker container sets
+		// MBGS_CHROMIUM_NO_SANDBOX=1 (see tests/e2e/Dockerfile). Host runs
+		// and CI's non-root runner stay sandboxed.
+		launchOptions: process.env.MBGS_CHROMIUM_NO_SANDBOX
 			? {
-					executablePath: process.env.CHROMIUM_EXECUTABLE_PATH,
 					args: [ '--no-sandbox' ],
 			  }
 			: {},
