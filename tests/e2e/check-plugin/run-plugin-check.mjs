@@ -60,7 +60,7 @@ function fail( message ) {
 
 if ( ! existsSync( ZIP_PATH ) ) {
 	console.error(
-		`✗ Missing ${ path.relative( ROOT, ZIP_PATH ) } — run via scripts/run-e2e.sh plugin-check (or make check-plugin), which builds it.`
+		`✗ Missing ${ path.relative( ROOT, ZIP_PATH ) } — run via scripts/tests/plugin-check.sh (or make check-plugin), which builds it.`
 	);
 	process.exit( 1 );
 }
@@ -150,7 +150,7 @@ const runs = [
 	runCheck( [ `--checks=${ RUNTIME_CHECKS.join( ',' ) }` ] ),
 ].filter( Boolean );
 
-// Keep the CI failure artifact (uploaded by .github/workflows/e2e.yml).
+// Keep the CI failure artifact (uploaded by the ci.yml/release.yml workflows).
 writeFileSync(
 	RESULTS_FILE,
 	runs

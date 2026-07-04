@@ -1,8 +1,9 @@
 # Shared native-PHP WordPress provisioning for both e2e suites. POSIX sh,
 # meant to be SOURCED (callers: functional/environment/serve-wp.sh,
-# check-plugin/provision-pcp-wp.sh). Requires the tests/e2e/Dockerfile
-# image: baked core at /opt/wp-core, SQLite drop-in at
-# /opt/sqlite-database-integration.
+# check-plugin/provision-pcp-wp.sh). Requires the artifacts provisioned by
+# scripts/setup/e2e.sh (locally baked into the tests/e2e/Dockerfile image;
+# installed as a workflow step in CI): core at /opt/wp-core, SQLite drop-in
+# at /opt/sqlite-database-integration.
 #
 # Contract: provision_wp() creates a fresh ephemeral install and sets
 # WP_DIR. Ordering inside is load-bearing: the SQLite drop-in

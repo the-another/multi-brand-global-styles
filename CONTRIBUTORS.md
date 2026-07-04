@@ -56,7 +56,7 @@ The `mbgs_brand` custom post type is the aggregate root and is gated behind the 
 
 ## Development
 
-All quality/build targets run inside Docker for a reproducible toolchain. Two images: `tests/Unit/Dockerfile` (Alpine + PHP 8.3 + Composer + wp-cli + Node) for lint/test/release, and `tests/e2e/Dockerfile` (the above plus Chromium and ffmpeg) for the end-to-end suites.
+The canonical toolchain/suite logic lives in portable shell scripts — `scripts/setup/{unit,e2e}.sh` install the toolchain (all version pins live there), `scripts/tests/{lint,unit,e2e,plugin-check}.sh` run the suites. The `make` targets run those scripts inside Docker for local reproducibility (two `ubuntu:24.04` images: `tests/Unit/Dockerfile` for lint/test/release, `tests/e2e/Dockerfile` for the end-to-end suites); GitHub Actions runs the same scripts natively on `ubuntu-24.04` runners.
 
 ```bash
 make install-dev     # composer install (with dev deps)
@@ -76,11 +76,11 @@ The block-editor UI (Image-block replacements panel, Brand preview sidebar) is b
 ## Testing
 
 - **Unit** (`tests/Unit/`) — PHPUnit 11 + Brain Monkey + Mockery, no WordPress test suite and no database (WP functions are mocked).
-- **End-to-end** (`tests/e2e/`), two independent suites, both run inside `tests/e2e/Dockerfile` via the shared `scripts/run-e2e.sh` entrypoint, and both installing the plugin from the packaged `-test` zip built fresh each run:
+- **End-to-end** (`tests/e2e/`), two independent suites, run via `scripts/tests/e2e.sh` / `scripts/tests/plugin-check.sh` (shared zip-build pre-flight in `scripts/tests/lib/build-test-zip.sh`), both installing the plugin from the packaged `-test` zip built fresh each run:
   - `tests/e2e/functional/` — native PHP 8.3 + the official SQLite drop-in, driven by Playwright: activation, save-time rule validation, per-URL style scoping, a Navigation-block render canary, variable substitution, brand identity overrides, image replacement, and editor preview override.
   - `tests/e2e/check-plugin/` — no browser: a plain Node runner provisions WordPress the same way and runs WordPress.org's official Plugin Check (PCP) natively against the packaged zip — all checks, including the 5 runtime ones. ERROR findings gate; WARNINGs are reported only.
 
-CI runs both via `.github/workflows/e2e.yml`.
+CI: `.github/workflows/ci.yml` gates PRs (PHPCS, PHPUnit, both e2e suites); `.github/workflows/release.yml` re-runs the same four gates on every push to `master`, then builds the release zip, tags `v<version>` (from `package.json`), and publishes a GitHub Release with the zip attached (an already-existing tag skips the release steps).
 
 ## Conventions
 
