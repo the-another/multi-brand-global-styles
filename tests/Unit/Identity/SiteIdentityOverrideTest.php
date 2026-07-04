@@ -66,6 +66,10 @@ class SiteIdentityOverrideTest extends TestCase {
 		$this->assertFalse( $this->make_override( null )->filter_blogname( false ) );
 	}
 
+	// Note: the REST_REQUEST branch of identity_value()'s guard is intentionally
+	// not covered here — defining the REST_REQUEST constant would leak
+	// process-wide and poison other tests in the suite.
+
 	public function test_untouched_in_admin(): void {
 		Functions\when( 'is_admin' )->justReturn( true );
 

@@ -38,6 +38,46 @@ class ReplacementsControllerTest extends TestCase {
 		);
 	}
 
+	public function test_register_routes_wires_permission_callback_on_every_route(): void {
+		$registrations = array();
+		Functions\when( 'register_rest_route' )->alias(
+			static function ( $namespace, $route, $args ) use ( &$registrations ) {
+				$registrations[] = array(
+					'namespace' => $namespace,
+					'route'     => $route,
+					'args'      => $args,
+				);
+			}
+		);
+
+		$controller = $this->make_controller();
+		$controller->register_routes();
+
+		$this->assertCount( 3, $registrations );
+
+		$by_route = array();
+		foreach ( $registrations as $registration ) {
+			$this->assertSame( 'mbgs/v1', $registration['namespace'] );
+			$by_route[ $registration['route'] ] = $registration['args'];
+		}
+
+		$this->assertEqualsCanonicalizing(
+			array( '/replacements', '/brands', '/preview-map' ),
+			array_keys( $by_route )
+		);
+
+		// /replacements registers an array of two method configs (GET + POST) —
+		// both must carry their own permission_callback.
+		$this->assertCount( 2, $by_route['/replacements'] );
+		foreach ( $by_route['/replacements'] as $method_config ) {
+			$this->assertSame( array( $controller, 'can_manage' ), $method_config['permission_callback'] );
+		}
+
+		// /brands and /preview-map each register a single method config.
+		$this->assertSame( array( $controller, 'can_manage' ), $by_route['/brands']['permission_callback'] );
+		$this->assertSame( array( $controller, 'can_manage' ), $by_route['/preview-map']['permission_callback'] );
+	}
+
 	public function test_can_manage_requires_edit_theme_options(): void {
 		Functions\expect( 'current_user_can' )->once()->with( 'edit_theme_options' )->andReturn( false );
 

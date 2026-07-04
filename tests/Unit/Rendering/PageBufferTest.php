@@ -35,6 +35,10 @@ class PageBufferTest extends TestCase {
 		$this->assertSame( 'xAB', $buffer->apply( 'x' ) );
 	}
 
+	// Note: the REST_REQUEST branch of start_buffer()'s guard is intentionally not
+	// covered here — defining the REST_REQUEST constant would leak process-wide
+	// and poison other tests in the suite.
+
 	public function test_start_buffer_skips_admin(): void {
 		Functions\when( 'is_admin' )->justReturn( true );
 
