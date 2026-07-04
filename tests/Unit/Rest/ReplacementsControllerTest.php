@@ -165,4 +165,65 @@ class ReplacementsControllerTest extends TestCase {
 
 		$this->assertTrue( is_wp_error( $result ) );
 	}
+
+	public function test_get_brands_lists_published_brands(): void {
+		Functions\when( 'get_the_title' )->alias( static fn( int $id ) => "Brand {$id}" );
+
+		$repository = Mockery::mock( BrandRepository::class );
+		$repository->shouldReceive( 'get_published_brand_ids' )->andReturn( array( 1, 2 ) );
+
+		$this->assertSame(
+			array(
+				array(
+					'brand_id'   => 1,
+					'brand_name' => 'Brand 1',
+				),
+				array(
+					'brand_id'   => 2,
+					'brand_name' => 'Brand 2',
+				),
+			),
+			$this->make_controller( $repository )->get_brands()
+		);
+	}
+
+	public function test_get_preview_map_returns_identity_and_image_urls(): void {
+		Functions\when( 'wp_get_attachment_image_url' )->alias(
+			static fn( int $id ) => "https://ex.com/up/full-{$id}.jpg"
+		);
+		Functions\when( 'wp_get_attachment_url' )->alias(
+			static fn( int $id ) => "https://ex.com/up/file-{$id}.jpg"
+		);
+
+		$brand              = new WP_Post( 1, 'mbgs_brand' );
+		$brand->post_status = 'publish';
+		Functions\when( 'get_post' )->justReturn( $brand );
+
+		$repository = Mockery::mock( BrandRepository::class );
+		$repository->shouldReceive( 'get_identity' )->with( 1 )->andReturn(
+			array(
+				'title'   => 'Second Brand Co',
+				'logo_id' => 9,
+			)
+		);
+		$repository->shouldReceive( 'get_image_map' )->with( 1 )->andReturn( array( 10 => 20 ) );
+
+		$payload = $this->make_controller( $repository )->get_preview_map( new WP_REST_Request( array( 'brand' => 1 ) ) );
+
+		$this->assertSame( 'Second Brand Co', $payload['title'] );
+		$this->assertNull( $payload['tagline'] );
+		$this->assertSame( 'https://ex.com/up/full-9.jpg', $payload['logo_url'] );
+		$this->assertNull( $payload['icon_url'] );
+		$this->assertSame( array( 10 => 'https://ex.com/up/file-20.jpg' ), $payload['images'] );
+	}
+
+	public function test_get_preview_map_rejects_unpublished_brand(): void {
+		$brand              = new WP_Post( 1, 'mbgs_brand' );
+		$brand->post_status = 'draft';
+		Functions\when( 'get_post' )->justReturn( $brand );
+
+		$result = $this->make_controller()->get_preview_map( new WP_REST_Request( array( 'brand' => 1 ) ) );
+
+		$this->assertTrue( is_wp_error( $result ) );
+	}
 }

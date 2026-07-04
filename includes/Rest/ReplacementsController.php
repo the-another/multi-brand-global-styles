@@ -98,6 +98,32 @@ class ReplacementsController {
 				),
 			)
 		);
+
+		register_rest_route(
+			self::REST_NAMESPACE,
+			'/brands',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( $this, 'get_brands' ),
+				'permission_callback' => array( $this, 'can_manage' ),
+			)
+		);
+
+		register_rest_route(
+			self::REST_NAMESPACE,
+			'/preview-map',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( $this, 'get_preview_map' ),
+				'permission_callback' => array( $this, 'can_manage' ),
+				'args'                => array(
+					'brand' => array(
+						'required' => true,
+						'type'     => 'integer',
+					),
+				),
+			)
+		);
 	}
 
 	/**
@@ -200,6 +226,74 @@ class ReplacementsController {
 			'brand_name'            => get_the_title( $brand_id ),
 			'replacement_id'        => $replacement_id,
 			'replacement_thumb_url' => $thumb_url,
+		);
+	}
+
+	/**
+	 * GET /brands — id + name of every published Brand.
+	 *
+	 * @return mixed Response rows.
+	 */
+	public function get_brands() {
+		$rows = array();
+		foreach ( $this->brand_repository->get_published_brand_ids() as $brand_id ) {
+			$rows[] = array(
+				'brand_id'   => $brand_id,
+				'brand_name' => get_the_title( $brand_id ),
+			);
+		}
+
+		return rest_ensure_response( $rows );
+	}
+
+	/**
+	 * GET /preview-map — one Brand's editor-preview payload.
+	 *
+	 * @param WP_REST_Request $request Request with a `brand` param.
+	 * @return mixed Payload, or WP_Error.
+	 */
+	public function get_preview_map( WP_REST_Request $request ) {
+		$brand_id = (int) $request->get_param( 'brand' );
+		$brand    = get_post( $brand_id );
+
+		if ( ! $brand || BrandPostType::POST_TYPE !== $brand->post_type || 'publish' !== $brand->post_status ) {
+			return new WP_Error(
+				'mbgs_invalid_brand',
+				__( 'Not a published Brand.', 'the-another-multi-brand-global-styles' ),
+				array( 'status' => 400 )
+			);
+		}
+
+		$identity = $this->brand_repository->get_identity( $brand_id );
+
+		$images = array();
+		foreach ( $this->brand_repository->get_image_map( $brand_id ) as $original_id => $replacement_id ) {
+			$url = wp_get_attachment_url( (int) $replacement_id );
+			if ( $url ) {
+				$images[ (int) $original_id ] = $url;
+			}
+		}
+
+		$logo_url = null;
+		if ( isset( $identity['logo_id'] ) ) {
+			$logo_url = wp_get_attachment_image_url( (int) $identity['logo_id'], 'full' );
+			$logo_url = $logo_url ? $logo_url : null;
+		}
+
+		$icon_url = null;
+		if ( isset( $identity['icon_id'] ) ) {
+			$icon_url = wp_get_attachment_image_url( (int) $identity['icon_id'], 'full' );
+			$icon_url = $icon_url ? $icon_url : null;
+		}
+
+		return rest_ensure_response(
+			array(
+				'title'    => $identity['title'] ?? null,
+				'tagline'  => $identity['tagline'] ?? null,
+				'logo_url' => $logo_url,
+				'icon_url' => $icon_url,
+				'images'   => $images,
+			)
 		);
 	}
 }
