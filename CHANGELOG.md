@@ -11,6 +11,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 - Developer documentation: `CLAUDE.md`, `README.md`, `CONTRIBUTORS.md`, and this `CHANGELOG.md`.
 - End-to-end test infrastructure: a native-PHP (+ official SQLite drop-in) Playwright functional suite (`tests/e2e/functional/`) and a WP-CLI-runner WordPress.org Plugin Check suite (`tests/e2e/check-plugin/`) covering all checks including the 5 runtime ones, both installing the plugin from the packaged `-test` zip built fresh each run, a dedicated e2e image (`tests/e2e/Dockerfile`), a shared `scripts/run-e2e.sh` entrypoint, and a GitHub Actions workflow.
+- Brand identity overrides — per-Brand logo, site title, tagline, and favicon (site icon), applied on the frontend via `pre_option_site_logo`, `theme_mod_custom_logo`, `pre_option_blogname`, `pre_option_blogdescription`, and `pre_option_site_icon` filters so core builds all the surrounding markup (srcset, alt, icon sizes).
+- Per-Brand image replacements — swap any image for a per-Brand counterpart, set from a new "Image Replacements" meta box on the Brand or from an inspector panel on the core Image block. Replacement pairs are precomputed at save time into a flat URL map (full size + every registered size variant) so rendering costs one meta read and one `str_replace()` pass, not attachment queries; the map is kept truthful across attachment metadata edits and deletions.
+- Block-editor Brand preview — a sidebar for picking a Brand and previewing its image/identity swaps directly on the editor canvas, plus a capability-gated `?mbgs_preview_brand=<id>` frontend preview link so admins can see a page exactly as a given Brand would render it (only honored after `init`; falls back to normal resolution before then).
+- New `mbgs/v1` REST namespace (`ReplacementsController`) behind the editor UIs: `GET`/`POST /replacements` (per-image replacement rows), `GET /brands`, `GET /preview-map` — all gated by `edit_theme_options`.
+- `@wordpress/scripts` editor build (`npm run build:editor` / `start:editor`, source in `src/`, output to `assets/build/`), wired into the release/test zip pipeline so the editor bundle is always built before packaging.
+
+### Changed
+- The frontend output buffer was refactored into a single `PageBuffer` (`includes/Rendering/`) that runs an ordered list of transformers — variable substitution, then image URL replacement — in one `ob_start()` pass. `VariableSubstitutionService` no longer owns the buffer itself; it now exposes `replace()` for `PageBuffer` to call.
 
 ### Fixed
 - Array input to the Brand styles-JSON admin field (`mbgs_styles_json[]=`) caused a PHP `TypeError` fatal in the save handler; non-string input is now rejected.
