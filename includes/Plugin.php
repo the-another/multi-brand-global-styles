@@ -19,6 +19,7 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\ContentVariables\VariableParser;
 use TheAnother\Plugin\MultiBrandGlobalStyles\ContentVariables\VariableSubstitutionService;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandRepository;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Media\ImageUrlReplacer;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Media\ImageMapBuilder;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Rendering\PageBuffer;
 
 /**
@@ -75,6 +76,7 @@ class Plugin {
 		$hooks->register_action( 'init', array( $brand_post_type, 'register' ) );
 		$hooks->register_action( 'add_meta_boxes', array( $brand_post_type, 'register_meta_boxes' ) );
 		$hooks->register_action( 'save_post_' . BrandPostType::POST_TYPE, array( $brand_post_type, 'save' ) );
+		$hooks->register_action( 'admin_enqueue_scripts', array( $brand_post_type, 'enqueue_admin_assets' ) );
 
 		// The rule-map transient never expires, and the nonce-gated save()
 		// handler above doesn't run on trash/untrash/delete — invalidate
@@ -150,6 +152,8 @@ class Plugin {
 			fn( Container $c ) => new ImageUrlReplacer( $c->get( 'brand_resolver' ), $c->get( 'brand_repository' ) )
 		);
 
+		$this->container->register( 'image_map_builder', fn() => new ImageMapBuilder() );
+
 		$this->container->register(
 			'page_buffer',
 			fn( Container $c ) => new PageBuffer(
@@ -165,7 +169,8 @@ class Plugin {
 			fn( Container $c ) => new BrandPostType(
 				$c->get( 'url_rule_registry' ),
 				$c->get( 'variable_parser' ),
-				$c->get( 'global_styles_post_service' )
+				$c->get( 'global_styles_post_service' ),
+				$c->get( 'image_map_builder' )
 			)
 		);
 

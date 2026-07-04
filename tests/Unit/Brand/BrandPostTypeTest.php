@@ -13,6 +13,7 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandPostType;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\UrlRuleRegistry;
 use TheAnother\Plugin\MultiBrandGlobalStyles\GlobalStyles\GlobalStylesPostService;
 use TheAnother\Plugin\MultiBrandGlobalStyles\ContentVariables\VariableParser;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Media\ImageMapBuilder;
 use WP_Post;
 
 #[CoversClass( BrandPostType::class )]
@@ -42,12 +43,14 @@ class BrandPostTypeTest extends TestCase {
 	private function make_post_type(
 		UrlRuleRegistry $url_rule_registry = null,
 		VariableParser $variable_parser = null,
-		GlobalStylesPostService $global_styles_post_service = null
+		GlobalStylesPostService $global_styles_post_service = null,
+		?ImageMapBuilder $image_map_builder = null
 	): BrandPostType {
 		return new BrandPostType(
-			$url_rule_registry ?? Mockery::mock( UrlRuleRegistry::class ),
-			$variable_parser ?? Mockery::mock( VariableParser::class ),
-			$global_styles_post_service ?? Mockery::mock( GlobalStylesPostService::class )
+			$url_rule_registry ?? Mockery::mock( UrlRuleRegistry::class )->shouldIgnoreMissing(),
+			$variable_parser ?? Mockery::mock( VariableParser::class )->shouldIgnoreMissing(),
+			$global_styles_post_service ?? Mockery::mock( GlobalStylesPostService::class )->shouldIgnoreMissing(),
+			$image_map_builder ?? Mockery::mock( ImageMapBuilder::class )->shouldIgnoreMissing()
 		);
 	}
 
@@ -99,7 +102,7 @@ class BrandPostTypeTest extends TestCase {
 		$this->assertTrue( true ); // No exception, no calls made — assertions are the shouldNotReceive expectations above.
 	}
 
-	public function test_register_meta_boxes_registers_all_five_boxes(): void {
+	public function test_register_meta_boxes_registers_all_six_boxes(): void {
 		Functions\when( '__' )->returnArg();
 
 		$calls = array();
@@ -119,6 +122,7 @@ class BrandPostTypeTest extends TestCase {
 				array( 'mbgs_default', 'render_default_meta_box', 'mbgs_brand', 'side', 'default' ),
 				array( 'mbgs_styles', 'render_styles_meta_box', 'mbgs_brand', 'normal', 'default' ),
 				array( 'mbgs_identity', 'render_identity_meta_box', 'mbgs_brand', 'side', 'default' ),
+				array( 'mbgs_image_map', 'render_image_map_meta_box', 'mbgs_brand', 'normal', 'default' ),
 			),
 			$calls
 		);
@@ -535,5 +539,41 @@ class BrandPostTypeTest extends TestCase {
 		$post_type = $this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service );
 
 		$post_type->save( 77 );
+	}
+
+	public function test_save_builds_image_map_pairs_and_persists(): void {
+		// Same nonce/autosave/capability stub block as the other save tests, plus:
+		Functions\when( 'sanitize_textarea_field' )->returnArg();
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'wp_unslash' )->returnArg();
+		Functions\when( 'absint' )->alias( static fn( $v ) => abs( (int) $v ) );
+		Functions\when( 'wp_attachment_is_image' )->justReturn( true );
+		Functions\when( 'update_post_meta' )->justReturn( true );
+
+		$_POST['mbgs_image_map_original']    = array( '10', '0', '30' );
+		$_POST['mbgs_image_map_replacement'] = array( '20', '5', '' );
+
+		$image_map_builder = Mockery::mock( ImageMapBuilder::class );
+		$image_map_builder->shouldReceive( 'persist' )->once()->with( 77, array( 10 => 20 ) );
+
+		$this->make_post_type( image_map_builder: $image_map_builder )->save( 77 );
+	}
+
+	public function test_save_drops_non_image_pairs(): void {
+		// Same stub block, but:
+		Functions\when( 'sanitize_textarea_field' )->returnArg();
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'wp_unslash' )->returnArg();
+		Functions\when( 'absint' )->alias( static fn( $v ) => abs( (int) $v ) );
+		Functions\when( 'wp_attachment_is_image' )->justReturn( false );
+		Functions\when( 'update_post_meta' )->justReturn( true );
+
+		$_POST['mbgs_image_map_original']    = array( '10' );
+		$_POST['mbgs_image_map_replacement'] = array( '20' );
+
+		$image_map_builder = Mockery::mock( ImageMapBuilder::class );
+		$image_map_builder->shouldReceive( 'persist' )->once()->with( 77, array() );
+
+		$this->make_post_type( image_map_builder: $image_map_builder )->save( 77 );
 	}
 }
