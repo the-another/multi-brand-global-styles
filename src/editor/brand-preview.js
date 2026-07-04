@@ -45,7 +45,9 @@ function BrandSidebar() {
 		if ( brandId ) {
 			apiFetch( {
 				path: addQueryArgs( '/mbgs/v1/preview-map', { brand: brandId } ),
-			} ).then( ( map ) => receivePreviewMap( brandId, map ) );
+			} )
+				.then( ( map ) => receivePreviewMap( brandId, map ) )
+				.catch( () => {} );
 		}
 	};
 
@@ -82,6 +84,7 @@ function BrandSidebar() {
 								mbgs_preview_brand: previewBrandId,
 							} ) }
 							target="_blank"
+							rel="noopener"
 						>
 							{ __(
 								'Open frontend preview as this Brand',
