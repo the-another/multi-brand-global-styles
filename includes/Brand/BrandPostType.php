@@ -188,9 +188,20 @@ class BrandPostType {
 	public function render_styles_meta_box( WP_Post $post ): void {
 		$global_styles_post_id = get_post_meta( $post->ID, '_mbgs_global_styles_post_id', true );
 		$data                  = $global_styles_post_id ? $this->global_styles_post_service->get_global_styles_data( (int) $global_styles_post_id ) : array();
+
+		$active_styles_url = add_query_arg(
+			'_wpnonce',
+			wp_create_nonce( 'wp_rest' ),
+			rest_url( 'wp/v2/global-styles/themes/' . get_stylesheet() )
+		);
 		?>
 		<p><?php esc_html_e( 'Raw theme.json-shaped settings/styles for this Brand. A richer visual editor is planned; this is the interim editing UI.', 'the-another-multi-brand-global-styles' ); ?></p>
 		<textarea name="mbgs_styles_json" rows="12" style="width:100%;font-family:monospace;"><?php echo esc_textarea( wp_json_encode( $data, JSON_PRETTY_PRINT ) ); ?></textarea>
+		<p>
+			<a href="<?php echo esc_url( $active_styles_url ); ?>" target="_blank" rel="noopener noreferrer">
+				<?php esc_html_e( 'View current global styles (JSON)', 'the-another-multi-brand-global-styles' ); ?>
+			</a>
+		</p>
 		<?php
 	}
 
