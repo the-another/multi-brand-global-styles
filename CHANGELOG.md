@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-04
+
 ### Added
 - Developer documentation: `CLAUDE.md`, `README.md`, `CONTRIBUTORS.md`, and this `CHANGELOG.md`.
 - End-to-end test infrastructure: a native-PHP (+ official SQLite drop-in) Playwright functional suite (`tests/e2e/functional/`) and a WP-CLI-runner WordPress.org Plugin Check suite (`tests/e2e/check-plugin/`) covering all checks including the 5 runtime ones, both installing the plugin from the packaged `-test` zip built fresh each run, a dedicated e2e image (`tests/e2e/Dockerfile`), shared suite-runner scripts (`scripts/tests/`), and a GitHub Actions PR gate.
@@ -17,6 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Block-editor Brand preview — a sidebar for picking a Brand and previewing its image/identity swaps directly on the editor canvas, plus a capability-gated `?mbgs_preview_brand=<id>` frontend preview link so admins can see a page exactly as a given Brand would render it (only honored after `init`; falls back to normal resolution before then).
 - New `mbgs/v1` REST namespace (`ReplacementsController`) behind the editor UIs: `GET`/`POST /replacements` (per-image replacement rows), `GET /brands`, `GET /preview-map` — all gated by `edit_theme_options`.
 - `@wordpress/scripts` editor build (`npm run build:editor` / `start:editor`, source in `src/`, output to `assets/build/`), wired into the release/test zip pipeline so the editor bundle is always built before packaging.
+- A "View current global styles (JSON)" reference link under the raw-JSON textarea in the Brand styles meta box, opening core's `GET /wp/v2/global-styles/themes/{stylesheet}` REST route in a new tab so admins can see the active theme's valid style fields/values while composing overrides.
 
 ### Changed
 - The frontend output buffer was refactored into a single `PageBuffer` (`includes/Rendering/`) that runs an ordered list of transformers — variable substitution, then image URL replacement — in one `ob_start()` pass. `VariableSubstitutionService` no longer owns the buffer itself; it now exposes `replace()` for `PageBuffer` to call.
@@ -36,5 +39,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Optional default Brand as the fallback for unmatched requests.
 - Duplicate-rule rejection with an admin notice; overlapping-but-different rules allowed by design.
 
-[Unreleased]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/theanother/the-another-multi-brand-global-styles/releases/tag/v0.1.0
