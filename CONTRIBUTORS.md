@@ -77,7 +77,7 @@ The block-editor UI (Image-block replacements panel, Brand preview sidebar) is b
 
 - **Unit** (`tests/Unit/`) — PHPUnit 11 + Brain Monkey + Mockery, no WordPress test suite and no database (WP functions are mocked).
 - **End-to-end** (`tests/e2e/`), two independent suites, both run inside `tests/e2e/Dockerfile` via the shared `scripts/run-e2e.sh` entrypoint, and both installing the plugin from the packaged `-test` zip built fresh each run:
-  - `tests/e2e/functional/` — native PHP 8.3 + the official SQLite drop-in, driven by Playwright: activation, save-time rule validation, per-URL style scoping, a Navigation-block render canary, and variable substitution.
+  - `tests/e2e/functional/` — native PHP 8.3 + the official SQLite drop-in, driven by Playwright: activation, save-time rule validation, per-URL style scoping, a Navigation-block render canary, variable substitution, brand identity overrides, image replacement, and editor preview override.
   - `tests/e2e/check-plugin/` — no browser: a plain Node runner provisions WordPress the same way and runs WordPress.org's official Plugin Check (PCP) natively against the packaged zip — all checks, including the 5 runtime ones. ERROR findings gate; WARNINGs are reported only.
 
 CI runs both via `.github/workflows/e2e.yml`.

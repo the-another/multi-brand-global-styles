@@ -12,7 +12,7 @@ Define Brands — URL match rules with per-Brand global style overrides and cont
 
 == Description ==
 
-Multi-Brand Global Styles lets administrators define Brands on a single WordPress installation. A Brand bundles three things:
+Multi-Brand Global Styles lets administrators define Brands on a single WordPress installation. A Brand bundles:
 
 * **URL match rules** — a Brand can cover whole domains (`auctionbill.com`, `beta.auctionbill.com`) or path sections of one or more sites (`site.com/farm/*`, `site2.com/farm/*`). The most specific rule wins, and prefixes match on path segment boundaries.
 * **Global style overrides** — each Brand carries its own theme.json-shaped styles (colors, typography, spacing, per-element and per-block styles) merged over the active theme at request time. The theme itself is never modified and no child theme is created.
