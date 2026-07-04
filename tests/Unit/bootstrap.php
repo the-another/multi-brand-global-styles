@@ -43,6 +43,7 @@ if ( ! class_exists( 'WP_Post' ) ) {
 	class WP_Post {
 		public $ID;
 		public $post_type;
+		public $post_status = 'publish';
 
 		public function __construct( int $id = 0, string $post_type = '' ) {
 			$this->ID        = $id;
