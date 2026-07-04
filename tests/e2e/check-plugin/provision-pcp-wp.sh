@@ -1,7 +1,7 @@
 #!/bin/sh
 # Provision the ephemeral WordPress for the Plugin Check suite: shared
 # native-PHP provisioning (tests/e2e/lib/provision-wp.sh), then Plugin
-# Check (baked, pinned — /opt/plugin-check.zip) installed BEFORE our -test
+# Check (pinned by scripts/setup/e2e.sh — /opt/plugin-check.zip) installed BEFORE our -test
 # zip: the reverse order broke PCP's activation with a persistent
 # "database tables are unavailable" error (verified empirically in the
 # Playground-era suite; root cause never pinned). No server is started —

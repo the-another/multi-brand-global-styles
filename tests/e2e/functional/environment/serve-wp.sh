@@ -1,8 +1,9 @@
 #!/bin/sh
 # Boot a real, ephemeral WordPress for the functional e2e suite. Invoked by
-# playwright.config.ts's webServer.command; requires the tests/e2e/Dockerfile
-# image, including its baked wp-cli server-command package (the `wp server`
-# subcommand this script execs). Provisioning (baked core, SQLite drop-in,
+# playwright.config.ts's webServer.command; requires the environment
+# provisioned by scripts/setup/e2e.sh, including its wp-cli server-command
+# package (the `wp server`
+# subcommand this script execs). Provisioning (pinned core, SQLite drop-in,
 # config, install) lives in the shared tests/e2e/lib/provision-wp.sh — this
 # script adds only the functional-suite specifics: the packaged -test zip,
 # pretty permalinks, and the actual server.
@@ -16,7 +17,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
 
 ZIP="$REPO_ROOT/build/the-another-multi-brand-global-styles-test.zip"
 if [ ! -f "$ZIP" ]; then
-	echo "$ZIP missing — run via scripts/run-e2e.sh functional (or make test-e2e), which builds it" >&2
+	echo "$ZIP missing — run via scripts/tests/e2e.sh (or make test-e2e), which builds it" >&2
 	exit 1
 fi
 

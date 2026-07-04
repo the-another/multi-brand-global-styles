@@ -44,18 +44,19 @@ update: docker-build
 dump-autoload: docker-build
 	$(DOCKER_RUN) composer dump-autoload --no-dev --optimize
 
-# Run PHPCS linter (runs in Docker)
+# Run PHPCS linter (runs in Docker; same script CI runs natively)
 lint: docker-build
-	$(DOCKER_RUN) composer phpcs
+	$(DOCKER_RUN) sh scripts/tests/lint.sh
 
 # Format code using PHPCBF (WARNING: This MODIFIES source code, runs in Docker)
 format: docker-build
 	$(DOCKER_RUN) composer phpcbf
 
-# Run PHPUnit tests (runs in Docker; clears the result cache first so stale
-# ordering can never mask a failure)
+# Run PHPUnit tests (runs in Docker; the script clears the result cache
+# first so stale ordering can never mask a failure — same script CI runs
+# natively)
 test: docker-build
-	$(DOCKER_RUN) sh -c "rm -rf .phpunit.cache && php ./vendor/bin/phpunit"
+	$(DOCKER_RUN) sh scripts/tests/unit.sh
 
 # Run PHPUnit with coverage (runs in Docker; loads xdebug only for this
 # invocation, see tests/Unit/Dockerfile). Prints a per-file text report and
@@ -71,19 +72,20 @@ release: install-dev lint test
 	$(DOCKER_RUN) sh -c "npm install --no-audit --no-fund && npm run plugin-zip"
 
 # Run the functional native-PHP + Playwright suite (activation, admin rules,
-# style scoping, content variables) inside Docker. Both this target and
-# check-plugin below call the same shared script — see scripts/run-e2e.sh.
+# style scoping, content variables) inside Docker. The same script runs
+# natively in GitHub Actions — see .github/workflows/ci.yml; the shared
+# zip-build pre-flight lives in scripts/tests/lib/build-test-zip.sh.
 test-e2e: docker-build-e2e
-	$(DOCKER_RUN_E2E) sh scripts/run-e2e.sh functional
+	$(DOCKER_RUN_E2E) sh scripts/tests/e2e.sh
 
 # Build a throwaway release zip (labeled -test, never the real version —
 # see scripts/version-zip.js's --label flag) and run WordPress.org's
 # official Plugin Check against it in a fresh WordPress instance installed
 # FROM that zip — catches packaging bugs (missing files, wrong autoloader)
-# a source-directory mount would never surface. Entirely inside Docker via
-# the same shared script as test-e2e.
+# a source-directory mount would never surface. Same script as CI; shares
+# the zip-build pre-flight with test-e2e.
 check-plugin: docker-build-e2e
-	$(DOCKER_RUN_E2E) sh scripts/run-e2e.sh plugin-check
+	$(DOCKER_RUN_E2E) sh scripts/tests/plugin-check.sh
 
 # Bump version (package.json, composer.json, plugin header, VERSION constant,
 # readme.txt stable tag + changelog stub, lock files) — runs in Docker, no
