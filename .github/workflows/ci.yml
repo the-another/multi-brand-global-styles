@@ -12,6 +12,8 @@ on:
       - master
       - main
       - 'release/**'
+      # Stacked PRs (feature branch based on another feature branch) gate too.
+      - 'feature/**'
   workflow_dispatch:
 
 permissions:
