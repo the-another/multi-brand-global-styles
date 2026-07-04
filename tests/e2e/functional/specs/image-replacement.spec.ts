@@ -7,33 +7,41 @@
 import { test, expect } from '@wordpress/e2e-test-utils-playwright';
 import { createBrand, createPage, uploadTestImage } from '../support/helpers';
 
+// Unique per run so re-runs against a reused server (e.g. CI retries) don't
+// self-conflict with an earlier run's brand rule / page slugs — same
+// reasoning as admin-rules.spec.ts.
+const RUN = Date.now();
+
 test.describe( 'Per-Brand image replacement', () => {
 	test( 'mapped image swaps on the matched section only', async ( {
 		page,
 		requestUtils,
 	} ) => {
-		const original = await uploadTestImage( requestUtils, 'swap-original.png' );
+		const original = await uploadTestImage(
+			requestUtils,
+			`swap-original-${ RUN }.png`
+		);
 		const replacement = await uploadTestImage(
 			requestUtils,
-			'swap-replacement.png'
+			`swap-replacement-${ RUN }.png`
 		);
 
 		const imageContent = `<!-- wp:image {"id":${ original.id }} --><figure class="wp-block-image"><img src="${ original.source_url }" class="wp-image-${ original.id }"/></figure><!-- /wp:image -->`;
 
 		await createPage( requestUtils, {
 			title: 'Swap Section',
-			slug: 'swap-section',
+			slug: `swap-section-${ RUN }`,
 			content: imageContent,
 		} );
 		await createPage( requestUtils, {
 			title: 'Swap Root',
-			slug: 'swap-root',
+			slug: `swap-root-${ RUN }`,
 			content: imageContent,
 		} );
 
 		const brandId = await createBrand( page, {
 			title: 'Swap Brand',
-			rules: 'localhost/swap-section/*',
+			rules: `localhost/swap-section-${ RUN }/*`,
 		} );
 
 		// Set the replacement through the central meta box: add a row, set
@@ -59,16 +67,16 @@ test.describe( 'Per-Brand image replacement', () => {
 			page.locator( '#message.notice-success, #message.updated' )
 		).toBeVisible();
 
-		await page.goto( '/swap-section/' );
+		await page.goto( `/swap-section-${ RUN }/` );
 		await expect( page.locator( '.wp-block-image img' ) ).toHaveAttribute(
 			'src',
-			new RegExp( 'swap-replacement' )
+			new RegExp( `swap-replacement-${ RUN }` )
 		);
 
-		await page.goto( '/swap-root/' );
+		await page.goto( `/swap-root-${ RUN }/` );
 		await expect( page.locator( '.wp-block-image img' ) ).toHaveAttribute(
 			'src',
-			new RegExp( 'swap-original' )
+			new RegExp( `swap-original-${ RUN }` )
 		);
 	} );
 
@@ -76,10 +84,13 @@ test.describe( 'Per-Brand image replacement', () => {
 		page,
 		requestUtils,
 	} ) => {
-		const original = await uploadTestImage( requestUtils, 'rest-original.png' );
+		const original = await uploadTestImage(
+			requestUtils,
+			`rest-original-${ RUN }.png`
+		);
 		const replacement = await uploadTestImage(
 			requestUtils,
-			'rest-replacement.png'
+			`rest-replacement-${ RUN }.png`
 		);
 
 		// The REST assertions below need at least one published Brand;
@@ -87,7 +98,7 @@ test.describe( 'Per-Brand image replacement', () => {
 		// (specs must not depend on cross-file ordering).
 		await createBrand( page, {
 			title: 'REST Fixture Brand',
-			rules: 'rest-fixture.example',
+			rules: `rest-fixture-${ RUN }.example`,
 		} );
 
 		const brands = await requestUtils.rest< Array< { brand_id: number } > >( {
@@ -116,7 +127,7 @@ test.describe( 'Per-Brand image replacement', () => {
 			params: { brand: brandId },
 		} );
 		expect( previewMap.images[ String( original.id ) ] ).toContain(
-			'rest-replacement'
+			`rest-replacement-${ RUN }`
 		);
 
 		const cleared = await requestUtils.rest< { replacement_id: null } >( {

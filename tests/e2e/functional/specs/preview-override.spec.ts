@@ -7,6 +7,11 @@
 import { test, expect } from '@wordpress/e2e-test-utils-playwright';
 import { createBrand, createPage } from '../support/helpers';
 
+// Unique per run so re-runs against a reused server (e.g. CI retries) don't
+// self-conflict with an earlier run's brand rule / page slug — same
+// reasoning as admin-rules.spec.ts.
+const RUN = Date.now();
+
 test.describe( 'Frontend Brand preview override', () => {
 	test( 'admin sees the previewed Brand; logged-out visitors are unaffected', async ( {
 		page,
@@ -16,7 +21,7 @@ test.describe( 'Frontend Brand preview override', () => {
 	} ) => {
 		await createPage( requestUtils, {
 			title: 'Preview Probe',
-			slug: 'preview-probe',
+			slug: `preview-probe-${ RUN }`,
 			content: '<!-- wp:site-title /-->',
 		} );
 
@@ -24,7 +29,7 @@ test.describe( 'Frontend Brand preview override', () => {
 		// ever activate this Brand.
 		const brandId = await createBrand( page, {
 			title: 'Preview Brand',
-			rules: 'preview-only.example',
+			rules: `preview-only-${ RUN }.example`,
 			identityTitle: 'Preview Brand Title',
 		} );
 
@@ -33,7 +38,7 @@ test.describe( 'Frontend Brand preview override', () => {
 		// since SiteIdentityOverride patches the option/theme-mod site-wide)
 		// — same reasoning as style-scoping.spec.ts scoping the Navigation
 		// assertion to `header`.
-		await page.goto( `/preview-probe/?mbgs_preview_brand=${ brandId }` );
+		await page.goto( `/preview-probe-${ RUN }/?mbgs_preview_brand=${ brandId }` );
 		await expect(
 			page.locator( 'main .wp-block-site-title' )
 		).toContainText( 'Preview Brand Title' );
@@ -52,7 +57,7 @@ test.describe( 'Frontend Brand preview override', () => {
 			baseURL,
 		} );
 		const anonPage = await anonContext.newPage();
-		await anonPage.goto( `/preview-probe/?mbgs_preview_brand=${ brandId }` );
+		await anonPage.goto( `/preview-probe-${ RUN }/?mbgs_preview_brand=${ brandId }` );
 		await expect(
 			anonPage.locator( 'main .wp-block-site-title' )
 		).not.toContainText( 'Preview Brand Title' );
