@@ -1,4 +1,5 @@
 /**
  * Editor entry point. Feature modules are imported here.
  */
-export {};
+import './editor/store';
+import './editor/replacements-panel';
