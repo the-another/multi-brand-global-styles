@@ -85,12 +85,31 @@ function ReplacementRow( { row, attachmentId, onSaved } ) {
 
 function BrandReplacementsPanel( { attachmentId } ) {
 	const [ rows, setRows ] = useState( null );
+	const [ error, setError ] = useState( null );
 
 	useEffect( () => {
+		let ignore = false;
 		setRows( null );
+		setError( null );
 		apiFetch( { path: `/mbgs/v1/replacements?original=${ attachmentId }` } )
-			.then( setRows )
-			.catch( () => setRows( [] ) );
+			.then( ( result ) => {
+				if ( ! ignore ) {
+					setRows( result );
+				}
+			} )
+			.catch( () => {
+				if ( ! ignore ) {
+					setError(
+						__(
+							'Could not load Brand replacements.',
+							'the-another-multi-brand-global-styles'
+						)
+					);
+				}
+			} );
+		return () => {
+			ignore = true;
+		};
 	}, [ attachmentId ] );
 
 	return (
@@ -98,7 +117,12 @@ function BrandReplacementsPanel( { attachmentId } ) {
 			title={ __( 'Brand replacements', 'the-another-multi-brand-global-styles' ) }
 			initialOpen={ false }
 		>
-			{ rows === null && <Spinner /> }
+			{ rows === null && ! error && <Spinner /> }
+			{ error && (
+				<Notice status="error" isDismissible={ false }>
+					{ error }
+				</Notice>
+			) }
 			{ rows !== null && rows.length === 0 && (
 				<p>{ __( 'No published Brands.', 'the-another-multi-brand-global-styles' ) }</p>
 			) }
@@ -123,7 +147,11 @@ function BrandReplacementsPanel( { attachmentId } ) {
 
 const withBrandReplacements = createHigherOrderComponent(
 	( BlockEdit ) => ( props ) => {
-		if ( props.name !== 'core/image' || ! props.attributes?.id ) {
+		if (
+			props.name !== 'core/image' ||
+			! props.attributes?.id ||
+			! props.isSelected
+		) {
 			return <BlockEdit { ...props } />;
 		}
 
