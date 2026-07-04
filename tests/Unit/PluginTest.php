@@ -18,7 +18,9 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\ContentVariables\VariableSubstituti
 use TheAnother\Plugin\MultiBrandGlobalStyles\GlobalStyles\GlobalStylesOverride;
 use TheAnother\Plugin\MultiBrandGlobalStyles\HookManager;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Identity\SiteIdentityOverride;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Media\ImageUrlReplacer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Plugin;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Rendering\PageBuffer;
 use WP_Post;
 
 // Plugin::start() wires and constructs every real service in the container
@@ -35,6 +37,8 @@ use WP_Post;
 #[UsesClass( GlobalStylesOverride::class )]
 #[UsesClass( SiteIdentityOverride::class )]
 #[UsesClass( VariableSubstitutionService::class )]
+#[UsesClass( ImageUrlReplacer::class )]
+#[UsesClass( PageBuffer::class )]
 class PluginTest extends TestCase {
 	use MockeryPHPUnitIntegration;
 
@@ -112,6 +116,8 @@ class PluginTest extends TestCase {
 			'global_styles_override',
 			'site_identity_override',
 			'variable_substitution_service',
+			'image_url_replacer',
+			'page_buffer',
 			'brand_post_type',
 			'admin_notices',
 		) as $service ) {

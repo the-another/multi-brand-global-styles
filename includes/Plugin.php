@@ -18,6 +18,8 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\Identity\SiteIdentityOverride;
 use TheAnother\Plugin\MultiBrandGlobalStyles\ContentVariables\VariableParser;
 use TheAnother\Plugin\MultiBrandGlobalStyles\ContentVariables\VariableSubstitutionService;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandRepository;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Media\ImageUrlReplacer;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Rendering\PageBuffer;
 
 /**
  * Class Plugin
@@ -101,8 +103,8 @@ class Plugin {
 		$hooks->register_filter( 'pre_option_blogdescription', array( $site_identity_override, 'filter_blogdescription' ) );
 		$hooks->register_filter( 'pre_option_site_icon', array( $site_identity_override, 'filter_site_icon' ) );
 
-		$variable_substitution_service = $this->container->get( 'variable_substitution_service' );
-		$hooks->register_action( 'template_redirect', array( $variable_substitution_service, 'start_buffer' ) );
+		$page_buffer = $this->container->get( 'page_buffer' );
+		$hooks->register_action( 'template_redirect', array( $page_buffer, 'start_buffer' ) );
 
 		$admin_notices = $this->container->get( 'admin_notices' );
 		$hooks->register_action( 'admin_notices', array( $admin_notices, 'render' ) );
@@ -141,6 +143,21 @@ class Plugin {
 		$this->container->register(
 			'site_identity_override',
 			fn( Container $c ) => new SiteIdentityOverride( $c->get( 'brand_resolver' ), $c->get( 'brand_repository' ) )
+		);
+
+		$this->container->register(
+			'image_url_replacer',
+			fn( Container $c ) => new ImageUrlReplacer( $c->get( 'brand_resolver' ), $c->get( 'brand_repository' ) )
+		);
+
+		$this->container->register(
+			'page_buffer',
+			fn( Container $c ) => new PageBuffer(
+				array(
+					array( $c->get( 'variable_substitution_service' ), 'replace' ),
+					array( $c->get( 'image_url_replacer' ), 'replace' ),
+				)
+			)
 		);
 
 		$this->container->register(
