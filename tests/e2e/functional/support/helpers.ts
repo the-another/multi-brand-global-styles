@@ -4,6 +4,9 @@
  * exercised end-to-end) and for seeding page/post content over REST.
  */
 
+import { writeFileSync, mkdtempSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { expect } from '@wordpress/e2e-test-utils-playwright';
 import type { Page } from '@playwright/test';
 import type { RequestUtils } from '@wordpress/e2e-test-utils-playwright';
@@ -17,16 +20,22 @@ export interface CreateBrandOptions {
 	/** theme.json-shaped `{ settings, styles }` payload. */
 	stylesJson?: object;
 	isDefault?: boolean;
+	/** Brand Identity meta box fields (all optional). */
+	identityTitle?: string;
+	identityTagline?: string;
+	/** Attachment ID for the Brand logo (set into the hidden picker input). */
+	logoId?: number;
 }
 
 /**
  * Create a Brand through the classic-editor admin form and publish it.
- * Resolves once the published edit screen has loaded.
+ * Resolves once the published edit screen has loaded, with the new Brand's
+ * post ID (parsed from the redirect URL).
  */
 export async function createBrand(
 	page: Page,
 	options: CreateBrandOptions
-): Promise< void > {
+): Promise< number > {
 	await page.goto( '/wp-admin/post-new.php?post_type=mbgs_brand' );
 
 	await page.locator( '#title' ).fill( options.title );
@@ -50,6 +59,26 @@ export async function createBrand(
 		await page.locator( 'input[name="mbgs_is_default"]' ).check();
 	}
 
+	if ( options.identityTitle !== undefined ) {
+		await page.locator( 'input[name="mbgs_title"]' ).fill( options.identityTitle );
+	}
+
+	if ( options.identityTagline !== undefined ) {
+		await page
+			.locator( 'input[name="mbgs_tagline"]' )
+			.fill( options.identityTagline );
+	}
+
+	if ( options.logoId !== undefined ) {
+		// The picker input is hidden; set it directly — the picker UI itself
+		// is plain wp.media and not what these tests are exercising.
+		await page
+			.locator( 'input[name="mbgs_logo_id"]' )
+			.evaluate( ( input, id ) => {
+				( input as HTMLInputElement ).value = String( id );
+			}, options.logoId );
+	}
+
 	// force: confirmed empirically on native PHP (no wasm involved) — the
 	// classic publish button is a plain form submit, but WP admin's postbox
 	// layout never settles enough to pass Playwright's "stable"
@@ -61,6 +90,28 @@ export async function createBrand(
 	await expect(
 		page.locator( '#message.notice-success, #message.updated' )
 	).toBeVisible();
+
+	const url = new URL( page.url() );
+	return Number( url.searchParams.get( 'post' ) );
+}
+
+const PNG_1X1 = Buffer.from(
+	'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+	'base64'
+);
+
+/**
+ * Upload a tiny PNG under the given filename; returns { id, source_url }.
+ */
+export async function uploadTestImage(
+	requestUtils: RequestUtils,
+	filename: string
+): Promise< { id: number; source_url: string } > {
+	const dir = mkdtempSync( join( tmpdir(), 'mbgs-e2e-' ) );
+	const filePath = join( dir, filename );
+	writeFileSync( filePath, PNG_1X1 );
+	const media = await requestUtils.uploadMedia( filePath );
+	return { id: media.id, source_url: media.source_url };
 }
 
 /**
