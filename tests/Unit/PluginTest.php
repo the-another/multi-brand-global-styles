@@ -17,6 +17,7 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\Container;
 use TheAnother\Plugin\MultiBrandGlobalStyles\ContentVariables\VariableSubstitutionService;
 use TheAnother\Plugin\MultiBrandGlobalStyles\GlobalStyles\GlobalStylesOverride;
 use TheAnother\Plugin\MultiBrandGlobalStyles\HookManager;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Identity\SiteIdentityOverride;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Plugin;
 use WP_Post;
 
@@ -32,6 +33,7 @@ use WP_Post;
 #[UsesClass( BrandResolver::class )]
 #[UsesClass( UrlRuleRegistry::class )]
 #[UsesClass( GlobalStylesOverride::class )]
+#[UsesClass( SiteIdentityOverride::class )]
 #[UsesClass( VariableSubstitutionService::class )]
 class PluginTest extends TestCase {
 	use MockeryPHPUnitIntegration;
@@ -74,7 +76,7 @@ class PluginTest extends TestCase {
 
 		$hooks = Container::get_instance()->get_hook_manager()->get_registered_hooks();
 
-		$this->assertCount( 8, $hooks );
+		$this->assertCount( 13, $hooks );
 
 		$actions = array_column( array_filter( $hooks, fn( $h ) => 'action' === $h['type'] ), 'hook' );
 		$filters = array_column( array_filter( $hooks, fn( $h ) => 'filter' === $h['type'] ), 'hook' );
@@ -83,7 +85,17 @@ class PluginTest extends TestCase {
 			array( 'init', 'add_meta_boxes', 'save_post_mbgs_brand', 'save_post_mbgs_brand', 'deleted_post', 'template_redirect', 'admin_notices' ),
 			$actions
 		);
-		$this->assertSame( array( 'wp_theme_json_data_user' ), $filters );
+		$this->assertSame(
+			array(
+				'wp_theme_json_data_user',
+				'pre_option_site_logo',
+				'theme_mod_custom_logo',
+				'pre_option_blogname',
+				'pre_option_blogdescription',
+				'pre_option_site_icon',
+			),
+			$filters
+		);
 	}
 
 	public function test_start_registers_all_services_resolvable_via_container(): void {
@@ -98,6 +110,7 @@ class PluginTest extends TestCase {
 			'global_styles_post_service',
 			'brand_resolver',
 			'global_styles_override',
+			'site_identity_override',
 			'variable_substitution_service',
 			'brand_post_type',
 			'admin_notices',
