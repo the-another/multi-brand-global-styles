@@ -66,6 +66,9 @@ class ImageUrlReplacer {
 			return $html;
 		}
 
+		// URL map MUST be ordered longest-key-first (guaranteed by ImageMapBuilder::build_url_map
+		// via uksort) so that no key that is a substring of another is replaced first and corrupts
+		// the longer key's matches.
 		return str_replace( array_keys( $url_map ), array_values( $url_map ), $html );
 	}
 }

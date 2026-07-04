@@ -66,4 +66,21 @@ class ImageUrlReplacerTest extends TestCase {
 
 		$this->assertSame( $html, $this->make_replacer( 5, array() )->replace( $html ) );
 	}
+
+	public function test_longer_overlapping_url_keys_are_replaced_before_their_prefixes(): void {
+		$replacer = $this->make_replacer(
+			5,
+			array(
+				'https://ex.com/up/orig.jpg?v=2' => 'https://ex.com/up/repl-v2.jpg',
+				'https://ex.com/up/orig.jpg'     => 'https://ex.com/up/repl.jpg',
+			)
+		);
+
+		$html = '<img src="https://ex.com/up/orig.jpg?v=2"><img src="https://ex.com/up/orig.jpg">';
+
+		$this->assertSame(
+			'<img src="https://ex.com/up/repl-v2.jpg"><img src="https://ex.com/up/repl.jpg">',
+			$replacer->replace( $html )
+		);
+	}
 }
