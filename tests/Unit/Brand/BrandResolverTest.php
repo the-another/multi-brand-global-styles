@@ -34,7 +34,7 @@ class BrandResolverTest extends TestCase {
 
 	protected function tearDown(): void {
 		Monkey\tearDown();
-		unset( $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
+		unset( $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'], $_GET['mbgs_preview_brand'] );
 		parent::tearDown();
 	}
 
@@ -164,8 +164,6 @@ class BrandResolverTest extends TestCase {
 		$resolver   = new BrandResolver( $registry, $repository );
 
 		$this->assertSame( 42, $resolver->resolve_current_request() );
-
-		unset( $_GET['mbgs_preview_brand'] );
 	}
 
 	public function test_preview_override_ignored_without_capability(): void {
@@ -186,8 +184,6 @@ class BrandResolverTest extends TestCase {
 		$repository->shouldReceive( 'get_default_brand_id' )->andReturn( 7 );
 
 		$this->assertSame( 7, ( new BrandResolver( $registry, $repository ) )->resolve_current_request() );
-
-		unset( $_GET['mbgs_preview_brand'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
 	}
 
 	public function test_preview_override_ignored_for_unpublished_or_wrong_type(): void {
@@ -212,8 +208,6 @@ class BrandResolverTest extends TestCase {
 		$repository->shouldReceive( 'get_default_brand_id' )->andReturn( null );
 
 		$this->assertNull( ( new BrandResolver( $registry, $repository ) )->resolve_current_request() );
-
-		unset( $_GET['mbgs_preview_brand'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
 	}
 
 	public function test_resolve_current_request_is_memoized(): void {
@@ -231,7 +225,5 @@ class BrandResolverTest extends TestCase {
 
 		$this->assertSame( 9, $resolver->resolve_current_request() );
 		$this->assertSame( 9, $resolver->resolve_current_request() ); // ->once() above fails if not memoized.
-
-		unset( $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
 	}
 }
