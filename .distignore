@@ -1,6 +1,7 @@
 # Source control / project metadata
 /.git/
 /.github/
+/.claude/
 /.idea/
 /.vscode/
 /.superpowers/
