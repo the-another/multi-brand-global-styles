@@ -111,6 +111,7 @@ class BrandPostType {
 		add_meta_box( 'mbgs_variables', __( 'Content Variables', 'the-another-multi-brand-global-styles' ), array( $this, 'render_variables_meta_box' ), self::POST_TYPE, 'normal', 'default' );
 		add_meta_box( 'mbgs_default', __( 'Default Brand', 'the-another-multi-brand-global-styles' ), array( $this, 'render_default_meta_box' ), self::POST_TYPE, 'side', 'default' );
 		add_meta_box( 'mbgs_styles', __( 'Global Styles (raw JSON)', 'the-another-multi-brand-global-styles' ), array( $this, 'render_styles_meta_box' ), self::POST_TYPE, 'normal', 'default' );
+		add_meta_box( 'mbgs_identity', __( 'Brand Identity', 'the-another-multi-brand-global-styles' ), array( $this, 'render_identity_meta_box' ), self::POST_TYPE, 'side', 'default' );
 	}
 
 	/**
@@ -182,6 +183,53 @@ class BrandPostType {
 	}
 
 	/**
+	 * Render the Brand Identity meta box (logo, site icon, title, tagline).
+	 *
+	 * @param WP_Post $post Current post.
+	 * @return void
+	 */
+	public function render_identity_meta_box( WP_Post $post ): void {
+		$identity = get_post_meta( $post->ID, '_mbgs_identity', true );
+		$identity = is_array( $identity ) ? $identity : array();
+		?>
+		<p><?php esc_html_e( 'Each field is optional; empty fields fall back to the site default.', 'the-another-multi-brand-global-styles' ); ?></p>
+		<?php
+		$this->render_media_picker( 'mbgs_logo_id', __( 'Logo', 'the-another-multi-brand-global-styles' ), (int) ( $identity['logo_id'] ?? 0 ) );
+		$this->render_media_picker( 'mbgs_icon_id', __( 'Site icon (favicon)', 'the-another-multi-brand-global-styles' ), (int) ( $identity['icon_id'] ?? 0 ) );
+		?>
+		<p>
+			<label for="mbgs_title"><strong><?php esc_html_e( 'Site title', 'the-another-multi-brand-global-styles' ); ?></strong></label>
+			<input type="text" id="mbgs_title" name="mbgs_title" style="width:100%;" value="<?php echo esc_attr( (string) ( $identity['title'] ?? '' ) ); ?>" />
+		</p>
+		<p>
+			<label for="mbgs_tagline"><strong><?php esc_html_e( 'Tagline', 'the-another-multi-brand-global-styles' ); ?></strong></label>
+			<input type="text" id="mbgs_tagline" name="mbgs_tagline" style="width:100%;" value="<?php echo esc_attr( (string) ( $identity['tagline'] ?? '' ) ); ?>" />
+		</p>
+		<?php
+	}
+
+	/**
+	 * Render one hidden-input + preview + select/remove media picker.
+	 *
+	 * @param string $field_name    Hidden input name.
+	 * @param string $label         Field label.
+	 * @param int    $attachment_id Currently selected attachment, 0 for none.
+	 * @return void
+	 */
+	private function render_media_picker( string $field_name, string $label, int $attachment_id ): void {
+		$thumb_url = $attachment_id ? wp_get_attachment_image_url( $attachment_id, 'thumbnail' ) : '';
+		?>
+		<div class="mbgs-media-picker" style="margin-bottom:12px;">
+			<strong><?php echo esc_html( $label ); ?></strong><br />
+			<input type="hidden" name="<?php echo esc_attr( $field_name ); ?>" value="<?php echo esc_attr( (string) $attachment_id ); ?>" />
+			<img src="<?php echo esc_url( (string) $thumb_url ); ?>" alt="" style="max-width:100%;height:auto;<?php echo $thumb_url ? '' : 'display:none;'; ?>" />
+			<button type="button" class="button mbgs-media-select"><?php esc_html_e( 'Select image', 'the-another-multi-brand-global-styles' ); ?></button>
+			<button type="button" class="button mbgs-media-remove" <?php echo $attachment_id ? '' : 'style="display:none;"'; ?>><?php esc_html_e( 'Remove', 'the-another-multi-brand-global-styles' ); ?></button>
+		</div>
+		<?php
+	}
+
+	/**
 	 * Save handler. Hooked to `save_post_mbgs_brand`.
 	 *
 	 * @param int $post_id Post ID being saved.
@@ -204,6 +252,7 @@ class BrandPostType {
 		$this->save_variables( $post_id );
 		$this->save_default_flag( $post_id );
 		$this->save_styles( $post_id );
+		$this->save_identity( $post_id );
 
 		$this->url_rule_registry->invalidate_cache();
 		$this->global_styles_post_service->ensure_global_styles_post( $post_id );
@@ -312,5 +361,37 @@ class BrandPostType {
 				)
 			)
 		);
+	}
+
+	/**
+	 * Parse, validate, and persist the identity fields.
+	 *
+	 * @param int $post_id Post ID.
+	 * @return void
+	 */
+	private function save_identity( int $post_id ): void {
+		$identity = array();
+
+		foreach ( array(
+			'logo_id' => 'mbgs_logo_id',
+			'icon_id' => 'mbgs_icon_id',
+		) as $key => $field ) {
+			$attachment_id = isset( $_POST[ $field ] ) ? absint( wp_unslash( $_POST[ $field ] ) ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in save() before delegation.
+			if ( $attachment_id && wp_attachment_is_image( $attachment_id ) ) {
+				$identity[ $key ] = $attachment_id;
+			}
+		}
+
+		foreach ( array(
+			'title'   => 'mbgs_title',
+			'tagline' => 'mbgs_tagline',
+		) as $key => $field ) {
+			$value = isset( $_POST[ $field ] ) ? sanitize_text_field( wp_unslash( $_POST[ $field ] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in save() before delegation.
+			if ( '' !== $value ) {
+				$identity[ $key ] = $value;
+			}
+		}
+
+		update_post_meta( $post_id, '_mbgs_identity', $identity );
 	}
 }
