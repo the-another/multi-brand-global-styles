@@ -87,13 +87,20 @@ If any check fails, **stop and tell the user** what needs to be done. Do not pro
 
 ## Step 1: Ask Version Type
 
-Ask the user:
+Read the current version from `package.json`.
+
+If the version type was passed as a skill argument (patch / minor / major),
+confirm it briefly:
+
+> Releasing a **<type>** version bump — current version `<version from package.json>`.
+
+Otherwise, ask the user:
 
 > What type of release? **(patch / minor / major)**
 >
-> Current version: `<read from package.json>`
+> Current version: `<version from package.json>`
 
-Wait for their answer. Do not assume.
+If asking, wait for their answer. Do not assume.
 
 ## Step 2: Bump Version
 
