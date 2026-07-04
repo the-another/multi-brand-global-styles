@@ -49,7 +49,7 @@ digraph preflight {
     "On feature branch?" [shape=diamond];
     "Uncommitted changes?" [shape=diamond];
     "All pushed to remote?" [shape=diamond];
-    "PR exists for branch?" [shape=diamond];
+    "OPEN PR exists for branch?" [shape=diamond];
     "STOP: commit or stash first" [shape=box style=filled fillcolor=lightyellow];
     "STOP: push first" [shape=box style=filled fillcolor=lightyellow];
     "STOP: create PR first" [shape=box style=filled fillcolor=lightyellow];
@@ -61,9 +61,9 @@ digraph preflight {
     "Uncommitted changes?" -> "STOP: commit or stash first" [label="yes"];
     "Uncommitted changes?" -> "All pushed to remote?" [label="no"];
     "All pushed to remote?" -> "STOP: push first" [label="no"];
-    "All pushed to remote?" -> "PR exists for branch?" [label="yes"];
-    "PR exists for branch?" -> "Pre-flight passed" [label="yes"];
-    "PR exists for branch?" -> "STOP: create PR first" [label="no"];
+    "All pushed to remote?" -> "OPEN PR exists for branch?" [label="yes"];
+    "OPEN PR exists for branch?" -> "Pre-flight passed" [label="yes"];
+    "OPEN PR exists for branch?" -> "STOP: create PR first" [label="no"];
 }
 ```
 
@@ -79,11 +79,11 @@ git status --porcelain     # should be empty
 # All pushed
 git log @{u}..HEAD --oneline  # should be empty
 
-# PR exists
-gh pr view --json number,title,state -q '.number'  # should return PR number
+# PR exists and is OPEN
+gh pr view --json number,title,state -q '.state'   # must be "OPEN"
 ```
 
-If any check fails, **stop and tell the user** what needs to be done. Do not proceed.
+If any check fails, **stop and tell the user** what needs to be done. Do not proceed. If the PR is merged or closed, the branch cannot proceed — this repo's CI (`.github/workflows/e2e.yml`) triggers only on pull_request, so pushing to a branch without an open PR runs no CI and Step 7 would read a stale green run.
 
 ## Step 1: Ask Version Type
 
@@ -93,6 +93,8 @@ If the version type was passed as a skill argument (patch / minor / major),
 confirm it briefly:
 
 > Releasing a **<type>** version bump — current version `<version from package.json>`.
+
+If the supplied argument is not exactly patch, minor, or major, do not guess — fall through to asking.
 
 Otherwise, ask the user:
 
@@ -121,7 +123,7 @@ nothing — review happens in the next steps and the commit lands in Step 6.
    ```bash
    gh pr view --json body -q '.body'
    gh pr view --json title -q '.title'
-   git log master..HEAD --oneline
+   git log origin/master..HEAD --oneline
    ```
 
 2. `readme.txt`: replace the `* Version bump` stub with a real changelog entry
@@ -169,7 +171,7 @@ issue (one attempt). If the fix doesn't work, stop and tell the user.
 
 ```bash
 git add -A
-git commit -m "chore: bump version to X.Y.Z, update changelog"
+git commit -m "chore: bump version to X.Y.Z, update changelog" -m "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 git push
 ```
 
@@ -180,10 +182,10 @@ both suites):
 
 ```bash
 # Wait a moment for CI to pick up the push, then watch
-gh run list --branch <branch> --limit 1 --json databaseId,status,conclusion
+gh run list --branch <branch> --limit 1 --json databaseId,status,conclusion,headSha
 ```
 
-Poll the CI run status (use `/loop` or periodic checks). Report outcome:
+Poll the CI run status (use `/loop` or periodic checks). Only treat the run as authoritative once its `headSha` equals `git rev-parse HEAD`; if the latest run is for an older commit, keep waiting — a pre-push run's green is not this release's green. Report outcome:
 
 - **CI passes**: Tell the user the release is ready and the PR can be merged.
 - **CI fails**: Fetch the failed job logs, identify the error, attempt one fix,
