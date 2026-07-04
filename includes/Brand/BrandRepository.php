@@ -70,4 +70,77 @@ class BrandRepository {
 
 		return $id ? (int) $id : null;
 	}
+
+	/**
+	 * Get a Brand's identity overrides.
+	 *
+	 * @param int $brand_id Brand post ID.
+	 * @return array<string, int|string> Any of logo_id, icon_id, title, tagline.
+	 */
+	public function get_identity( int $brand_id ): array {
+		$identity = get_post_meta( $brand_id, '_mbgs_identity', true );
+
+		return is_array( $identity ) ? $identity : array();
+	}
+
+	/**
+	 * Get a Brand's image replacement pairs.
+	 *
+	 * @param int $brand_id Brand post ID.
+	 * @return array<int, int> Original attachment ID => replacement attachment ID.
+	 */
+	public function get_image_map( int $brand_id ): array {
+		$map = get_post_meta( $brand_id, '_mbgs_image_map', true );
+
+		return is_array( $map ) ? $map : array();
+	}
+
+	/**
+	 * Get a Brand's precomputed image URL map.
+	 *
+	 * @param int $brand_id Brand post ID.
+	 * @return array<string, string> Original URL => replacement URL.
+	 */
+	public function get_image_url_map( int $brand_id ): array {
+		$map = get_post_meta( $brand_id, '_mbgs_image_url_map', true );
+
+		return is_array( $map ) ? $map : array();
+	}
+
+	/**
+	 * Get all Brand post IDs regardless of status.
+	 *
+	 * @return array<int, int> Brand post IDs.
+	 */
+	public function get_brand_ids(): array {
+		return $this->query_brand_ids( 'any' );
+	}
+
+	/**
+	 * Get all published Brand post IDs.
+	 *
+	 * @return array<int, int> Brand post IDs.
+	 */
+	public function get_published_brand_ids(): array {
+		return $this->query_brand_ids( 'publish' );
+	}
+
+	/**
+	 * Query Brand post IDs by status.
+	 *
+	 * @param string $status Post status.
+	 * @return array<int, int> Brand post IDs.
+	 */
+	private function query_brand_ids( string $status ): array {
+		$ids = get_posts(
+			array(
+				'post_type'      => 'mbgs_brand',
+				'post_status'    => $status,
+				'posts_per_page' => -1,
+				'fields'         => 'ids',
+			)
+		);
+
+		return array_map( 'intval', $ids );
+	}
 }

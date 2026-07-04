@@ -43,10 +43,29 @@ if ( ! class_exists( 'WP_Post' ) ) {
 	class WP_Post {
 		public $ID;
 		public $post_type;
+		public $post_status = 'publish';
 
 		public function __construct( int $id = 0, string $post_type = '' ) {
 			$this->ID        = $id;
 			$this->post_type = $post_type;
+		}
+	}
+}
+
+if ( ! class_exists( 'WP_REST_Request' ) ) {
+	class WP_REST_Request {
+		private array $params;
+
+		public function __construct( array $params = array() ) {
+			$this->params = $params;
+		}
+
+		public function get_param( string $key ) {
+			return $this->params[ $key ] ?? null;
+		}
+
+		public function has_param( string $key ): bool {
+			return array_key_exists( $key, $this->params );
 		}
 	}
 }

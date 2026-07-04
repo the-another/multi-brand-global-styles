@@ -15,9 +15,16 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandResolver;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\UrlRuleRegistry;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Container;
 use TheAnother\Plugin\MultiBrandGlobalStyles\ContentVariables\VariableSubstitutionService;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Editor\EditorAssets;
 use TheAnother\Plugin\MultiBrandGlobalStyles\GlobalStyles\GlobalStylesOverride;
 use TheAnother\Plugin\MultiBrandGlobalStyles\HookManager;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Identity\SiteIdentityOverride;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Media\AttachmentLifecycle;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Media\ImageMapBuilder;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Media\ImageUrlReplacer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Plugin;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Rendering\PageBuffer;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Rest\ReplacementsController;
 use WP_Post;
 
 // Plugin::start() wires and constructs every real service in the container
@@ -32,13 +39,27 @@ use WP_Post;
 #[UsesClass( BrandResolver::class )]
 #[UsesClass( UrlRuleRegistry::class )]
 #[UsesClass( GlobalStylesOverride::class )]
+#[UsesClass( SiteIdentityOverride::class )]
 #[UsesClass( VariableSubstitutionService::class )]
+#[UsesClass( ImageUrlReplacer::class )]
+#[UsesClass( ImageMapBuilder::class )]
+#[UsesClass( AttachmentLifecycle::class )]
+#[UsesClass( PageBuffer::class )]
+#[UsesClass( ReplacementsController::class )]
+#[UsesClass( EditorAssets::class )]
 class PluginTest extends TestCase {
 	use MockeryPHPUnitIntegration;
 
 	protected function setUp(): void {
 		parent::setUp();
 		Monkey\setUp();
+
+		if ( ! defined( 'THE_ANOTHER_MULTI_BRAND_GLOBAL_STYLES_PLUGIN_DIR' ) ) {
+			define( 'THE_ANOTHER_MULTI_BRAND_GLOBAL_STYLES_PLUGIN_DIR', '/tmp/' );
+		}
+		if ( ! defined( 'THE_ANOTHER_MULTI_BRAND_GLOBAL_STYLES_PLUGIN_URL' ) ) {
+			define( 'THE_ANOTHER_MULTI_BRAND_GLOBAL_STYLES_PLUGIN_URL', 'https://example.com/wp-content/plugins/x/' );
+		}
 
 		Functions\when( 'esc_html' )->returnArg();
 		Functions\when( 'has_action' )->justReturn( false );
@@ -74,16 +95,26 @@ class PluginTest extends TestCase {
 
 		$hooks = Container::get_instance()->get_hook_manager()->get_registered_hooks();
 
-		$this->assertCount( 8, $hooks );
+		$this->assertCount( 19, $hooks );
 
 		$actions = array_column( array_filter( $hooks, fn( $h ) => 'action' === $h['type'] ), 'hook' );
 		$filters = array_column( array_filter( $hooks, fn( $h ) => 'filter' === $h['type'] ), 'hook' );
 
 		$this->assertSame(
-			array( 'init', 'add_meta_boxes', 'save_post_mbgs_brand', 'save_post_mbgs_brand', 'deleted_post', 'template_redirect', 'admin_notices' ),
+			array( 'init', 'add_meta_boxes', 'save_post_mbgs_brand', 'admin_enqueue_scripts', 'save_post_mbgs_brand', 'deleted_post', 'template_redirect', 'admin_notices', 'added_post_meta', 'updated_post_meta', 'delete_attachment', 'rest_api_init', 'enqueue_block_editor_assets' ),
 			$actions
 		);
-		$this->assertSame( array( 'wp_theme_json_data_user' ), $filters );
+		$this->assertSame(
+			array(
+				'wp_theme_json_data_user',
+				'pre_option_site_logo',
+				'theme_mod_custom_logo',
+				'pre_option_blogname',
+				'pre_option_blogdescription',
+				'pre_option_site_icon',
+			),
+			$filters
+		);
 	}
 
 	public function test_start_registers_all_services_resolvable_via_container(): void {
@@ -98,9 +129,16 @@ class PluginTest extends TestCase {
 			'global_styles_post_service',
 			'brand_resolver',
 			'global_styles_override',
+			'site_identity_override',
 			'variable_substitution_service',
+			'image_url_replacer',
+			'image_map_builder',
+			'attachment_lifecycle',
+			'page_buffer',
 			'brand_post_type',
 			'admin_notices',
+			'replacements_controller',
+			'editor_assets',
 		) as $service ) {
 			$this->assertTrue( $container->has( $service ), "Expected service '{$service}' to be registered" );
 		}

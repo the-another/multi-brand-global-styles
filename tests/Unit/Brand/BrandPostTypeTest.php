@@ -13,6 +13,7 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandPostType;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\UrlRuleRegistry;
 use TheAnother\Plugin\MultiBrandGlobalStyles\GlobalStyles\GlobalStylesPostService;
 use TheAnother\Plugin\MultiBrandGlobalStyles\ContentVariables\VariableParser;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Media\ImageMapBuilder;
 use WP_Post;
 
 #[CoversClass( BrandPostType::class )]
@@ -42,12 +43,14 @@ class BrandPostTypeTest extends TestCase {
 	private function make_post_type(
 		UrlRuleRegistry $url_rule_registry = null,
 		VariableParser $variable_parser = null,
-		GlobalStylesPostService $global_styles_post_service = null
+		GlobalStylesPostService $global_styles_post_service = null,
+		?ImageMapBuilder $image_map_builder = null
 	): BrandPostType {
 		return new BrandPostType(
-			$url_rule_registry ?? Mockery::mock( UrlRuleRegistry::class ),
-			$variable_parser ?? Mockery::mock( VariableParser::class ),
-			$global_styles_post_service ?? Mockery::mock( GlobalStylesPostService::class )
+			$url_rule_registry ?? Mockery::mock( UrlRuleRegistry::class )->shouldIgnoreMissing(),
+			$variable_parser ?? Mockery::mock( VariableParser::class )->shouldIgnoreMissing(),
+			$global_styles_post_service ?? Mockery::mock( GlobalStylesPostService::class )->shouldIgnoreMissing(),
+			$image_map_builder ?? Mockery::mock( ImageMapBuilder::class )->shouldIgnoreMissing()
 		);
 	}
 
@@ -99,7 +102,7 @@ class BrandPostTypeTest extends TestCase {
 		$this->assertTrue( true ); // No exception, no calls made — assertions are the shouldNotReceive expectations above.
 	}
 
-	public function test_register_meta_boxes_registers_all_four_boxes(): void {
+	public function test_register_meta_boxes_registers_all_six_boxes(): void {
 		Functions\when( '__' )->returnArg();
 
 		$calls = array();
@@ -118,6 +121,8 @@ class BrandPostTypeTest extends TestCase {
 				array( 'mbgs_variables', 'render_variables_meta_box', 'mbgs_brand', 'normal', 'default' ),
 				array( 'mbgs_default', 'render_default_meta_box', 'mbgs_brand', 'side', 'default' ),
 				array( 'mbgs_styles', 'render_styles_meta_box', 'mbgs_brand', 'normal', 'default' ),
+				array( 'mbgs_identity', 'render_identity_meta_box', 'mbgs_brand', 'side', 'default' ),
+				array( 'mbgs_image_map', 'render_image_map_meta_box', 'mbgs_brand', 'normal', 'default' ),
 			),
 			$calls
 		);
@@ -264,6 +269,7 @@ class BrandPostTypeTest extends TestCase {
 		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_rules', array( 'example.com', 'example.org' ) )->once();
 		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_variables', array() )->once();
 		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_is_default', '' )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_identity', array() )->once();
 
 		$post_type = $this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service );
 
@@ -289,6 +295,7 @@ class BrandPostTypeTest extends TestCase {
 		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_rules', array( 'example.com' ) )->once();
 		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_variables', array() )->once();
 		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_is_default', '' )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_identity', array() )->once();
 		Functions\expect( 'set_transient' )
 			->once()
 			->with( 'mbgs_rule_conflict_1', array( 'taken.com' ), 30 );
@@ -315,6 +322,7 @@ class BrandPostTypeTest extends TestCase {
 		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_rules', array() )->once();
 		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_variables', array( 'name' => 'Acme' ) )->once();
 		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_is_default', '' )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_identity', array() )->once();
 
 		$post_type = $this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service );
 
@@ -354,6 +362,7 @@ class BrandPostTypeTest extends TestCase {
 		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_rules', array() )->once();
 		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_variables', array() )->once();
 		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_is_default', '1' )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_identity', array() )->once();
 
 		$post_type = $this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service );
 
@@ -381,6 +390,7 @@ class BrandPostTypeTest extends TestCase {
 		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_rules', array() )->once();
 		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_variables', array() )->once();
 		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_is_default', '' )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_identity', array() )->once();
 
 		Functions\expect( 'wp_slash' )->once()->andReturnUsing( fn( $v ) => $v );
 		Functions\expect( 'wp_json_encode' )->andReturnUsing( 'json_encode' );
@@ -424,6 +434,7 @@ class BrandPostTypeTest extends TestCase {
 		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_rules', array() )->once();
 		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_variables', array() )->once();
 		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_is_default', '' )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_identity', array() )->once();
 
 		Functions\expect( 'wp_update_post' )->never();
 
@@ -453,11 +464,116 @@ class BrandPostTypeTest extends TestCase {
 		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_rules', array() )->once();
 		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_variables', array() )->once();
 		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_is_default', '' )->once();
+		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_identity', array() )->once();
 
 		Functions\expect( 'wp_update_post' )->never();
 
 		$post_type = $this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service );
 
 		$post_type->save( 5 );
+	}
+
+	public function test_save_persists_identity_fields(): void {
+		$_POST['mbgs_rules']     = '';
+		$_POST['mbgs_variables'] = '';
+
+		$url_rule_registry = Mockery::mock( UrlRuleRegistry::class );
+		$url_rule_registry->shouldReceive( 'parse_rules_input' )->andReturn( array() );
+		$url_rule_registry->shouldReceive( 'invalidate_cache' )->once();
+
+		$variable_parser = Mockery::mock( VariableParser::class );
+		$variable_parser->shouldReceive( 'parse' )->andReturn( array() );
+
+		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
+		$global_styles_post_service->shouldReceive( 'ensure_global_styles_post' )->andReturn( 42 );
+
+		Functions\when( 'absint' )->alias( static fn( $v ) => abs( (int) $v ) );
+		Functions\when( 'wp_attachment_is_image' )->justReturn( true );
+
+		$_POST['mbgs_logo_id'] = '123';
+		$_POST['mbgs_icon_id'] = '0';
+		$_POST['mbgs_title']   = 'Second Brand Co';
+		$_POST['mbgs_tagline'] = '';
+
+		Functions\expect( 'update_post_meta' )->with( 77, '_mbgs_rules', array() )->once();
+		Functions\expect( 'update_post_meta' )->with( 77, '_mbgs_variables', array() )->once();
+		Functions\expect( 'update_post_meta' )->with( 77, '_mbgs_is_default', '' )->once();
+		Functions\expect( 'update_post_meta' )->once()->with(
+			77,
+			'_mbgs_identity',
+			array(
+				'logo_id' => 123,
+				'title'   => 'Second Brand Co',
+			)
+		);
+
+		$post_type = $this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service );
+
+		$post_type->save( 77 );
+	}
+
+	public function test_save_drops_non_image_identity_attachments(): void {
+		$_POST['mbgs_rules']     = '';
+		$_POST['mbgs_variables'] = '';
+
+		$url_rule_registry = Mockery::mock( UrlRuleRegistry::class );
+		$url_rule_registry->shouldReceive( 'parse_rules_input' )->andReturn( array() );
+		$url_rule_registry->shouldReceive( 'invalidate_cache' )->once();
+
+		$variable_parser = Mockery::mock( VariableParser::class );
+		$variable_parser->shouldReceive( 'parse' )->andReturn( array() );
+
+		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
+		$global_styles_post_service->shouldReceive( 'ensure_global_styles_post' )->andReturn( 42 );
+
+		Functions\when( 'absint' )->alias( static fn( $v ) => abs( (int) $v ) );
+		Functions\when( 'wp_attachment_is_image' )->justReturn( false );
+
+		$_POST['mbgs_logo_id'] = '123';
+
+		Functions\expect( 'update_post_meta' )->with( 77, '_mbgs_rules', array() )->once();
+		Functions\expect( 'update_post_meta' )->with( 77, '_mbgs_variables', array() )->once();
+		Functions\expect( 'update_post_meta' )->with( 77, '_mbgs_is_default', '' )->once();
+		Functions\expect( 'update_post_meta' )->once()->with( 77, '_mbgs_identity', array() );
+
+		$post_type = $this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service );
+
+		$post_type->save( 77 );
+	}
+
+	public function test_save_builds_image_map_pairs_and_persists(): void {
+		// Same nonce/autosave/capability stub block as the other save tests, plus:
+		Functions\when( 'sanitize_textarea_field' )->returnArg();
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'wp_unslash' )->returnArg();
+		Functions\when( 'absint' )->alias( static fn( $v ) => abs( (int) $v ) );
+		Functions\when( 'wp_attachment_is_image' )->justReturn( true );
+		Functions\when( 'update_post_meta' )->justReturn( true );
+
+		$_POST['mbgs_image_map_original']    = array( '10', '0', '30' );
+		$_POST['mbgs_image_map_replacement'] = array( '20', '5', '' );
+
+		$image_map_builder = Mockery::mock( ImageMapBuilder::class );
+		$image_map_builder->shouldReceive( 'persist' )->once()->with( 77, array( 10 => 20 ) );
+
+		$this->make_post_type( image_map_builder: $image_map_builder )->save( 77 );
+	}
+
+	public function test_save_drops_non_image_pairs(): void {
+		// Same stub block, but:
+		Functions\when( 'sanitize_textarea_field' )->returnArg();
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'wp_unslash' )->returnArg();
+		Functions\when( 'absint' )->alias( static fn( $v ) => abs( (int) $v ) );
+		Functions\when( 'wp_attachment_is_image' )->justReturn( false );
+		Functions\when( 'update_post_meta' )->justReturn( true );
+
+		$_POST['mbgs_image_map_original']    = array( '10' );
+		$_POST['mbgs_image_map_replacement'] = array( '20' );
+
+		$image_map_builder = Mockery::mock( ImageMapBuilder::class );
+		$image_map_builder->shouldReceive( 'persist' )->once()->with( 77, array() );
+
+		$this->make_post_type( image_map_builder: $image_map_builder )->save( 77 );
 	}
 }

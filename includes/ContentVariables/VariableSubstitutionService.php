@@ -15,9 +15,10 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandRepository;
  * Class VariableSubstitutionService
  *
  * Replaces %%brand.*%% tokens in the final rendered HTML with the resolved
- * Brand's variable values. Runs as a whole-page output buffer so it covers
- * post content, template parts, patterns, widgets, and menus in one pass,
- * rather than hooking a dozen individual WP content filters.
+ * Brand's variable values. Runs as a transformer inside Rendering\PageBuffer's
+ * whole-page output buffer, so it covers post content, template parts,
+ * patterns, widgets, and menus in one pass, rather than hooking a dozen
+ * individual WP content filters.
  */
 class VariableSubstitutionService {
 
@@ -44,19 +45,6 @@ class VariableSubstitutionService {
 	public function __construct( BrandResolver $brand_resolver, BrandRepository $brand_repository ) {
 		$this->brand_resolver   = $brand_resolver;
 		$this->brand_repository = $brand_repository;
-	}
-
-	/**
-	 * Start the output buffer on frontend HTML requests. Hooked to `template_redirect`.
-	 *
-	 * @return void
-	 */
-	public function start_buffer(): void {
-		if ( is_admin() || wp_doing_ajax() || is_feed() || ( defined( 'REST_REQUEST' ) && REST_REQUEST ) ) {
-			return;
-		}
-
-		ob_start( array( $this, 'replace' ) );
 	}
 
 	/**

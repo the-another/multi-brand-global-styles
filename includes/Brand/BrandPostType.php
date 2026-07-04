@@ -10,6 +10,7 @@ namespace TheAnother\Plugin\MultiBrandGlobalStyles\Brand;
 
 use TheAnother\Plugin\MultiBrandGlobalStyles\GlobalStyles\GlobalStylesPostService;
 use TheAnother\Plugin\MultiBrandGlobalStyles\ContentVariables\VariableParser;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Media\ImageMapBuilder;
 use WP_Post;
 
 /**
@@ -50,20 +51,30 @@ class BrandPostType {
 	private GlobalStylesPostService $global_styles_post_service;
 
 	/**
+	 * Image map builder.
+	 *
+	 * @var ImageMapBuilder
+	 */
+	private ImageMapBuilder $image_map_builder;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param UrlRuleRegistry         $url_rule_registry             URL rule registry service.
 	 * @param VariableParser          $variable_parser             Variable parser service.
 	 * @param GlobalStylesPostService $global_styles_post_service  Global styles post service.
+	 * @param ImageMapBuilder         $image_map_builder           Image map builder service.
 	 */
 	public function __construct(
 		UrlRuleRegistry $url_rule_registry,
 		VariableParser $variable_parser,
-		GlobalStylesPostService $global_styles_post_service
+		GlobalStylesPostService $global_styles_post_service,
+		ImageMapBuilder $image_map_builder
 	) {
 		$this->url_rule_registry          = $url_rule_registry;
 		$this->variable_parser            = $variable_parser;
 		$this->global_styles_post_service = $global_styles_post_service;
+		$this->image_map_builder          = $image_map_builder;
 	}
 
 	/**
@@ -111,6 +122,8 @@ class BrandPostType {
 		add_meta_box( 'mbgs_variables', __( 'Content Variables', 'the-another-multi-brand-global-styles' ), array( $this, 'render_variables_meta_box' ), self::POST_TYPE, 'normal', 'default' );
 		add_meta_box( 'mbgs_default', __( 'Default Brand', 'the-another-multi-brand-global-styles' ), array( $this, 'render_default_meta_box' ), self::POST_TYPE, 'side', 'default' );
 		add_meta_box( 'mbgs_styles', __( 'Global Styles (raw JSON)', 'the-another-multi-brand-global-styles' ), array( $this, 'render_styles_meta_box' ), self::POST_TYPE, 'normal', 'default' );
+		add_meta_box( 'mbgs_identity', __( 'Brand Identity', 'the-another-multi-brand-global-styles' ), array( $this, 'render_identity_meta_box' ), self::POST_TYPE, 'side', 'default' );
+		add_meta_box( 'mbgs_image_map', __( 'Image Replacements', 'the-another-multi-brand-global-styles' ), array( $this, 'render_image_map_meta_box' ), self::POST_TYPE, 'normal', 'default' );
 	}
 
 	/**
@@ -182,6 +195,107 @@ class BrandPostType {
 	}
 
 	/**
+	 * Render the Brand Identity meta box (logo, site icon, title, tagline).
+	 *
+	 * @param WP_Post $post Current post.
+	 * @return void
+	 */
+	public function render_identity_meta_box( WP_Post $post ): void {
+		$identity = get_post_meta( $post->ID, '_mbgs_identity', true );
+		$identity = is_array( $identity ) ? $identity : array();
+		?>
+		<p><?php esc_html_e( 'Each field is optional; empty fields fall back to the site default.', 'the-another-multi-brand-global-styles' ); ?></p>
+		<?php
+		$this->render_media_picker( 'mbgs_logo_id', __( 'Logo', 'the-another-multi-brand-global-styles' ), (int) ( $identity['logo_id'] ?? 0 ) );
+		$this->render_media_picker( 'mbgs_icon_id', __( 'Site icon (favicon)', 'the-another-multi-brand-global-styles' ), (int) ( $identity['icon_id'] ?? 0 ) );
+		?>
+		<p>
+			<label for="mbgs_title"><strong><?php esc_html_e( 'Site title', 'the-another-multi-brand-global-styles' ); ?></strong></label>
+			<input type="text" id="mbgs_title" name="mbgs_title" style="width:100%;" value="<?php echo esc_attr( (string) ( $identity['title'] ?? '' ) ); ?>" />
+		</p>
+		<p>
+			<label for="mbgs_tagline"><strong><?php esc_html_e( 'Tagline', 'the-another-multi-brand-global-styles' ); ?></strong></label>
+			<input type="text" id="mbgs_tagline" name="mbgs_tagline" style="width:100%;" value="<?php echo esc_attr( (string) ( $identity['tagline'] ?? '' ) ); ?>" />
+		</p>
+		<?php
+	}
+
+	/**
+	 * Render one hidden-input + preview + select/remove media picker.
+	 *
+	 * @param string $field_name    Hidden input name.
+	 * @param string $label         Field label.
+	 * @param int    $attachment_id Currently selected attachment, 0 for none.
+	 * @return void
+	 */
+	private function render_media_picker( string $field_name, string $label, int $attachment_id ): void {
+		$thumb_url = $attachment_id ? wp_get_attachment_image_url( $attachment_id, 'thumbnail' ) : '';
+		?>
+		<div class="mbgs-media-picker" style="margin-bottom:12px;">
+			<strong><?php echo esc_html( $label ); ?></strong><br />
+			<input type="hidden" name="<?php echo esc_attr( $field_name ); ?>" value="<?php echo esc_attr( (string) $attachment_id ); ?>" />
+			<img src="<?php echo esc_url( (string) $thumb_url ); ?>" alt="" style="max-width:100%;height:auto;<?php echo $thumb_url ? '' : 'display:none;'; ?>" />
+			<button type="button" class="button mbgs-media-select"><?php esc_html_e( 'Select image', 'the-another-multi-brand-global-styles' ); ?></button>
+			<button type="button" class="button mbgs-media-remove" <?php echo $attachment_id ? '' : 'style="display:none;"'; ?>><?php esc_html_e( 'Remove', 'the-another-multi-brand-global-styles' ); ?></button>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render the Image Replacements meta box.
+	 *
+	 * @param WP_Post $post Current post.
+	 * @return void
+	 */
+	public function render_image_map_meta_box( WP_Post $post ): void {
+		$pairs = get_post_meta( $post->ID, '_mbgs_image_map', true );
+		$pairs = is_array( $pairs ) ? $pairs : array();
+		?>
+		<p><?php esc_html_e( 'Wherever this Brand matches, each original image is replaced by its counterpart on the frontend. Same-aspect-ratio replacements are recommended. Replacements can also be set in the block editor, on any selected Image block.', 'the-another-multi-brand-global-styles' ); ?></p>
+		<div class="mbgs-image-map-rows">
+			<?php
+			foreach ( $pairs as $original_id => $replacement_id ) {
+				$this->render_image_map_row( (int) $original_id, (int) $replacement_id );
+			}
+			?>
+		</div>
+		<template class="mbgs-image-map-template">
+			<?php $this->render_image_map_row( 0, 0 ); ?>
+		</template>
+		<button type="button" class="button mbgs-image-map-add"><?php esc_html_e( 'Add replacement', 'the-another-multi-brand-global-styles' ); ?></button>
+		<?php
+	}
+
+	/**
+	 * Render one original -> replacement picker row.
+	 *
+	 * @param int $original_id    Original attachment ID.
+	 * @param int $replacement_id Replacement attachment ID.
+	 * @return void
+	 */
+	private function render_image_map_row( int $original_id, int $replacement_id ): void {
+		$original_thumb    = $original_id ? wp_get_attachment_image_url( $original_id, 'thumbnail' ) : '';
+		$replacement_thumb = $replacement_id ? wp_get_attachment_image_url( $replacement_id, 'thumbnail' ) : '';
+		?>
+		<div class="mbgs-image-map-row" style="display:flex;gap:16px;align-items:flex-start;margin-bottom:12px;">
+			<div class="mbgs-media-picker">
+				<strong><?php esc_html_e( 'Original', 'the-another-multi-brand-global-styles' ); ?></strong><br />
+				<input type="hidden" name="mbgs_image_map_original[]" value="<?php echo esc_attr( (string) $original_id ); ?>" />
+				<img src="<?php echo esc_url( (string) $original_thumb ); ?>" alt="" style="max-width:100px;height:auto;<?php echo $original_thumb ? '' : 'display:none;'; ?>" />
+				<button type="button" class="button mbgs-media-select"><?php esc_html_e( 'Select image', 'the-another-multi-brand-global-styles' ); ?></button>
+			</div>
+			<div class="mbgs-media-picker">
+				<strong><?php esc_html_e( 'Replacement', 'the-another-multi-brand-global-styles' ); ?></strong><br />
+				<input type="hidden" name="mbgs_image_map_replacement[]" value="<?php echo esc_attr( (string) $replacement_id ); ?>" />
+				<img src="<?php echo esc_url( (string) $replacement_thumb ); ?>" alt="" style="max-width:100px;height:auto;<?php echo $replacement_thumb ? '' : 'display:none;'; ?>" />
+				<button type="button" class="button mbgs-media-select"><?php esc_html_e( 'Select image', 'the-another-multi-brand-global-styles' ); ?></button>
+			</div>
+			<button type="button" class="button mbgs-image-map-remove"><?php esc_html_e( 'Remove', 'the-another-multi-brand-global-styles' ); ?></button>
+		</div>
+		<?php
+	}
+
+	/**
 	 * Save handler. Hooked to `save_post_mbgs_brand`.
 	 *
 	 * @param int $post_id Post ID being saved.
@@ -204,6 +318,8 @@ class BrandPostType {
 		$this->save_variables( $post_id );
 		$this->save_default_flag( $post_id );
 		$this->save_styles( $post_id );
+		$this->save_identity( $post_id );
+		$this->save_image_map( $post_id );
 
 		$this->url_rule_registry->invalidate_cache();
 		$this->global_styles_post_service->ensure_global_styles_post( $post_id );
@@ -311,6 +427,97 @@ class BrandPostType {
 					),
 				)
 			)
+		);
+	}
+
+	/**
+	 * Parse, validate, and persist the identity fields.
+	 *
+	 * @param int $post_id Post ID.
+	 * @return void
+	 */
+	private function save_identity( int $post_id ): void {
+		$identity = array();
+
+		foreach ( array(
+			'logo_id' => 'mbgs_logo_id',
+			'icon_id' => 'mbgs_icon_id',
+		) as $key => $field ) {
+			$attachment_id = isset( $_POST[ $field ] ) ? absint( wp_unslash( $_POST[ $field ] ) ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in save() before delegation.
+			if ( $attachment_id && wp_attachment_is_image( $attachment_id ) ) {
+				$identity[ $key ] = $attachment_id;
+			}
+		}
+
+		foreach ( array(
+			'title'   => 'mbgs_title',
+			'tagline' => 'mbgs_tagline',
+		) as $key => $field ) {
+			$value = isset( $_POST[ $field ] ) ? sanitize_text_field( wp_unslash( $_POST[ $field ] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in save() before delegation.
+			if ( '' !== $value ) {
+				$identity[ $key ] = $value;
+			}
+		}
+
+		update_post_meta( $post_id, '_mbgs_identity', $identity );
+	}
+
+	/**
+	 * Parse, validate, and persist the image replacement pairs.
+	 *
+	 * @param int $post_id Post ID.
+	 * @return void
+	 */
+	private function save_image_map( int $post_id ): void {
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in save() before delegation.
+		$originals = isset( $_POST['mbgs_image_map_original'] ) ? array_map( 'absint', (array) wp_unslash( $_POST['mbgs_image_map_original'] ) ) : array();
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in save() before delegation.
+		$replacements = isset( $_POST['mbgs_image_map_replacement'] ) ? array_map( 'absint', (array) wp_unslash( $_POST['mbgs_image_map_replacement'] ) ) : array();
+
+		$pairs = array();
+
+		foreach ( array_values( $originals ) as $index => $original_id ) {
+			$replacement_id = array_values( $replacements )[ $index ] ?? 0;
+
+			if ( ! $original_id || ! $replacement_id ) {
+				continue;
+			}
+
+			if ( ! wp_attachment_is_image( $original_id ) || ! wp_attachment_is_image( $replacement_id ) ) {
+				continue;
+			}
+
+			$pairs[ $original_id ] = $replacement_id;
+		}
+
+		$this->image_map_builder->persist( $post_id, $pairs );
+	}
+
+	/**
+	 * Enqueue the media-picker script on the Brand edit screen only.
+	 * Hooked to `admin_enqueue_scripts`.
+	 *
+	 * @param string $hook_suffix Current admin page hook suffix.
+	 * @return void
+	 */
+	public function enqueue_admin_assets( string $hook_suffix ): void {
+		if ( 'post.php' !== $hook_suffix && 'post-new.php' !== $hook_suffix ) {
+			return;
+		}
+
+		$screen = get_current_screen();
+
+		if ( ! $screen || self::POST_TYPE !== $screen->post_type ) {
+			return;
+		}
+
+		wp_enqueue_media();
+		wp_enqueue_script(
+			'mbgs-brand-media',
+			THE_ANOTHER_MULTI_BRAND_GLOBAL_STYLES_PLUGIN_URL . 'assets/admin/brand-media.js',
+			array( 'media-editor' ),
+			THE_ANOTHER_MULTI_BRAND_GLOBAL_STYLES_VERSION,
+			true
 		);
 	}
 }

@@ -13,6 +13,7 @@ use PHPUnit\Framework\TestCase;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandRepository;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandResolver;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\UrlRuleRegistry;
+use WP_Post;
 
 // The registry mock below is a partial mock: only get_rule_map() is stubbed,
 // normalize_host()/normalize_path() fall through to the real UrlRuleRegistry
@@ -33,7 +34,7 @@ class BrandResolverTest extends TestCase {
 
 	protected function tearDown(): void {
 		Monkey\tearDown();
-		unset( $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
+		unset( $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'], $_GET['mbgs_preview_brand'] );
 		parent::tearDown();
 	}
 
@@ -148,5 +149,81 @@ class BrandResolverTest extends TestCase {
 		$resolver = $this->make_resolver( self::MAP );
 
 		$this->assertSame( 9, $resolver->resolve_current_request() );
+	}
+
+	public function test_preview_override_wins_for_privileged_user(): void {
+		$_GET['mbgs_preview_brand'] = '42';
+		Functions\when( 'wp_unslash' )->returnArg();
+		Functions\when( 'absint' )->alias( static fn( $v ) => abs( (int) $v ) );
+		Functions\when( 'did_action' )->justReturn( 1 );
+		Functions\when( 'current_user_can' )->justReturn( true );
+		Functions\when( 'get_post' )->justReturn( new WP_Post( 42, 'mbgs_brand' ) );
+
+		$registry   = Mockery::mock( UrlRuleRegistry::class );
+		$repository = Mockery::mock( BrandRepository::class );
+		$resolver   = new BrandResolver( $registry, $repository );
+
+		$this->assertSame( 42, $resolver->resolve_current_request() );
+	}
+
+	public function test_preview_override_ignored_without_capability(): void {
+		$_GET['mbgs_preview_brand']  = '42';
+		$_SERVER['HTTP_HOST']        = 'ex.com';
+		$_SERVER['REQUEST_URI']      = '/';
+		Functions\when( 'wp_unslash' )->returnArg();
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'absint' )->alias( static fn( $v ) => abs( (int) $v ) );
+		Functions\when( 'did_action' )->justReturn( 1 );
+		Functions\when( 'current_user_can' )->justReturn( false );
+
+		$registry = Mockery::mock( UrlRuleRegistry::class );
+		$registry->shouldReceive( 'normalize_host' )->andReturn( 'ex.com' );
+		$registry->shouldReceive( 'get_rule_map' )->andReturn( array() );
+
+		$repository = Mockery::mock( BrandRepository::class );
+		$repository->shouldReceive( 'get_default_brand_id' )->andReturn( 7 );
+
+		$this->assertSame( 7, ( new BrandResolver( $registry, $repository ) )->resolve_current_request() );
+	}
+
+	public function test_preview_override_ignored_for_unpublished_or_wrong_type(): void {
+		$_GET['mbgs_preview_brand'] = '42';
+		$_SERVER['HTTP_HOST']       = 'ex.com';
+		$_SERVER['REQUEST_URI']     = '/';
+		Functions\when( 'wp_unslash' )->returnArg();
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'absint' )->alias( static fn( $v ) => abs( (int) $v ) );
+		Functions\when( 'did_action' )->justReturn( 1 );
+		Functions\when( 'current_user_can' )->justReturn( true );
+
+		$post              = new WP_Post( 42, 'mbgs_brand' );
+		$post->post_status = 'draft';
+		Functions\when( 'get_post' )->justReturn( $post );
+
+		$registry = Mockery::mock( UrlRuleRegistry::class );
+		$registry->shouldReceive( 'normalize_host' )->andReturn( 'ex.com' );
+		$registry->shouldReceive( 'get_rule_map' )->andReturn( array() );
+
+		$repository = Mockery::mock( BrandRepository::class );
+		$repository->shouldReceive( 'get_default_brand_id' )->andReturn( null );
+
+		$this->assertNull( ( new BrandResolver( $registry, $repository ) )->resolve_current_request() );
+	}
+
+	public function test_resolve_current_request_is_memoized(): void {
+		$_SERVER['HTTP_HOST']   = 'ex.com';
+		$_SERVER['REQUEST_URI'] = '/';
+		Functions\when( 'wp_unslash' )->returnArg();
+		Functions\when( 'sanitize_text_field' )->returnArg();
+
+		$registry = Mockery::mock( UrlRuleRegistry::class );
+		$registry->shouldReceive( 'normalize_host' )->once()->andReturn( 'ex.com' );
+		$registry->shouldReceive( 'get_rule_map' )->once()->andReturn( array( 'ex.com' => array( '' => 9 ) ) );
+		$registry->shouldReceive( 'normalize_path' )->once()->andReturn( '' );
+
+		$resolver = new BrandResolver( $registry, Mockery::mock( BrandRepository::class ) );
+
+		$this->assertSame( 9, $resolver->resolve_current_request() );
+		$this->assertSame( 9, $resolver->resolve_current_request() ); // ->once() above fails if not memoized.
 	}
 }

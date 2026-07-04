@@ -14,6 +14,12 @@ namespace TheAnother\Plugin\MultiBrandGlobalStyles\Brand;
  * Resolves the current request's host + path to a Brand ID using the rule
  * map. Most specific rule wins: host+path beats host-wide, longer path
  * prefix beats shorter, prefixes match on path segment boundaries.
+ *
+ * `resolve_current_request()` also honors an admin-only
+ * `?mbgs_preview_brand=<id>` override (checked fresh on every call, never
+ * memoized) and memoizes its own rule-map resolution per instance, since
+ * this service is a container singleton and later option filters call it
+ * many times per request.
  */
 class BrandResolver {
 
@@ -32,6 +38,20 @@ class BrandResolver {
 	private BrandRepository $brand_repository;
 
 	/**
+	 * Whether the current request's rule-map resolution has been computed.
+	 *
+	 * @var bool
+	 */
+	private bool $request_resolved = false;
+
+	/**
+	 * Memoized rule-map resolution for the current request.
+	 *
+	 * @var int|null
+	 */
+	private ?int $request_brand_id = null;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param UrlRuleRegistry $url_rule_registry URL rule registry service.
@@ -48,10 +68,21 @@ class BrandResolver {
 	 * @return int|null Brand post ID, or null if unmatched with no default.
 	 */
 	public function resolve_current_request(): ?int {
-		$host = isset( $_SERVER['HTTP_HOST'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_HOST'] ) ) : '';
-		$path = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
+		$preview_brand_id = $this->resolve_preview_override();
+		if ( null !== $preview_brand_id ) {
+			return $preview_brand_id;
+		}
 
-		return $this->resolve( $host, $path );
+		if ( ! $this->request_resolved ) {
+			$this->request_resolved = true;
+
+			$host = isset( $_SERVER['HTTP_HOST'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_HOST'] ) ) : '';
+			$path = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
+
+			$this->request_brand_id = $this->resolve( $host, $path );
+		}
+
+		return $this->request_brand_id;
 	}
 
 	/**
@@ -96,5 +127,38 @@ class BrandResolver {
 		}
 
 		return $map[ $normalized_host ][ $best_prefix ];
+	}
+
+	/**
+	 * Resolve the admin-only `?mbgs_preview_brand=<id>` override.
+	 *
+	 * Checked lazily on every call (not memoized): the `did_action( 'init' )`
+	 * guard keeps current_user_can() from forcing early user determination,
+	 * and pre-init reads simply fall back to normal rule resolution.
+	 *
+	 * @return int|null Previewed Brand ID, or null when the override does not apply.
+	 */
+	private function resolve_preview_override(): ?int {
+		if ( ! isset( $_GET['mbgs_preview_brand'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only preview switch, capability-gated below; changes nothing for unprivileged visitors.
+			return null;
+		}
+
+		if ( ! did_action( 'init' ) ) {
+			return null;
+		}
+
+		$preview_brand_id = absint( wp_unslash( $_GET['mbgs_preview_brand'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- See above.
+
+		if ( ! $preview_brand_id || ! current_user_can( 'edit_theme_options' ) ) {
+			return null;
+		}
+
+		$post = get_post( $preview_brand_id );
+
+		if ( ! $post || BrandPostType::POST_TYPE !== $post->post_type || 'publish' !== $post->post_status ) {
+			return null;
+		}
+
+		return $preview_brand_id;
 	}
 }

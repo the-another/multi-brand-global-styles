@@ -8,12 +8,13 @@
 # dist-archive-command v3.2.x requires wp-cli ^2.13, and the latest
 # released wp-cli is 2.12 — see tests/Unit/Dockerfile.) .distignore is part of
 # the staged tree, so all other exclusions still come from it.
+# Excludes are anchored (./build) so assets/build — the shipped editor bundle — survives staging.
 set -e
 
 STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT
 
-tar cf - --exclude='.git' --exclude='node_modules' --exclude='build' . | tar xf - -C "$STAGE"
+tar cf - --exclude='./.git' --exclude='./node_modules' --exclude='./build' . | tar xf - -C "$STAGE"
 
 wp dist-archive "$STAGE" "$(pwd)/the-another-multi-brand-global-styles.zip" \
 	--plugin-dirname=the-another-multi-brand-global-styles --force --allow-root > /dev/null

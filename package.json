@@ -6,8 +6,10 @@
 	"license": "GPL-2.0-or-later",
 	"homepage": "https://theanother.org/plugin/multi-brand-global-styles/",
 	"scripts": {
-		"plugin-zip": "composer build && sh scripts/dist-archive.sh && node scripts/version-zip.js",
-		"plugin-zip:check": "composer build && sh scripts/dist-archive.sh && node scripts/version-zip.js --label=test",
+		"build:editor": "wp-scripts build --webpack-src-dir=src --output-path=assets/build",
+		"start:editor": "wp-scripts start --webpack-src-dir=src --output-path=assets/build",
+		"plugin-zip": "npm run build:editor && composer build && sh scripts/dist-archive.sh && node scripts/version-zip.js",
+		"plugin-zip:check": "npm run build:editor && composer build && sh scripts/dist-archive.sh && node scripts/version-zip.js --label=test",
 		"version": "node scripts/version-bump.js",
 		"version:patch": "node scripts/version-bump.js patch",
 		"version:minor": "node scripts/version-bump.js minor",
@@ -18,6 +20,7 @@
 	},
 	"devDependencies": {
 		"@playwright/test": "^1.59.1",
-		"@wordpress/e2e-test-utils-playwright": "^1.43.0"
+		"@wordpress/e2e-test-utils-playwright": "^1.43.0",
+		"@wordpress/scripts": "^30.0.0"
 	}
 }
