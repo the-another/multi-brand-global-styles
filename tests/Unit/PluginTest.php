@@ -18,6 +18,7 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\ContentVariables\VariableSubstituti
 use TheAnother\Plugin\MultiBrandGlobalStyles\GlobalStyles\GlobalStylesOverride;
 use TheAnother\Plugin\MultiBrandGlobalStyles\HookManager;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Identity\SiteIdentityOverride;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Media\AttachmentLifecycle;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Media\ImageMapBuilder;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Media\ImageUrlReplacer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Plugin;
@@ -40,6 +41,7 @@ use WP_Post;
 #[UsesClass( VariableSubstitutionService::class )]
 #[UsesClass( ImageUrlReplacer::class )]
 #[UsesClass( ImageMapBuilder::class )]
+#[UsesClass( AttachmentLifecycle::class )]
 #[UsesClass( PageBuffer::class )]
 class PluginTest extends TestCase {
 	use MockeryPHPUnitIntegration;
@@ -82,13 +84,13 @@ class PluginTest extends TestCase {
 
 		$hooks = Container::get_instance()->get_hook_manager()->get_registered_hooks();
 
-		$this->assertCount( 14, $hooks );
+		$this->assertCount( 17, $hooks );
 
 		$actions = array_column( array_filter( $hooks, fn( $h ) => 'action' === $h['type'] ), 'hook' );
 		$filters = array_column( array_filter( $hooks, fn( $h ) => 'filter' === $h['type'] ), 'hook' );
 
 		$this->assertSame(
-			array( 'init', 'add_meta_boxes', 'save_post_mbgs_brand', 'admin_enqueue_scripts', 'save_post_mbgs_brand', 'deleted_post', 'template_redirect', 'admin_notices' ),
+			array( 'init', 'add_meta_boxes', 'save_post_mbgs_brand', 'admin_enqueue_scripts', 'save_post_mbgs_brand', 'deleted_post', 'template_redirect', 'admin_notices', 'added_post_meta', 'updated_post_meta', 'delete_attachment' ),
 			$actions
 		);
 		$this->assertSame(
@@ -120,6 +122,7 @@ class PluginTest extends TestCase {
 			'variable_substitution_service',
 			'image_url_replacer',
 			'image_map_builder',
+			'attachment_lifecycle',
 			'page_buffer',
 			'brand_post_type',
 			'admin_notices',

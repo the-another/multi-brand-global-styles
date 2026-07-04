@@ -18,6 +18,7 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\Identity\SiteIdentityOverride;
 use TheAnother\Plugin\MultiBrandGlobalStyles\ContentVariables\VariableParser;
 use TheAnother\Plugin\MultiBrandGlobalStyles\ContentVariables\VariableSubstitutionService;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandRepository;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Media\AttachmentLifecycle;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Media\ImageUrlReplacer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Media\ImageMapBuilder;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Rendering\PageBuffer;
@@ -110,6 +111,11 @@ class Plugin {
 
 		$admin_notices = $this->container->get( 'admin_notices' );
 		$hooks->register_action( 'admin_notices', array( $admin_notices, 'render' ) );
+
+		$attachment_lifecycle = $this->container->get( 'attachment_lifecycle' );
+		$hooks->register_action( 'added_post_meta', array( $attachment_lifecycle, 'on_attachment_meta_saved' ), 10, 3 );
+		$hooks->register_action( 'updated_post_meta', array( $attachment_lifecycle, 'on_attachment_meta_saved' ), 10, 3 );
+		$hooks->register_action( 'delete_attachment', array( $attachment_lifecycle, 'on_delete_attachment' ) );
 	}
 
 	/**
@@ -153,6 +159,11 @@ class Plugin {
 		);
 
 		$this->container->register( 'image_map_builder', fn() => new ImageMapBuilder() );
+
+		$this->container->register(
+			'attachment_lifecycle',
+			fn( Container $c ) => new AttachmentLifecycle( $c->get( 'brand_repository' ), $c->get( 'image_map_builder' ) )
+		);
 
 		$this->container->register(
 			'page_buffer',
