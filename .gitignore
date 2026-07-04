@@ -3,6 +3,7 @@
 /.phpunit.cache/
 /.superpowers/
 /build/
+/assets/build/
 /dist/
 .DS_Store
 .idea/

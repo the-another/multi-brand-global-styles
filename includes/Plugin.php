@@ -18,6 +18,7 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\Identity\SiteIdentityOverride;
 use TheAnother\Plugin\MultiBrandGlobalStyles\ContentVariables\VariableParser;
 use TheAnother\Plugin\MultiBrandGlobalStyles\ContentVariables\VariableSubstitutionService;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandRepository;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Editor\EditorAssets;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Media\AttachmentLifecycle;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Media\ImageUrlReplacer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Media\ImageMapBuilder;
@@ -120,6 +121,9 @@ class Plugin {
 
 		$replacements_controller = $this->container->get( 'replacements_controller' );
 		$hooks->register_action( 'rest_api_init', array( $replacements_controller, 'register_routes' ) );
+
+		$editor_assets = $this->container->get( 'editor_assets' );
+		$hooks->register_action( 'enqueue_block_editor_assets', array( $editor_assets, 'enqueue' ) );
 	}
 
 	/**
@@ -194,6 +198,14 @@ class Plugin {
 		$this->container->register(
 			'replacements_controller',
 			fn( Container $c ) => new ReplacementsController( $c->get( 'brand_repository' ), $c->get( 'image_map_builder' ) )
+		);
+
+		$this->container->register(
+			'editor_assets',
+			fn() => new EditorAssets(
+				THE_ANOTHER_MULTI_BRAND_GLOBAL_STYLES_PLUGIN_DIR,
+				THE_ANOTHER_MULTI_BRAND_GLOBAL_STYLES_PLUGIN_URL
+			)
 		);
 	}
 }

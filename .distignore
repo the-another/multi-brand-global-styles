@@ -39,6 +39,7 @@
 /.phpcs.xml.dist
 /.gitignore
 /.distignore
+/src/
 
 # Composer creates vendor/bin even when no dev binaries are installed
 /vendor/bin/

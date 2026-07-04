@@ -15,6 +15,7 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandResolver;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\UrlRuleRegistry;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Container;
 use TheAnother\Plugin\MultiBrandGlobalStyles\ContentVariables\VariableSubstitutionService;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Editor\EditorAssets;
 use TheAnother\Plugin\MultiBrandGlobalStyles\GlobalStyles\GlobalStylesOverride;
 use TheAnother\Plugin\MultiBrandGlobalStyles\HookManager;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Identity\SiteIdentityOverride;
@@ -45,12 +46,20 @@ use WP_Post;
 #[UsesClass( AttachmentLifecycle::class )]
 #[UsesClass( PageBuffer::class )]
 #[UsesClass( ReplacementsController::class )]
+#[UsesClass( EditorAssets::class )]
 class PluginTest extends TestCase {
 	use MockeryPHPUnitIntegration;
 
 	protected function setUp(): void {
 		parent::setUp();
 		Monkey\setUp();
+
+		if ( ! defined( 'THE_ANOTHER_MULTI_BRAND_GLOBAL_STYLES_PLUGIN_DIR' ) ) {
+			define( 'THE_ANOTHER_MULTI_BRAND_GLOBAL_STYLES_PLUGIN_DIR', '/tmp/' );
+		}
+		if ( ! defined( 'THE_ANOTHER_MULTI_BRAND_GLOBAL_STYLES_PLUGIN_URL' ) ) {
+			define( 'THE_ANOTHER_MULTI_BRAND_GLOBAL_STYLES_PLUGIN_URL', 'https://example.com/wp-content/plugins/x/' );
+		}
 
 		Functions\when( 'esc_html' )->returnArg();
 		Functions\when( 'has_action' )->justReturn( false );
@@ -86,13 +95,13 @@ class PluginTest extends TestCase {
 
 		$hooks = Container::get_instance()->get_hook_manager()->get_registered_hooks();
 
-		$this->assertCount( 18, $hooks );
+		$this->assertCount( 19, $hooks );
 
 		$actions = array_column( array_filter( $hooks, fn( $h ) => 'action' === $h['type'] ), 'hook' );
 		$filters = array_column( array_filter( $hooks, fn( $h ) => 'filter' === $h['type'] ), 'hook' );
 
 		$this->assertSame(
-			array( 'init', 'add_meta_boxes', 'save_post_mbgs_brand', 'admin_enqueue_scripts', 'save_post_mbgs_brand', 'deleted_post', 'template_redirect', 'admin_notices', 'added_post_meta', 'updated_post_meta', 'delete_attachment', 'rest_api_init' ),
+			array( 'init', 'add_meta_boxes', 'save_post_mbgs_brand', 'admin_enqueue_scripts', 'save_post_mbgs_brand', 'deleted_post', 'template_redirect', 'admin_notices', 'added_post_meta', 'updated_post_meta', 'delete_attachment', 'rest_api_init', 'enqueue_block_editor_assets' ),
 			$actions
 		);
 		$this->assertSame(
@@ -129,6 +138,7 @@ class PluginTest extends TestCase {
 			'brand_post_type',
 			'admin_notices',
 			'replacements_controller',
+			'editor_assets',
 		) as $service ) {
 			$this->assertTrue( $container->has( $service ), "Expected service '{$service}' to be registered" );
 		}
