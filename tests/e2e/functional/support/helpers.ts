@@ -84,7 +84,16 @@ export async function createBrand(
 	// layout never settles enough to pass Playwright's "stable"
 	// actionability check, so the click hangs until the test's own timeout
 	// closes the page. The postbox instability was never wasm-specific.
-	await page.locator( '#publish' ).click( { force: true } );
+	//
+	// :not(.disabled): core's post.js adds .disabled to every submit button
+	// while a heartbeat autosave is in flight and preventDefaults clicks for
+	// that window — a forced click there is silently swallowed (no POST to
+	// post.php at all; hit on CI where the first autosave races this click).
+	// force:true skips Playwright's actionability checks, not the page's own
+	// guard, so the locator must wait out the autosave window itself. After
+	// that first autosave the window can't reopen: nothing on the form
+	// changes again, so later heartbeats have nothing to save.
+	await page.locator( '#publish:not(.disabled)' ).click( { force: true } );
 
 	// Classic editor redirects back to post.php with a success notice.
 	await expect(
