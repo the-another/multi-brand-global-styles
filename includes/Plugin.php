@@ -22,6 +22,7 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\Media\AttachmentLifecycle;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Media\ImageUrlReplacer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Media\ImageMapBuilder;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Rendering\PageBuffer;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Rest\ReplacementsController;
 
 /**
  * Class Plugin
@@ -116,6 +117,9 @@ class Plugin {
 		$hooks->register_action( 'added_post_meta', array( $attachment_lifecycle, 'on_attachment_meta_saved' ), 10, 3 );
 		$hooks->register_action( 'updated_post_meta', array( $attachment_lifecycle, 'on_attachment_meta_saved' ), 10, 3 );
 		$hooks->register_action( 'delete_attachment', array( $attachment_lifecycle, 'on_delete_attachment' ) );
+
+		$replacements_controller = $this->container->get( 'replacements_controller' );
+		$hooks->register_action( 'rest_api_init', array( $replacements_controller, 'register_routes' ) );
 	}
 
 	/**
@@ -186,5 +190,10 @@ class Plugin {
 		);
 
 		$this->container->register( 'admin_notices', fn() => new AdminNotices() );
+
+		$this->container->register(
+			'replacements_controller',
+			fn( Container $c ) => new ReplacementsController( $c->get( 'brand_repository' ), $c->get( 'image_map_builder' ) )
+		);
 	}
 }

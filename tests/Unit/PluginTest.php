@@ -23,6 +23,7 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\Media\ImageMapBuilder;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Media\ImageUrlReplacer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Plugin;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Rendering\PageBuffer;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Rest\ReplacementsController;
 use WP_Post;
 
 // Plugin::start() wires and constructs every real service in the container
@@ -43,6 +44,7 @@ use WP_Post;
 #[UsesClass( ImageMapBuilder::class )]
 #[UsesClass( AttachmentLifecycle::class )]
 #[UsesClass( PageBuffer::class )]
+#[UsesClass( ReplacementsController::class )]
 class PluginTest extends TestCase {
 	use MockeryPHPUnitIntegration;
 
@@ -84,13 +86,13 @@ class PluginTest extends TestCase {
 
 		$hooks = Container::get_instance()->get_hook_manager()->get_registered_hooks();
 
-		$this->assertCount( 17, $hooks );
+		$this->assertCount( 18, $hooks );
 
 		$actions = array_column( array_filter( $hooks, fn( $h ) => 'action' === $h['type'] ), 'hook' );
 		$filters = array_column( array_filter( $hooks, fn( $h ) => 'filter' === $h['type'] ), 'hook' );
 
 		$this->assertSame(
-			array( 'init', 'add_meta_boxes', 'save_post_mbgs_brand', 'admin_enqueue_scripts', 'save_post_mbgs_brand', 'deleted_post', 'template_redirect', 'admin_notices', 'added_post_meta', 'updated_post_meta', 'delete_attachment' ),
+			array( 'init', 'add_meta_boxes', 'save_post_mbgs_brand', 'admin_enqueue_scripts', 'save_post_mbgs_brand', 'deleted_post', 'template_redirect', 'admin_notices', 'added_post_meta', 'updated_post_meta', 'delete_attachment', 'rest_api_init' ),
 			$actions
 		);
 		$this->assertSame(
@@ -126,6 +128,7 @@ class PluginTest extends TestCase {
 			'page_buffer',
 			'brand_post_type',
 			'admin_notices',
+			'replacements_controller',
 		) as $service ) {
 			$this->assertTrue( $container->has( $service ), "Expected service '{$service}' to be registered" );
 		}

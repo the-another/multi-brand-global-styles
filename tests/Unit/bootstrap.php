@@ -52,6 +52,24 @@ if ( ! class_exists( 'WP_Post' ) ) {
 	}
 }
 
+if ( ! class_exists( 'WP_REST_Request' ) ) {
+	class WP_REST_Request {
+		private array $params;
+
+		public function __construct( array $params = array() ) {
+			$this->params = $params;
+		}
+
+		public function get_param( string $key ) {
+			return $this->params[ $key ] ?? null;
+		}
+
+		public function has_param( string $key ): bool {
+			return array_key_exists( $key, $this->params );
+		}
+	}
+}
+
 // Do NOT define esc_html() (or other Brain Monkey-stubable WP functions) here:
 // a real definition blocks Brain Monkey/Patchwork from redefining them per-test.
 // Tests that need them stub via Functions\when() in their own setUp().
