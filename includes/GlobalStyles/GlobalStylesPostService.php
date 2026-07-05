@@ -9,6 +9,7 @@
 namespace TheAnother\Plugin\MultiBrandGlobalStyles\GlobalStyles;
 
 use RuntimeException;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandRepository;
 
 /**
  * Class GlobalStylesPostService
@@ -23,11 +24,20 @@ use RuntimeException;
 class GlobalStylesPostService {
 
 	/**
-	 * Postmeta key storing the linked wp_global_styles post ID.
+	 * Brand repository.
 	 *
-	 * @var string
+	 * @var BrandRepository
 	 */
-	private const META_KEY = '_mbgs_global_styles_post_id';
+	private BrandRepository $brand_repository;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param BrandRepository $brand_repository Brand repository service.
+	 */
+	public function __construct( BrandRepository $brand_repository ) {
+		$this->brand_repository = $brand_repository;
+	}
 
 	/**
 	 * Ensure a Brand has a wp_global_styles post, creating one if missing, trashed, or otherwise not published.
@@ -38,10 +48,10 @@ class GlobalStylesPostService {
 	 * @throws RuntimeException If post creation fails.
 	 */
 	public function ensure_global_styles_post( int $brand_id ): int {
-		$existing_id = get_post_meta( $brand_id, self::META_KEY, true );
+		$existing_id = $this->brand_repository->get_settings( $brand_id )->global_styles_post_id();
 
 		if ( $existing_id && 'publish' === get_post_status( $existing_id ) ) {
-			return (int) $existing_id;
+			return $existing_id;
 		}
 
 		$post_id = wp_insert_post(
@@ -65,7 +75,7 @@ class GlobalStylesPostService {
 			throw new RuntimeException( esc_html( $post_id->get_error_message() ) );
 		}
 
-		update_post_meta( $brand_id, self::META_KEY, $post_id );
+		$this->brand_repository->update_settings( $brand_id, array( 'global_styles_post_id' => (int) $post_id ) );
 
 		return (int) $post_id;
 	}

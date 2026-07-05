@@ -138,7 +138,10 @@ class Plugin {
 		);
 		$this->container->register( 'variable_parser', fn() => new VariableParser() );
 		$this->container->register( 'brand_repository', fn() => new BrandRepository() );
-		$this->container->register( 'global_styles_post_service', fn() => new GlobalStylesPostService() );
+		$this->container->register(
+			'global_styles_post_service',
+			fn( Container $c ) => new GlobalStylesPostService( $c->get( 'brand_repository' ) )
+		);
 
 		$this->container->register(
 			'brand_resolver',
