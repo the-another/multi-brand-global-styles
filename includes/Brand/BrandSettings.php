@@ -82,6 +82,13 @@ final class BrandSettings {
 	private readonly bool $url_rewrite_force_https;
 
 	/**
+	 * Canonical host form for URL rewriting: 'www', 'apex', or '' (off).
+	 *
+	 * @var string
+	 */
+	private readonly string $url_rewrite_host_form;
+
+	/**
 	 * Private constructor — hydrate via from_meta().
 	 *
 	 * @param array<int, string>        $rules                   Normalized URL rules.
@@ -103,7 +110,8 @@ final class BrandSettings {
 		array $image_url_map,
 		?int $global_styles_post_id,
 		bool $url_rewrite_enabled,
-		bool $url_rewrite_force_https
+		bool $url_rewrite_force_https,
+		string $url_rewrite_host_form
 	) {
 		$this->rules                   = $rules;
 		$this->variables               = $variables;
@@ -114,6 +122,7 @@ final class BrandSettings {
 		$this->global_styles_post_id   = $global_styles_post_id;
 		$this->url_rewrite_enabled     = $url_rewrite_enabled;
 		$this->url_rewrite_force_https = $url_rewrite_force_https;
+		$this->url_rewrite_host_form   = $url_rewrite_host_form;
 	}
 
 	/**
@@ -136,7 +145,8 @@ final class BrandSettings {
 			self::normalize_string_map( $raw['image_url_map'] ?? null ),
 			self::normalize_post_id( $raw['global_styles_post_id'] ?? null ),
 			! empty( $url_rewrite['enabled'] ),
-			! empty( $url_rewrite['force_https'] )
+			! empty( $url_rewrite['force_https'] ),
+			self::normalize_host_form( $url_rewrite['canonical_host_form'] ?? null )
 		);
 	}
 
@@ -219,6 +229,15 @@ final class BrandSettings {
 	 */
 	public function url_rewrite_force_https(): bool {
 		return $this->url_rewrite_force_https;
+	}
+
+	/**
+	 * Get the canonical host form for URL rewriting.
+	 *
+	 * @return string 'www', 'apex', or '' when off.
+	 */
+	public function url_rewrite_host_form(): string {
+		return $this->url_rewrite_host_form;
 	}
 
 	/**
@@ -325,5 +344,15 @@ final class BrandSettings {
 		$id = is_scalar( $value ) ? (int) $value : 0;
 
 		return $id > 0 ? $id : null;
+	}
+
+	/**
+	 * Normalize the canonical host form: only 'www' or 'apex' survive.
+	 *
+	 * @param mixed $value Raw value.
+	 * @return string 'www', 'apex', or ''.
+	 */
+	private static function normalize_host_form( mixed $value ): string {
+		return in_array( $value, array( 'www', 'apex' ), true ) ? $value : '';
 	}
 }
