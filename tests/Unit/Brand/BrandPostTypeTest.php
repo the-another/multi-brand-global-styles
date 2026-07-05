@@ -208,11 +208,16 @@ class BrandPostTypeTest extends TestCase {
 	public function test_render_styles_meta_box_outputs_data_when_post_id_present(): void {
 		Functions\when( 'esc_html_e' )->justReturn( null );
 		Functions\when( 'esc_textarea' )->returnArg();
+		Functions\when( 'esc_url' )->returnArg();
 		Functions\when( 'wp_json_encode' )->alias( fn( $data ) => json_encode( $data ) );
 		Functions\expect( 'get_post_meta' )
 			->once()
 			->with( 5, '_mbgs_global_styles_post_id', true )
 			->andReturn( '42' );
+		Functions\when( 'get_stylesheet' )->justReturn( 'twentytwentyfour' );
+		Functions\when( 'wp_create_nonce' )->justReturn( 'abc123' );
+		Functions\when( 'rest_url' )->alias( fn( $path ) => 'https://example.com/wp-json/' . $path );
+		Functions\when( 'add_query_arg' )->alias( fn( $key, $value, $url ) => $url . '?' . $key . '=' . $value );
 
 		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
 		$global_styles_post_service->shouldReceive( 'get_global_styles_data' )
@@ -233,8 +238,13 @@ class BrandPostTypeTest extends TestCase {
 	public function test_render_styles_meta_box_outputs_empty_when_no_post_id(): void {
 		Functions\when( 'esc_html_e' )->justReturn( null );
 		Functions\when( 'esc_textarea' )->returnArg();
+		Functions\when( 'esc_url' )->returnArg();
 		Functions\when( 'wp_json_encode' )->alias( fn( $data ) => json_encode( $data ) );
 		Functions\expect( 'get_post_meta' )->once()->andReturn( '' );
+		Functions\when( 'get_stylesheet' )->justReturn( 'twentytwentyfour' );
+		Functions\when( 'wp_create_nonce' )->justReturn( 'abc123' );
+		Functions\when( 'rest_url' )->alias( fn( $path ) => 'https://example.com/wp-json/' . $path );
+		Functions\when( 'add_query_arg' )->alias( fn( $key, $value, $url ) => $url . '?' . $key . '=' . $value );
 
 		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
 		$global_styles_post_service->shouldNotReceive( 'get_global_styles_data' );
@@ -246,6 +256,31 @@ class BrandPostTypeTest extends TestCase {
 		$output = ob_get_clean();
 
 		$this->assertStringContainsString( '>[]<', $output );
+	}
+
+	public function test_render_styles_meta_box_outputs_active_styles_link(): void {
+		Functions\when( 'esc_html_e' )->justReturn( null );
+		Functions\when( 'esc_textarea' )->returnArg();
+		Functions\when( 'esc_url' )->returnArg();
+		Functions\when( 'wp_json_encode' )->alias( fn( $data ) => json_encode( $data ) );
+		Functions\expect( 'get_post_meta' )->once()->andReturn( '' );
+		Functions\when( 'get_stylesheet' )->justReturn( 'twentytwentyfour' );
+		Functions\when( 'wp_create_nonce' )->justReturn( 'abc123' );
+		Functions\when( 'rest_url' )->alias( fn( $path ) => 'https://example.com/wp-json/' . $path );
+		Functions\when( 'add_query_arg' )->alias( fn( $key, $value, $url ) => $url . '?' . $key . '=' . $value );
+
+		$post_type = $this->make_post_type();
+
+		ob_start();
+		$post_type->render_styles_meta_box( new WP_Post( 5 ) );
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString(
+			'href="https://example.com/wp-json/wp/v2/global-styles/themes/twentytwentyfour?_wpnonce=abc123"',
+			$output
+		);
+		$this->assertStringContainsString( 'target="_blank"', $output );
+		$this->assertStringContainsString( 'rel="noopener noreferrer"', $output );
 	}
 
 	public function test_save_accepts_rules_without_conflicts(): void {

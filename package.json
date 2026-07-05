@@ -1,26 +1,26 @@
 {
-	"name": "the-another-multi-brand-global-styles",
-	"version": "0.1.0",
-	"description": "Define Brands - URL match rules (whole domains or path sections) with per-Brand global style overrides and content variables - on a single WordPress install.",
-	"author": "The Another",
-	"license": "GPL-2.0-or-later",
-	"homepage": "https://theanother.org/plugin/multi-brand-global-styles/",
-	"scripts": {
-		"build:editor": "wp-scripts build --webpack-src-dir=src --output-path=assets/build",
-		"start:editor": "wp-scripts start --webpack-src-dir=src --output-path=assets/build",
-		"plugin-zip": "npm run build:editor && composer build && sh scripts/dist-archive.sh && node scripts/version-zip.js",
-		"plugin-zip:check": "npm run build:editor && composer build && sh scripts/dist-archive.sh && node scripts/version-zip.js --label=test",
-		"version": "node scripts/version-bump.js",
-		"version:patch": "node scripts/version-bump.js patch",
-		"version:minor": "node scripts/version-bump.js minor",
-		"version:major": "node scripts/version-bump.js major",
-		"test:e2e": "npx playwright test --config tests/e2e/functional/playwright.config.ts",
-		"test:e2e:ui": "npx playwright test --config tests/e2e/functional/playwright.config.ts --ui",
-		"check:plugin": "node tests/e2e/check-plugin/run-plugin-check.mjs"
-	},
-	"devDependencies": {
-		"@playwright/test": "^1.59.1",
-		"@wordpress/e2e-test-utils-playwright": "^1.43.0",
-		"@wordpress/scripts": "^30.0.0"
-	}
+  "name": "the-another-multi-brand-global-styles",
+  "version": "0.1.1",
+  "description": "Define Brands - URL match rules (whole domains or path sections) with per-Brand global style overrides and content variables - on a single WordPress install.",
+  "author": "The Another",
+  "license": "GPL-2.0-or-later",
+  "homepage": "https://theanother.org/plugin/multi-brand-global-styles/",
+  "scripts": {
+    "build:editor": "wp-scripts build --webpack-src-dir=src --output-path=assets/build",
+    "start:editor": "wp-scripts start --webpack-src-dir=src --output-path=assets/build",
+    "plugin-zip": "npm run build:editor && composer build && sh scripts/dist-archive.sh && node scripts/version-zip.js",
+    "plugin-zip:check": "npm run build:editor && composer build && sh scripts/dist-archive.sh && node scripts/version-zip.js --label=test",
+    "version": "node scripts/version-bump.js",
+    "version:patch": "node scripts/version-bump.js patch",
+    "version:minor": "node scripts/version-bump.js minor",
+    "version:major": "node scripts/version-bump.js major",
+    "test:e2e": "npx playwright test --config tests/e2e/functional/playwright.config.ts",
+    "test:e2e:ui": "npx playwright test --config tests/e2e/functional/playwright.config.ts --ui",
+    "check:plugin": "node tests/e2e/check-plugin/run-plugin-check.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "@wordpress/e2e-test-utils-playwright": "^1.43.0",
+    "@wordpress/scripts": "^30.0.0"
+  }
 }

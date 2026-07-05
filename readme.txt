@@ -4,7 +4,7 @@ Tags: multi-brand, global styles, branding, theme-json, variables
 Requires at least: 6.9
 Tested up to: 7.0
 Requires PHP: 8.3
-Stable tag: 0.1.0
+Stable tag: 0.1.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -44,6 +44,17 @@ Users with the `edit_theme_options` capability (administrators by default) — t
 No — registering the exact same rule twice is rejected with an admin notice. Overlapping-but-different rules (e.g. `site.com` on one Brand and `site.com/farm` on another) are allowed by design.
 
 == Changelog ==
+
+
+= 0.1.1 - 2026-07-04 =
+* Add: Brand identity overrides — per-Brand logo, site title, tagline, and favicon applied wherever the Brand's rules match.
+* Add: per-Brand image replacements — swap any image for a Brand-specific counterpart, from the "Image Replacements" meta box on the Brand or from the Image block's inspector panel; replacements are precomputed at save time so rendering stays fast.
+* Add: block-editor Brand preview sidebar (image/identity swaps on the canvas) and an admin-only `?mbgs_preview_brand` frontend preview link.
+* Add: "View current global styles (JSON)" reference link in the Brand styles meta box, showing the active theme's global styles as a reference for valid fields and values.
+* Fix: array input to the Brand styles-JSON field caused a PHP fatal on save; non-string input is now rejected.
+* Fix: cleared all Plugin Check / PHPCS warnings.
+* Refactor: variable substitution and image URL replacement now run through a single frontend output buffer.
+* Chore: end-to-end test suites (Playwright functional + WordPress.org Plugin Check) and an automated GitHub release pipeline.
 
 = 0.1.0 =
 * Initial release: Brand custom post type, URL rule matching (host and host+path), per-Brand global style overrides via theme.json filters, %%brand.*%% content variable substitution, default Brand fallback, duplicate-rule rejection.
