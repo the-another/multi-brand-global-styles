@@ -132,7 +132,10 @@ class Plugin {
 	 * @return void
 	 */
 	private function register_services(): void {
-		$this->container->register( 'url_rule_registry', fn() => new UrlRuleRegistry() );
+		$this->container->register(
+			'url_rule_registry',
+			fn( Container $c ) => new UrlRuleRegistry( $c->get( 'brand_repository' ) )
+		);
 		$this->container->register( 'variable_parser', fn() => new VariableParser() );
 		$this->container->register( 'brand_repository', fn() => new BrandRepository() );
 		$this->container->register( 'global_styles_post_service', fn() => new GlobalStylesPostService() );

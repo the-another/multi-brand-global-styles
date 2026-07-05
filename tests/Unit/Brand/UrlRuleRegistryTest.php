@@ -5,10 +5,12 @@ namespace TheAnother\Plugin\MultiBrandGlobalStyles\Tests\Brand;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
+use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandRepository;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\UrlRuleRegistry;
 
 #[CoversClass( UrlRuleRegistry::class )]
@@ -17,13 +19,19 @@ class UrlRuleRegistryTest extends TestCase {
 
 	private UrlRuleRegistry $registry;
 
+	/**
+	 * @var BrandRepository&Mockery\MockInterface
+	 */
+	private $brand_repository;
+
 	protected function setUp(): void {
 		parent::setUp();
 		Monkey\setUp();
 
 		Functions\when( 'wp_parse_url' )->alias( 'parse_url' );
 
-		$this->registry = new UrlRuleRegistry();
+		$this->brand_repository = Mockery::mock( BrandRepository::class );
+		$this->registry         = new UrlRuleRegistry( $this->brand_repository );
 	}
 
 	protected function tearDown(): void {
@@ -127,17 +135,9 @@ class UrlRuleRegistryTest extends TestCase {
 
 	public function test_get_rule_map_builds_and_caches_when_absent(): void {
 		Functions\expect( 'get_transient' )->once()->andReturn( false );
-		Functions\expect( 'get_posts' )
-			->once()
-			->andReturn( array( 5, 9 ) );
-		Functions\expect( 'get_post_meta' )
-			->once()
-			->with( 5, '_mbgs_rules', true )
-			->andReturn( array( 'auctionbill.com', 'beta.auctionbill.com' ) );
-		Functions\expect( 'get_post_meta' )
-			->once()
-			->with( 9, '_mbgs_rules', true )
-			->andReturn( array( 'site.com/farm', 'site2.com/farm' ) );
+		$this->brand_repository->shouldReceive( 'get_published_brand_ids' )->once()->andReturn( array( 5, 9 ) );
+		$this->brand_repository->shouldReceive( 'get_rules' )->once()->with( 5 )->andReturn( array( 'auctionbill.com', 'beta.auctionbill.com' ) );
+		$this->brand_repository->shouldReceive( 'get_rules' )->once()->with( 9 )->andReturn( array( 'site.com/farm', 'site2.com/farm' ) );
 		Functions\expect( 'set_transient' )
 			->once()
 			->with(
@@ -151,8 +151,6 @@ class UrlRuleRegistryTest extends TestCase {
 				0
 			);
 
-		$map = $this->registry->get_rule_map();
-
 		$this->assertSame(
 			array(
 				'auctionbill.com'      => array( '' => 5 ),
@@ -160,21 +158,15 @@ class UrlRuleRegistryTest extends TestCase {
 				'site.com'             => array( '/farm' => 9 ),
 				'site2.com'            => array( '/farm' => 9 ),
 			),
-			$map
+			$this->registry->get_rule_map()
 		);
 	}
 
 	public function test_get_rule_map_merges_host_wide_and_path_rules_for_same_host(): void {
 		Functions\expect( 'get_transient' )->once()->andReturn( false );
-		Functions\expect( 'get_posts' )->once()->andReturn( array( 7, 9 ) );
-		Functions\expect( 'get_post_meta' )
-			->once()
-			->with( 7, '_mbgs_rules', true )
-			->andReturn( array( 'site.com' ) );
-		Functions\expect( 'get_post_meta' )
-			->once()
-			->with( 9, '_mbgs_rules', true )
-			->andReturn( array( 'site.com/farm' ) );
+		$this->brand_repository->shouldReceive( 'get_published_brand_ids' )->once()->andReturn( array( 7, 9 ) );
+		$this->brand_repository->shouldReceive( 'get_rules' )->once()->with( 7 )->andReturn( array( 'site.com' ) );
+		$this->brand_repository->shouldReceive( 'get_rules' )->once()->with( 9 )->andReturn( array( 'site.com/farm' ) );
 		Functions\expect( 'set_transient' )->once();
 
 		$this->assertSame(
@@ -188,13 +180,10 @@ class UrlRuleRegistryTest extends TestCase {
 		);
 	}
 
-	public function test_get_rule_map_skips_posts_with_no_rules_meta(): void {
+	public function test_get_rule_map_skips_brands_with_no_rules(): void {
 		Functions\expect( 'get_transient' )->once()->andReturn( false );
-		Functions\expect( 'get_posts' )->once()->andReturn( array( 11 ) );
-		Functions\expect( 'get_post_meta' )
-			->once()
-			->with( 11, '_mbgs_rules', true )
-			->andReturn( '' );
+		$this->brand_repository->shouldReceive( 'get_published_brand_ids' )->once()->andReturn( array( 11 ) );
+		$this->brand_repository->shouldReceive( 'get_rules' )->once()->with( 11 )->andReturn( array() );
 		Functions\expect( 'set_transient' )->once()->with( 'mbgs_rule_map', array(), 0 );
 
 		$this->assertSame( array(), $this->registry->get_rule_map() );
