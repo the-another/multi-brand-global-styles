@@ -4,7 +4,7 @@ Tags: multi-brand, global styles, branding, theme-json, variables
 Requires at least: 6.9
 Tested up to: 7.0
 Requires PHP: 8.3
-Stable tag: 0.1.1
+Stable tag: 0.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -45,6 +45,13 @@ No — registering the exact same rule twice is rejected with an admin notice. O
 
 == Changelog ==
 
+
+
+= 0.2.0 - 2026-07-05 =
+* Add: per-Brand URL rewrite option — links pointing at the canonical site address are rewritten in the rendered page to the domain being browsed (domain/port only, never paths), covering absolute, protocol-relative, and JSON-escaped URLs.
+* Add: "Force https" companion option for rewritten URLs; when off, rewritten links match the visitor's current scheme.
+* Add: WordPress's canonical redirect is guarded for rewriting Brands, so visitors stay on the Brand domain instead of being bounced back to the canonical one.
+* Refactor: all per-Brand data consolidated into a single settings entry behind a typed, cached settings object — per-request memoization plus persistent caches that are dropped automatically on save, trash, and delete.
 
 = 0.1.1 - 2026-07-04 =
 * Add: Brand identity overrides — per-Brand logo, site title, tagline, and favicon applied wherever the Brand's rules match.
