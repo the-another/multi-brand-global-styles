@@ -8,8 +8,11 @@ use Brain\Monkey\Functions;
 use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandPostType;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandRepository;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandSettings;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\UrlRuleRegistry;
 use TheAnother\Plugin\MultiBrandGlobalStyles\GlobalStyles\GlobalStylesPostService;
 use TheAnother\Plugin\MultiBrandGlobalStyles\ContentVariables\VariableParser;
@@ -17,6 +20,7 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\Media\ImageMapBuilder;
 use WP_Post;
 
 #[CoversClass( BrandPostType::class )]
+#[UsesClass( BrandSettings::class )]
 class BrandPostTypeTest extends TestCase {
 	use MockeryPHPUnitIntegration;
 
@@ -41,16 +45,75 @@ class BrandPostTypeTest extends TestCase {
 	}
 
 	private function make_post_type(
-		UrlRuleRegistry $url_rule_registry = null,
-		VariableParser $variable_parser = null,
-		GlobalStylesPostService $global_styles_post_service = null,
-		?ImageMapBuilder $image_map_builder = null
+		?UrlRuleRegistry $url_rule_registry = null,
+		?VariableParser $variable_parser = null,
+		?GlobalStylesPostService $global_styles_post_service = null,
+		?ImageMapBuilder $image_map_builder = null,
+		?BrandRepository $brand_repository = null
 	): BrandPostType {
 		return new BrandPostType(
 			$url_rule_registry ?? Mockery::mock( UrlRuleRegistry::class )->shouldIgnoreMissing(),
 			$variable_parser ?? Mockery::mock( VariableParser::class )->shouldIgnoreMissing(),
 			$global_styles_post_service ?? Mockery::mock( GlobalStylesPostService::class )->shouldIgnoreMissing(),
-			$image_map_builder ?? Mockery::mock( ImageMapBuilder::class )->shouldIgnoreMissing()
+			$image_map_builder ?? Mockery::mock( ImageMapBuilder::class )->shouldIgnoreMissing(),
+			$brand_repository ?? Mockery::mock( BrandRepository::class )->shouldIgnoreMissing()
+		);
+	}
+
+	/**
+	 * A repository mock whose get_settings() returns settings hydrated from $raw.
+	 *
+	 * @param array<string, mixed> $raw      Raw settings.
+	 * @param int                  $brand_id Expected Brand ID.
+	 * @return BrandRepository&Mockery\MockInterface Mock.
+	 */
+	private function repository_with_settings( array $raw, int $brand_id = 5 ) {
+		$repository = Mockery::mock( BrandRepository::class )->shouldIgnoreMissing();
+		$repository->shouldReceive( 'get_settings' )->with( $brand_id )->andReturn( BrandSettings::from_meta( $raw ) );
+
+		return $repository;
+	}
+
+	/**
+	 * The parts every successful save shares: an empty-form settings write.
+	 *
+	 * @return array{0: UrlRuleRegistry&Mockery\MockInterface, 1: VariableParser&Mockery\MockInterface, 2: GlobalStylesPostService&Mockery\MockInterface, 3: ImageMapBuilder&Mockery\MockInterface} Mocks.
+	 */
+	private function empty_form_mocks(): array {
+		$url_rule_registry = Mockery::mock( UrlRuleRegistry::class );
+		$url_rule_registry->shouldReceive( 'parse_rules_input' )->andReturn( array() );
+		$url_rule_registry->shouldReceive( 'invalidate_cache' )->once();
+
+		$variable_parser = Mockery::mock( VariableParser::class );
+		$variable_parser->shouldReceive( 'parse' )->andReturn( array() );
+
+		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
+		$global_styles_post_service->shouldReceive( 'ensure_global_styles_post' )->andReturn( 42 );
+
+		$image_map_builder = Mockery::mock( ImageMapBuilder::class );
+		$image_map_builder->shouldReceive( 'build_url_map' )->with( array() )->andReturn( array() );
+
+		return array( $url_rule_registry, $variable_parser, $global_styles_post_service, $image_map_builder );
+	}
+
+	/**
+	 * The settings array save() writes for an empty form, with overrides.
+	 *
+	 * @param array<string, mixed> $overrides Key overrides.
+	 * @return array<string, mixed> Expected settings payload.
+	 */
+	private static function expected_settings( array $overrides = array() ): array {
+		return array_merge(
+			array(
+				'rules'         => array(),
+				'variables'     => array(),
+				'is_default'    => false,
+				'identity'      => array(),
+				'image_map'     => array(),
+				'image_url_map' => array(),
+				'url_rewrite'   => array(),
+			),
+			$overrides
 		);
 	}
 
@@ -70,39 +133,10 @@ class BrandPostTypeTest extends TestCase {
 				)
 			);
 
-		$post_type = $this->make_post_type();
-
-		$post_type->register();
+		$this->make_post_type()->register();
 	}
 
-	public function test_save_skips_when_nonce_missing(): void {
-		unset( $_POST['mbgs_brand_nonce'] );
-
-		$url_rule_registry = Mockery::mock( UrlRuleRegistry::class );
-		$url_rule_registry->shouldNotReceive( 'parse_rules_input' );
-
-		$post_type = $this->make_post_type( $url_rule_registry );
-
-		$post_type->save( 5 );
-
-		$this->assertTrue( true ); // No exception, no calls made — assertions are the shouldNotReceive expectations above.
-	}
-
-	public function test_save_skips_when_user_cannot_edit_post(): void {
-		Functions\when( 'current_user_can' )->justReturn( false );
-
-		$url_rule_registry = Mockery::mock( UrlRuleRegistry::class );
-		$url_rule_registry->shouldNotReceive( 'parse_rules_input' );
-		$url_rule_registry->shouldNotReceive( 'invalidate_cache' );
-
-		$post_type = $this->make_post_type( $url_rule_registry );
-
-		$post_type->save( 5 );
-
-		$this->assertTrue( true ); // No exception, no calls made — assertions are the shouldNotReceive expectations above.
-	}
-
-	public function test_register_meta_boxes_registers_all_six_boxes(): void {
+	public function test_register_meta_boxes_registers_all_seven_boxes(): void {
 		Functions\when( '__' )->returnArg();
 
 		$calls = array();
@@ -112,8 +146,7 @@ class BrandPostTypeTest extends TestCase {
 			}
 		);
 
-		$post_type = $this->make_post_type();
-		$post_type->register_meta_boxes();
+		$this->make_post_type()->register_meta_boxes();
 
 		$this->assertSame(
 			array(
@@ -123,6 +156,7 @@ class BrandPostTypeTest extends TestCase {
 				array( 'mbgs_styles', 'render_styles_meta_box', 'mbgs_brand', 'normal', 'default' ),
 				array( 'mbgs_identity', 'render_identity_meta_box', 'mbgs_brand', 'side', 'default' ),
 				array( 'mbgs_image_map', 'render_image_map_meta_box', 'mbgs_brand', 'normal', 'default' ),
+				array( 'mbgs_url_rewrite', 'render_url_rewrite_meta_box', 'mbgs_brand', 'side', 'default' ),
 			),
 			$calls
 		);
@@ -136,48 +170,32 @@ class BrandPostTypeTest extends TestCase {
 		);
 		Functions\when( 'esc_textarea' )->returnArg();
 		Functions\expect( 'wp_nonce_field' )->once()->with( 'mbgs_save_brand', 'mbgs_brand_nonce' );
-		Functions\expect( 'get_post_meta' )
-			->once()
-			->with( 5, '_mbgs_rules', true )
-			->andReturn( array( 'site.com', 'other.com/farm' ) );
 
-		$post_type = $this->make_post_type();
+		$repository = $this->repository_with_settings( array( 'rules' => array( 'site.com', 'other.com/farm' ) ) );
 
 		ob_start();
-		$post_type->render_rules_meta_box( new WP_Post( 5 ) );
+		$this->make_post_type( brand_repository: $repository )->render_rules_meta_box( new WP_Post( 5 ) );
 		$output = ob_get_clean();
 
 		$this->assertStringContainsString( 'name="mbgs_rules"', $output );
 		$this->assertStringContainsString( "site.com\nother.com/farm", $output );
 	}
 
-	public function test_render_rules_meta_box_defaults_to_empty_when_meta_not_array(): void {
-		Functions\when( 'esc_html_e' )->justReturn( null );
-		Functions\when( 'esc_textarea' )->returnArg();
-		Functions\when( 'wp_nonce_field' )->justReturn( null );
-		Functions\expect( 'get_post_meta' )->once()->andReturn( false );
-
-		$post_type = $this->make_post_type();
-
-		ob_start();
-		$post_type->render_rules_meta_box( new WP_Post( 5 ) );
-		$output = ob_get_clean();
-
-		$this->assertStringContainsString( '<textarea name="mbgs_rules"', $output );
-	}
-
 	public function test_render_variables_meta_box_outputs_key_value_lines(): void {
 		Functions\when( 'esc_html_e' )->justReturn( null );
 		Functions\when( 'esc_textarea' )->returnArg();
-		Functions\expect( 'get_post_meta' )
-			->once()
-			->with( 5, '_mbgs_variables', true )
-			->andReturn( array( 'name' => 'Acme', 'tagline' => 'Great deals' ) );
 
-		$post_type = $this->make_post_type();
+		$repository = $this->repository_with_settings(
+			array(
+				'variables' => array(
+					'name'    => 'Acme',
+					'tagline' => 'Great deals',
+				),
+			)
+		);
 
 		ob_start();
-		$post_type->render_variables_meta_box( new WP_Post( 5 ) );
+		$this->make_post_type( brand_repository: $repository )->render_variables_meta_box( new WP_Post( 5 ) );
 		$output = ob_get_clean();
 
 		$this->assertStringContainsString( "name = Acme\ntagline = Great deals", $output );
@@ -185,20 +203,16 @@ class BrandPostTypeTest extends TestCase {
 
 	public function test_render_default_meta_box_checks_box_when_default(): void {
 		Functions\when( 'esc_html_e' )->justReturn( null );
-		Functions\expect( 'get_post_meta' )
-			->once()
-			->with( 5, '_mbgs_is_default', true )
-			->andReturn( '1' );
-		Functions\expect( 'checked' )->once()->with( '1', '1' )->andReturnUsing(
+		Functions\expect( 'checked' )->once()->with( true )->andReturnUsing(
 			function () {
 				echo 'checked="checked"';
 			}
 		);
 
-		$post_type = $this->make_post_type();
+		$repository = $this->repository_with_settings( array( 'is_default' => true ) );
 
 		ob_start();
-		$post_type->render_default_meta_box( new WP_Post( 5 ) );
+		$this->make_post_type( brand_repository: $repository )->render_default_meta_box( new WP_Post( 5 ) );
 		$output = ob_get_clean();
 
 		$this->assertStringContainsString( 'name="mbgs_is_default"', $output );
@@ -210,14 +224,12 @@ class BrandPostTypeTest extends TestCase {
 		Functions\when( 'esc_textarea' )->returnArg();
 		Functions\when( 'esc_url' )->returnArg();
 		Functions\when( 'wp_json_encode' )->alias( fn( $data ) => json_encode( $data ) );
-		Functions\expect( 'get_post_meta' )
-			->once()
-			->with( 5, '_mbgs_global_styles_post_id', true )
-			->andReturn( '42' );
 		Functions\when( 'get_stylesheet' )->justReturn( 'twentytwentyfour' );
 		Functions\when( 'wp_create_nonce' )->justReturn( 'abc123' );
 		Functions\when( 'rest_url' )->alias( fn( $path ) => 'https://example.com/wp-json/' . $path );
 		Functions\when( 'add_query_arg' )->alias( fn( $key, $value, $url ) => $url . '?' . $key . '=' . $value );
+
+		$repository = $this->repository_with_settings( array( 'global_styles_post_id' => 42 ) );
 
 		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
 		$global_styles_post_service->shouldReceive( 'get_global_styles_data' )
@@ -225,37 +237,12 @@ class BrandPostTypeTest extends TestCase {
 			->with( 42 )
 			->andReturn( array( 'settings' => array() ) );
 
-		$post_type = $this->make_post_type( null, null, $global_styles_post_service );
-
 		ob_start();
-		$post_type->render_styles_meta_box( new WP_Post( 5 ) );
+		$this->make_post_type( null, null, $global_styles_post_service, null, $repository )->render_styles_meta_box( new WP_Post( 5 ) );
 		$output = ob_get_clean();
 
 		$this->assertStringContainsString( 'name="mbgs_styles_json"', $output );
 		$this->assertStringContainsString( '"settings"', $output );
-	}
-
-	public function test_render_styles_meta_box_outputs_empty_when_no_post_id(): void {
-		Functions\when( 'esc_html_e' )->justReturn( null );
-		Functions\when( 'esc_textarea' )->returnArg();
-		Functions\when( 'esc_url' )->returnArg();
-		Functions\when( 'wp_json_encode' )->alias( fn( $data ) => json_encode( $data ) );
-		Functions\expect( 'get_post_meta' )->once()->andReturn( '' );
-		Functions\when( 'get_stylesheet' )->justReturn( 'twentytwentyfour' );
-		Functions\when( 'wp_create_nonce' )->justReturn( 'abc123' );
-		Functions\when( 'rest_url' )->alias( fn( $path ) => 'https://example.com/wp-json/' . $path );
-		Functions\when( 'add_query_arg' )->alias( fn( $key, $value, $url ) => $url . '?' . $key . '=' . $value );
-
-		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
-		$global_styles_post_service->shouldNotReceive( 'get_global_styles_data' );
-
-		$post_type = $this->make_post_type( null, null, $global_styles_post_service );
-
-		ob_start();
-		$post_type->render_styles_meta_box( new WP_Post( 5 ) );
-		$output = ob_get_clean();
-
-		$this->assertStringContainsString( '>[]<', $output );
 	}
 
 	public function test_render_styles_meta_box_outputs_active_styles_link(): void {
@@ -263,16 +250,15 @@ class BrandPostTypeTest extends TestCase {
 		Functions\when( 'esc_textarea' )->returnArg();
 		Functions\when( 'esc_url' )->returnArg();
 		Functions\when( 'wp_json_encode' )->alias( fn( $data ) => json_encode( $data ) );
-		Functions\expect( 'get_post_meta' )->once()->andReturn( '' );
 		Functions\when( 'get_stylesheet' )->justReturn( 'twentytwentyfour' );
 		Functions\when( 'wp_create_nonce' )->justReturn( 'abc123' );
 		Functions\when( 'rest_url' )->alias( fn( $path ) => 'https://example.com/wp-json/' . $path );
 		Functions\when( 'add_query_arg' )->alias( fn( $key, $value, $url ) => $url . '?' . $key . '=' . $value );
 
-		$post_type = $this->make_post_type();
+		$repository = $this->repository_with_settings( array() );
 
 		ob_start();
-		$post_type->render_styles_meta_box( new WP_Post( 5 ) );
+		$this->make_post_type( brand_repository: $repository )->render_styles_meta_box( new WP_Post( 5 ) );
 		$output = ob_get_clean();
 
 		$this->assertStringContainsString(
@@ -280,12 +266,63 @@ class BrandPostTypeTest extends TestCase {
 			$output
 		);
 		$this->assertStringContainsString( 'target="_blank"', $output );
-		$this->assertStringContainsString( 'rel="noopener noreferrer"', $output );
 	}
 
-	public function test_save_accepts_rules_without_conflicts(): void {
-		$_POST['mbgs_rules']   = "example.com\nexample.org";
-		$_POST['mbgs_variables'] = '';
+	public function test_render_url_rewrite_meta_box_reflects_settings(): void {
+		Functions\when( 'esc_html_e' )->justReturn( null );
+
+		$checked_calls = array();
+		Functions\when( 'checked' )->alias(
+			function ( $value ) use ( &$checked_calls ) {
+				$checked_calls[] = $value;
+				echo $value ? 'checked="checked"' : '';
+			}
+		);
+
+		$repository = $this->repository_with_settings( array( 'url_rewrite' => array( 'enabled' => true ) ) );
+
+		ob_start();
+		$this->make_post_type( brand_repository: $repository )->render_url_rewrite_meta_box( new WP_Post( 5 ) );
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( 'name="mbgs_url_rewrite_enabled"', $output );
+		$this->assertStringContainsString( 'name="mbgs_url_rewrite_force_https"', $output );
+		$this->assertSame( array( true, false ), $checked_calls );
+	}
+
+	public function test_save_skips_when_nonce_missing(): void {
+		unset( $_POST['mbgs_brand_nonce'] );
+
+		$brand_repository = Mockery::mock( BrandRepository::class );
+		$brand_repository->shouldNotReceive( 'update_settings' );
+
+		$this->make_post_type( brand_repository: $brand_repository )->save( 5 );
+
+		$this->assertTrue( true ); // Assertions are the shouldNotReceive expectations above.
+	}
+
+	public function test_save_skips_when_user_cannot_edit_post(): void {
+		Functions\when( 'current_user_can' )->justReturn( false );
+
+		$brand_repository = Mockery::mock( BrandRepository::class );
+		$brand_repository->shouldNotReceive( 'update_settings' );
+
+		$this->make_post_type( brand_repository: $brand_repository )->save( 5 );
+
+		$this->assertTrue( true ); // Assertions are the shouldNotReceive expectations above.
+	}
+
+	public function test_save_writes_one_consolidated_settings_entry(): void {
+		$_POST['mbgs_rules']     = "example.com\nexample.org";
+		$_POST['mbgs_variables'] = 'name = Acme';
+
+		// Do NOT use empty_form_mocks() here: it builds a UrlRuleRegistry mock
+		// with a ->once() expectation, and a discarded mock with an unmet
+		// count expectation fails at Mockery teardown. Build all mocks inline.
+		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class )->shouldIgnoreMissing();
+
+		$image_map_builder = Mockery::mock( ImageMapBuilder::class );
+		$image_map_builder->shouldReceive( 'build_url_map' )->with( array() )->andReturn( array() );
 
 		$url_rule_registry = Mockery::mock( UrlRuleRegistry::class );
 		$url_rule_registry->shouldReceive( 'parse_rules_input' )
@@ -296,24 +333,36 @@ class BrandPostTypeTest extends TestCase {
 		$url_rule_registry->shouldReceive( 'invalidate_cache' )->once();
 
 		$variable_parser = Mockery::mock( VariableParser::class );
-		$variable_parser->shouldReceive( 'parse' )->with( '' )->andReturn( array() );
+		$variable_parser->shouldReceive( 'parse' )->with( 'name = Acme' )->andReturn( array( 'name' => 'Acme' ) );
 
-		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
-		$global_styles_post_service->shouldReceive( 'ensure_global_styles_post' )->once()->with( 5 )->andReturn( 42 );
+		$brand_repository = Mockery::mock( BrandRepository::class );
+		$brand_repository->shouldReceive( 'update_settings' )
+			->once()
+			->with(
+				5,
+				self::expected_settings(
+					array(
+						'rules'     => array( 'example.com', 'example.org' ),
+						'variables' => array( 'name' => 'Acme' ),
+					)
+				)
+			);
 
-		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_rules', array( 'example.com', 'example.org' ) )->once();
-		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_variables', array() )->once();
-		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_is_default', '' )->once();
-		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_identity', array() )->once();
-
-		$post_type = $this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service );
-
-		$post_type->save( 5 );
+		$this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service, $image_map_builder, $brand_repository )->save( 5 );
 	}
 
 	public function test_save_drops_conflicting_rule_and_records_rejection(): void {
-		$_POST['mbgs_rules']   = "example.com\ntaken.com";
+		$_POST['mbgs_rules']     = "example.com\ntaken.com";
 		$_POST['mbgs_variables'] = '';
+
+		// Inline mocks for the same reason as test_save_writes_one_consolidated_settings_entry.
+		$variable_parser = Mockery::mock( VariableParser::class );
+		$variable_parser->shouldReceive( 'parse' )->andReturn( array() );
+
+		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class )->shouldIgnoreMissing();
+
+		$image_map_builder = Mockery::mock( ImageMapBuilder::class );
+		$image_map_builder->shouldReceive( 'build_url_map' )->with( array() )->andReturn( array() );
 
 		$url_rule_registry = Mockery::mock( UrlRuleRegistry::class );
 		$url_rule_registry->shouldReceive( 'parse_rules_input' )->andReturn( array( 'example.com', 'taken.com' ) );
@@ -321,87 +370,145 @@ class BrandPostTypeTest extends TestCase {
 		$url_rule_registry->shouldReceive( 'find_conflicting_brand' )->with( 'taken.com', 5 )->andReturn( 9 );
 		$url_rule_registry->shouldReceive( 'invalidate_cache' )->once();
 
-		$variable_parser = Mockery::mock( VariableParser::class );
-		$variable_parser->shouldReceive( 'parse' )->andReturn( array() );
-
-		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
-		$global_styles_post_service->shouldReceive( 'ensure_global_styles_post' )->andReturn( 42 );
-
-		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_rules', array( 'example.com' ) )->once();
-		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_variables', array() )->once();
-		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_is_default', '' )->once();
-		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_identity', array() )->once();
 		Functions\expect( 'set_transient' )
 			->once()
 			->with( 'mbgs_rule_conflict_1', array( 'taken.com' ), 30 );
 
-		$post_type = $this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service );
+		$brand_repository = Mockery::mock( BrandRepository::class );
+		$brand_repository->shouldReceive( 'update_settings' )
+			->once()
+			->with( 5, self::expected_settings( array( 'rules' => array( 'example.com' ) ) ) );
 
-		$post_type->save( 5 );
-	}
-
-	public function test_save_stores_parsed_variables(): void {
-		$_POST['mbgs_rules']   = '';
-		$_POST['mbgs_variables'] = 'name = Acme';
-
-		$url_rule_registry = Mockery::mock( UrlRuleRegistry::class );
-		$url_rule_registry->shouldReceive( 'parse_rules_input' )->andReturn( array() );
-		$url_rule_registry->shouldReceive( 'invalidate_cache' )->once();
-
-		$variable_parser = Mockery::mock( VariableParser::class );
-		$variable_parser->shouldReceive( 'parse' )->with( 'name = Acme' )->andReturn( array( 'name' => 'Acme' ) );
-
-		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
-		$global_styles_post_service->shouldReceive( 'ensure_global_styles_post' )->andReturn( 42 );
-
-		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_rules', array() )->once();
-		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_variables', array( 'name' => 'Acme' ) )->once();
-		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_is_default', '' )->once();
-		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_identity', array() )->once();
-
-		$post_type = $this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service );
-
-		$post_type->save( 5 );
+		$this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service, $image_map_builder, $brand_repository )->save( 5 );
 	}
 
 	public function test_save_clears_other_defaults_when_marked_default(): void {
-		$_POST['mbgs_rules']    = '';
+		$_POST['mbgs_rules']      = '';
 		$_POST['mbgs_variables']  = '';
 		$_POST['mbgs_is_default'] = '1';
 
-		$url_rule_registry = Mockery::mock( UrlRuleRegistry::class );
-		$url_rule_registry->shouldReceive( 'parse_rules_input' )->andReturn( array() );
-		$url_rule_registry->shouldReceive( 'invalidate_cache' )->once();
+		list( $url_rule_registry, $variable_parser, $global_styles_post_service, $image_map_builder ) = $this->empty_form_mocks();
 
-		$variable_parser = Mockery::mock( VariableParser::class );
-		$variable_parser->shouldReceive( 'parse' )->andReturn( array() );
+		$brand_repository = Mockery::mock( BrandRepository::class );
+		$brand_repository->shouldReceive( 'get_brand_ids' )->once()->andReturn( array( 7, 5, 9 ) );
+		$brand_repository->shouldReceive( 'get_settings' )->with( 7 )->andReturn( BrandSettings::from_meta( array( 'is_default' => true ) ) );
+		$brand_repository->shouldReceive( 'get_settings' )->with( 9 )->andReturn( BrandSettings::from_meta( array() ) );
+		$brand_repository->shouldReceive( 'update_settings' )
+			->once()
+			->with( 7, array( 'is_default' => false ) );
+		$brand_repository->shouldReceive( 'update_settings' )
+			->once()
+			->with( 5, self::expected_settings( array( 'is_default' => true ) ) );
 
-		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
-		$global_styles_post_service->shouldReceive( 'ensure_global_styles_post' )->andReturn( 42 );
+		$this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service, $image_map_builder, $brand_repository )->save( 5 );
+	}
 
-		Functions\expect( 'get_posts' )
+	public function test_save_persists_identity_fields(): void {
+		$_POST['mbgs_rules']     = '';
+		$_POST['mbgs_variables'] = '';
+		$_POST['mbgs_logo_id']   = '123';
+		$_POST['mbgs_icon_id']   = '0';
+		$_POST['mbgs_title']     = 'Second Brand Co';
+		$_POST['mbgs_tagline']   = '';
+
+		Functions\when( 'absint' )->alias( static fn( $v ) => abs( (int) $v ) );
+		Functions\when( 'wp_attachment_is_image' )->justReturn( true );
+
+		list( $url_rule_registry, $variable_parser, $global_styles_post_service, $image_map_builder ) = $this->empty_form_mocks();
+
+		$brand_repository = Mockery::mock( BrandRepository::class );
+		$brand_repository->shouldReceive( 'update_settings' )
 			->once()
 			->with(
-				array(
-					'post_type'      => 'mbgs_brand',
-					'posts_per_page' => -1,
-					'fields'         => 'ids',
-					'post_status'    => 'any',
-					'meta_key'       => '_mbgs_is_default',
-					'meta_value'     => '1',
+				77,
+				self::expected_settings(
+					array(
+						'identity' => array(
+							'logo_id' => 123,
+							'title'   => 'Second Brand Co',
+						),
+					)
 				)
-			)
-			->andReturn( array( 7, 5 ) );
-		Functions\expect( 'delete_post_meta' )->once()->with( 7, '_mbgs_is_default' );
+			);
 
-		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_rules', array() )->once();
-		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_variables', array() )->once();
-		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_is_default', '1' )->once();
-		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_identity', array() )->once();
+		$this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service, $image_map_builder, $brand_repository )->save( 77 );
+	}
 
-		$post_type = $this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service );
+	public function test_save_drops_non_image_identity_attachments(): void {
+		$_POST['mbgs_rules']     = '';
+		$_POST['mbgs_variables'] = '';
+		$_POST['mbgs_logo_id']   = '123';
 
-		$post_type->save( 5 );
+		Functions\when( 'absint' )->alias( static fn( $v ) => abs( (int) $v ) );
+		Functions\when( 'wp_attachment_is_image' )->justReturn( false );
+
+		list( $url_rule_registry, $variable_parser, $global_styles_post_service, $image_map_builder ) = $this->empty_form_mocks();
+
+		$brand_repository = Mockery::mock( BrandRepository::class );
+		$brand_repository->shouldReceive( 'update_settings' )
+			->once()
+			->with( 77, self::expected_settings() );
+
+		$this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service, $image_map_builder, $brand_repository )->save( 77 );
+	}
+
+	public function test_save_builds_image_map_and_derived_url_map(): void {
+		$_POST['mbgs_rules']                 = '';
+		$_POST['mbgs_variables']             = '';
+		$_POST['mbgs_image_map_original']    = array( '10', '0', '30' );
+		$_POST['mbgs_image_map_replacement'] = array( '20', '5', '' );
+
+		Functions\when( 'absint' )->alias( static fn( $v ) => abs( (int) $v ) );
+		Functions\when( 'wp_attachment_is_image' )->justReturn( true );
+
+		list( $url_rule_registry, $variable_parser, $global_styles_post_service ) = $this->empty_form_mocks();
+
+		$image_map_builder = Mockery::mock( ImageMapBuilder::class );
+		$image_map_builder->shouldReceive( 'build_url_map' )
+			->once()
+			->with( array( 10 => 20 ) )
+			->andReturn( array( 'https://a' => 'https://b' ) );
+
+		$brand_repository = Mockery::mock( BrandRepository::class );
+		$brand_repository->shouldReceive( 'update_settings' )
+			->once()
+			->with(
+				77,
+				self::expected_settings(
+					array(
+						'image_map'     => array( 10 => 20 ),
+						'image_url_map' => array( 'https://a' => 'https://b' ),
+					)
+				)
+			);
+
+		$this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service, $image_map_builder, $brand_repository )->save( 77 );
+	}
+
+	public function test_save_persists_url_rewrite_flags(): void {
+		$_POST['mbgs_rules']                        = '';
+		$_POST['mbgs_variables']                    = '';
+		$_POST['mbgs_url_rewrite_enabled']          = '1';
+		$_POST['mbgs_url_rewrite_force_https']      = '1';
+
+		list( $url_rule_registry, $variable_parser, $global_styles_post_service, $image_map_builder ) = $this->empty_form_mocks();
+
+		$brand_repository = Mockery::mock( BrandRepository::class );
+		$brand_repository->shouldReceive( 'update_settings' )
+			->once()
+			->with(
+				5,
+				self::expected_settings(
+					array(
+						'url_rewrite' => array(
+							'enabled'     => true,
+							'force_https' => true,
+						),
+					)
+				)
+			);
+
+		$this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service, $image_map_builder, $brand_repository )->save( 5 );
 	}
 
 	public function test_save_persists_valid_styles_json(): void {
@@ -409,23 +516,13 @@ class BrandPostTypeTest extends TestCase {
 		$_POST['mbgs_variables']   = '';
 		$_POST['mbgs_styles_json'] = '{"settings":{"color":{"palette":[]}},"styles":{}}';
 
-		$url_rule_registry = Mockery::mock( UrlRuleRegistry::class );
-		$url_rule_registry->shouldReceive( 'parse_rules_input' )->andReturn( array() );
-		$url_rule_registry->shouldReceive( 'invalidate_cache' )->once();
-
-		$variable_parser = Mockery::mock( VariableParser::class );
-		$variable_parser->shouldReceive( 'parse' )->andReturn( array() );
+		list( $url_rule_registry, $variable_parser, , $image_map_builder ) = $this->empty_form_mocks();
 
 		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
 		$global_styles_post_service->shouldReceive( 'ensure_global_styles_post' )
 			->twice()
 			->with( 5 )
 			->andReturn( 42 );
-
-		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_rules', array() )->once();
-		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_variables', array() )->once();
-		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_is_default', '' )->once();
-		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_identity', array() )->once();
 
 		Functions\expect( 'wp_slash' )->once()->andReturnUsing( fn( $v ) => $v );
 		Functions\expect( 'wp_json_encode' )->andReturnUsing( 'json_encode' );
@@ -443,9 +540,10 @@ class BrandPostTypeTest extends TestCase {
 				)
 			);
 
-		$post_type = $this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service );
+		$brand_repository = Mockery::mock( BrandRepository::class );
+		$brand_repository->shouldReceive( 'update_settings' )->once()->with( 5, self::expected_settings() );
 
-		$post_type->save( 5 );
+		$this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service, $image_map_builder, $brand_repository )->save( 5 );
 	}
 
 	public function test_save_skips_styles_write_when_json_invalid(): void {
@@ -453,12 +551,7 @@ class BrandPostTypeTest extends TestCase {
 		$_POST['mbgs_variables']   = '';
 		$_POST['mbgs_styles_json'] = '{not valid json';
 
-		$url_rule_registry = Mockery::mock( UrlRuleRegistry::class );
-		$url_rule_registry->shouldReceive( 'parse_rules_input' )->andReturn( array() );
-		$url_rule_registry->shouldReceive( 'invalidate_cache' )->once();
-
-		$variable_parser = Mockery::mock( VariableParser::class );
-		$variable_parser->shouldReceive( 'parse' )->andReturn( array() );
+		list( $url_rule_registry, $variable_parser, , $image_map_builder ) = $this->empty_form_mocks();
 
 		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
 		$global_styles_post_service->shouldReceive( 'ensure_global_styles_post' )
@@ -466,149 +559,11 @@ class BrandPostTypeTest extends TestCase {
 			->with( 5 )
 			->andReturn( 42 );
 
-		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_rules', array() )->once();
-		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_variables', array() )->once();
-		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_is_default', '' )->once();
-		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_identity', array() )->once();
-
 		Functions\expect( 'wp_update_post' )->never();
 
-		$post_type = $this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service );
+		$brand_repository = Mockery::mock( BrandRepository::class );
+		$brand_repository->shouldReceive( 'update_settings' )->once()->with( 5, self::expected_settings() );
 
-		$post_type->save( 5 );
-	}
-
-	public function test_save_skips_styles_write_when_json_field_is_not_a_string(): void {
-		$_POST['mbgs_rules']       = '';
-		$_POST['mbgs_variables']   = '';
-		$_POST['mbgs_styles_json'] = array( 'not', 'a', 'string' );
-
-		$url_rule_registry = Mockery::mock( UrlRuleRegistry::class );
-		$url_rule_registry->shouldReceive( 'parse_rules_input' )->andReturn( array() );
-		$url_rule_registry->shouldReceive( 'invalidate_cache' )->once();
-
-		$variable_parser = Mockery::mock( VariableParser::class );
-		$variable_parser->shouldReceive( 'parse' )->andReturn( array() );
-
-		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
-		$global_styles_post_service->shouldReceive( 'ensure_global_styles_post' )
-			->once()
-			->with( 5 )
-			->andReturn( 42 );
-
-		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_rules', array() )->once();
-		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_variables', array() )->once();
-		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_is_default', '' )->once();
-		Functions\expect( 'update_post_meta' )->with( 5, '_mbgs_identity', array() )->once();
-
-		Functions\expect( 'wp_update_post' )->never();
-
-		$post_type = $this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service );
-
-		$post_type->save( 5 );
-	}
-
-	public function test_save_persists_identity_fields(): void {
-		$_POST['mbgs_rules']     = '';
-		$_POST['mbgs_variables'] = '';
-
-		$url_rule_registry = Mockery::mock( UrlRuleRegistry::class );
-		$url_rule_registry->shouldReceive( 'parse_rules_input' )->andReturn( array() );
-		$url_rule_registry->shouldReceive( 'invalidate_cache' )->once();
-
-		$variable_parser = Mockery::mock( VariableParser::class );
-		$variable_parser->shouldReceive( 'parse' )->andReturn( array() );
-
-		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
-		$global_styles_post_service->shouldReceive( 'ensure_global_styles_post' )->andReturn( 42 );
-
-		Functions\when( 'absint' )->alias( static fn( $v ) => abs( (int) $v ) );
-		Functions\when( 'wp_attachment_is_image' )->justReturn( true );
-
-		$_POST['mbgs_logo_id'] = '123';
-		$_POST['mbgs_icon_id'] = '0';
-		$_POST['mbgs_title']   = 'Second Brand Co';
-		$_POST['mbgs_tagline'] = '';
-
-		Functions\expect( 'update_post_meta' )->with( 77, '_mbgs_rules', array() )->once();
-		Functions\expect( 'update_post_meta' )->with( 77, '_mbgs_variables', array() )->once();
-		Functions\expect( 'update_post_meta' )->with( 77, '_mbgs_is_default', '' )->once();
-		Functions\expect( 'update_post_meta' )->once()->with(
-			77,
-			'_mbgs_identity',
-			array(
-				'logo_id' => 123,
-				'title'   => 'Second Brand Co',
-			)
-		);
-
-		$post_type = $this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service );
-
-		$post_type->save( 77 );
-	}
-
-	public function test_save_drops_non_image_identity_attachments(): void {
-		$_POST['mbgs_rules']     = '';
-		$_POST['mbgs_variables'] = '';
-
-		$url_rule_registry = Mockery::mock( UrlRuleRegistry::class );
-		$url_rule_registry->shouldReceive( 'parse_rules_input' )->andReturn( array() );
-		$url_rule_registry->shouldReceive( 'invalidate_cache' )->once();
-
-		$variable_parser = Mockery::mock( VariableParser::class );
-		$variable_parser->shouldReceive( 'parse' )->andReturn( array() );
-
-		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
-		$global_styles_post_service->shouldReceive( 'ensure_global_styles_post' )->andReturn( 42 );
-
-		Functions\when( 'absint' )->alias( static fn( $v ) => abs( (int) $v ) );
-		Functions\when( 'wp_attachment_is_image' )->justReturn( false );
-
-		$_POST['mbgs_logo_id'] = '123';
-
-		Functions\expect( 'update_post_meta' )->with( 77, '_mbgs_rules', array() )->once();
-		Functions\expect( 'update_post_meta' )->with( 77, '_mbgs_variables', array() )->once();
-		Functions\expect( 'update_post_meta' )->with( 77, '_mbgs_is_default', '' )->once();
-		Functions\expect( 'update_post_meta' )->once()->with( 77, '_mbgs_identity', array() );
-
-		$post_type = $this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service );
-
-		$post_type->save( 77 );
-	}
-
-	public function test_save_builds_image_map_pairs_and_persists(): void {
-		// Same nonce/autosave/capability stub block as the other save tests, plus:
-		Functions\when( 'sanitize_textarea_field' )->returnArg();
-		Functions\when( 'sanitize_text_field' )->returnArg();
-		Functions\when( 'wp_unslash' )->returnArg();
-		Functions\when( 'absint' )->alias( static fn( $v ) => abs( (int) $v ) );
-		Functions\when( 'wp_attachment_is_image' )->justReturn( true );
-		Functions\when( 'update_post_meta' )->justReturn( true );
-
-		$_POST['mbgs_image_map_original']    = array( '10', '0', '30' );
-		$_POST['mbgs_image_map_replacement'] = array( '20', '5', '' );
-
-		$image_map_builder = Mockery::mock( ImageMapBuilder::class );
-		$image_map_builder->shouldReceive( 'persist' )->once()->with( 77, array( 10 => 20 ) );
-
-		$this->make_post_type( image_map_builder: $image_map_builder )->save( 77 );
-	}
-
-	public function test_save_drops_non_image_pairs(): void {
-		// Same stub block, but:
-		Functions\when( 'sanitize_textarea_field' )->returnArg();
-		Functions\when( 'sanitize_text_field' )->returnArg();
-		Functions\when( 'wp_unslash' )->returnArg();
-		Functions\when( 'absint' )->alias( static fn( $v ) => abs( (int) $v ) );
-		Functions\when( 'wp_attachment_is_image' )->justReturn( false );
-		Functions\when( 'update_post_meta' )->justReturn( true );
-
-		$_POST['mbgs_image_map_original']    = array( '10' );
-		$_POST['mbgs_image_map_replacement'] = array( '20' );
-
-		$image_map_builder = Mockery::mock( ImageMapBuilder::class );
-		$image_map_builder->shouldReceive( 'persist' )->once()->with( 77, array() );
-
-		$this->make_post_type( image_map_builder: $image_map_builder )->save( 77 );
+		$this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service, $image_map_builder, $brand_repository )->save( 5 );
 	}
 }

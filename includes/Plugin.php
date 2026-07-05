@@ -198,7 +198,8 @@ class Plugin {
 				$c->get( 'url_rule_registry' ),
 				$c->get( 'variable_parser' ),
 				$c->get( 'global_styles_post_service' ),
-				$c->get( 'image_map_builder' )
+				$c->get( 'image_map_builder' ),
+				$c->get( 'brand_repository' )
 			)
 		);
 
