@@ -353,6 +353,7 @@ class BrandPostType {
 			</label>
 		</p>
 		<p class="description"><?php esc_html_e( 'Only applies when "Rewrite URLs" is enabled. Visitors on the other form are redirected to the chosen one. Applies to this Brand\'s own domain(s).', 'the-another-multi-brand-global-styles' ); ?></p>
+		<p class="description"><?php esc_html_e( 'When enabled, links pointing at the canonical site address are rewritten to the domain the visitor is browsing. Only the domain is changed, never the path.', 'the-another-multi-brand-global-styles' ); ?></p>
 		<?php
 	}
 
