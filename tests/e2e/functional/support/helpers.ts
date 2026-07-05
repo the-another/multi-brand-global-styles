@@ -25,6 +25,10 @@ export interface CreateBrandOptions {
 	identityTagline?: string;
 	/** Attachment ID for the Brand logo (set into the hidden picker input). */
 	logoId?: number;
+	/** Check the "Rewrite URLs to the domain being browsed" box. */
+	urlRewrite?: boolean;
+	/** Check the "Force https in rewritten URLs" box. */
+	urlRewriteForceHttps?: boolean;
 }
 
 /**
@@ -77,6 +81,16 @@ export async function createBrand(
 			.evaluate( ( input, id ) => {
 				( input as HTMLInputElement ).value = String( id );
 			}, options.logoId );
+	}
+
+	if ( options.urlRewrite ) {
+		await page.locator( 'input[name="mbgs_url_rewrite_enabled"]' ).check();
+	}
+
+	if ( options.urlRewriteForceHttps ) {
+		await page
+			.locator( 'input[name="mbgs_url_rewrite_force_https"]' )
+			.check();
 	}
 
 	// force: confirmed empirically on native PHP (no wasm involved) — the
