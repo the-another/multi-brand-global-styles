@@ -11,12 +11,15 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandPostType;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandRepository;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandResolver;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandSettings;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\UrlRuleRegistry;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Container;
 use TheAnother\Plugin\MultiBrandGlobalStyles\ContentVariables\VariableSubstitutionService;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Editor\EditorAssets;
 use TheAnother\Plugin\MultiBrandGlobalStyles\GlobalStyles\GlobalStylesOverride;
+use TheAnother\Plugin\MultiBrandGlobalStyles\GlobalStyles\GlobalStylesPostService;
 use TheAnother\Plugin\MultiBrandGlobalStyles\HookManager;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Identity\SiteIdentityOverride;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Media\AttachmentLifecycle;
@@ -25,6 +28,7 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\Media\ImageUrlReplacer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Plugin;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Rendering\PageBuffer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Rest\ReplacementsController;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\HostRewriter;
 use WP_Post;
 
 // Plugin::start() wires and constructs every real service in the container
@@ -36,9 +40,12 @@ use WP_Post;
 #[UsesClass( Container::class )]
 #[UsesClass( HookManager::class )]
 #[UsesClass( BrandPostType::class )]
+#[UsesClass( BrandRepository::class )]
 #[UsesClass( BrandResolver::class )]
+#[UsesClass( BrandSettings::class )]
 #[UsesClass( UrlRuleRegistry::class )]
 #[UsesClass( GlobalStylesOverride::class )]
+#[UsesClass( GlobalStylesPostService::class )]
 #[UsesClass( SiteIdentityOverride::class )]
 #[UsesClass( VariableSubstitutionService::class )]
 #[UsesClass( ImageUrlReplacer::class )]
@@ -47,6 +54,7 @@ use WP_Post;
 #[UsesClass( PageBuffer::class )]
 #[UsesClass( ReplacementsController::class )]
 #[UsesClass( EditorAssets::class )]
+#[UsesClass( HostRewriter::class )]
 class PluginTest extends TestCase {
 	use MockeryPHPUnitIntegration;
 
@@ -95,13 +103,13 @@ class PluginTest extends TestCase {
 
 		$hooks = Container::get_instance()->get_hook_manager()->get_registered_hooks();
 
-		$this->assertCount( 19, $hooks );
+		$this->assertCount( 21, $hooks );
 
 		$actions = array_column( array_filter( $hooks, fn( $h ) => 'action' === $h['type'] ), 'hook' );
 		$filters = array_column( array_filter( $hooks, fn( $h ) => 'filter' === $h['type'] ), 'hook' );
 
 		$this->assertSame(
-			array( 'init', 'add_meta_boxes', 'save_post_mbgs_brand', 'admin_enqueue_scripts', 'save_post_mbgs_brand', 'deleted_post', 'template_redirect', 'admin_notices', 'added_post_meta', 'updated_post_meta', 'delete_attachment', 'rest_api_init', 'enqueue_block_editor_assets' ),
+			array( 'init', 'add_meta_boxes', 'save_post_mbgs_brand', 'admin_enqueue_scripts', 'save_post_mbgs_brand', 'deleted_post', 'save_post_mbgs_brand', 'template_redirect', 'admin_notices', 'added_post_meta', 'updated_post_meta', 'delete_attachment', 'rest_api_init', 'enqueue_block_editor_assets' ),
 			$actions
 		);
 		$this->assertSame(
@@ -112,6 +120,7 @@ class PluginTest extends TestCase {
 				'pre_option_blogname',
 				'pre_option_blogdescription',
 				'pre_option_site_icon',
+				'redirect_canonical',
 			),
 			$filters
 		);
@@ -135,6 +144,7 @@ class PluginTest extends TestCase {
 			'image_map_builder',
 			'attachment_lifecycle',
 			'page_buffer',
+			'host_rewriter',
 			'brand_post_type',
 			'admin_notices',
 			'replacements_controller',
@@ -144,6 +154,24 @@ class PluginTest extends TestCase {
 		}
 
 		$this->assertInstanceOf( BrandPostType::class, $container->get( 'brand_post_type' ) );
+	}
+
+	public function test_page_buffer_transformer_order_is_load_bearing(): void {
+		Plugin::get_instance()->start();
+
+		$page_buffer = Container::get_instance()->get( 'page_buffer' );
+
+		$transformers = ( new \ReflectionProperty( PageBuffer::class, 'transformers' ) )->getValue( $page_buffer );
+
+		$this->assertSame(
+			array(
+				VariableSubstitutionService::class,
+				ImageUrlReplacer::class,
+				HostRewriter::class,
+			),
+			array_map( static fn( array $transformer ): string => get_class( $transformer[0] ), $transformers ),
+			'Host rewrite must run LAST: the image URL map keys carry canonical-host URLs.'
+		);
 	}
 
 	public static function deleted_post_cases(): array {
@@ -164,6 +192,8 @@ class PluginTest extends TestCase {
 
 		if ( $expect_invalidation ) {
 			Functions\expect( 'delete_transient' )->once()->with( 'mbgs_rule_map' );
+			Functions\expect( 'delete_transient' )->once()->with( 'mbgs_brand_settings_5' );
+			Functions\expect( 'delete_transient' )->once()->with( 'mbgs_default_brand' );
 		} else {
 			Functions\expect( 'delete_transient' )->never();
 		}

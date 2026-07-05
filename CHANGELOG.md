@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-05
+
+### Added
+- Per-Brand **URL rewrite** option (new "URL Rewrite" meta box, opt-in): canonical `home`/`siteurl` URLs in the rendered HTML are rewritten to the domain being browsed — host/port only, never paths — covering absolute, protocol-relative, and JSON-escaped forms, via a new `Urls\HostRewriter` transformer that runs last in the page buffer. A companion "Force https" toggle upgrades rewritten URLs; without it, the visitor's current scheme is matched.
+- `redirect_canonical` guard for rewriting Brands: host-only canonical redirects are cancelled so visitors stay on the Brand domain, while path/query canonicalization (and force-https upgrade redirects) still work on the browsed host.
+
+### Changed
+- All per-Brand data consolidated into a single `_mbgs_settings` meta entry, hydrated through a readonly `BrandSettings` value object by `BrandRepository` — one gateway with a per-request memo, per-Brand `mbgs_brand_settings_<id>` transients, and an `mbgs_default_brand` transient (all dropped automatically on Brand save, trash, untrash, and delete). The old per-concern `_mbgs_*` meta keys were removed outright (pre-production; no migration shipped).
+- Functional e2e environment hardened for host-dependent testing: `wp server`'s router follows the incoming Host header, so the suite now pins the canonical URLs via an mu-plugin, and a new spec exercises URL rewriting using `127.0.0.1` as a second domain.
+
 ## [0.1.1] - 2026-07-04
 
 ### Added
@@ -39,6 +49,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Optional default Brand as the fallback for unmatched requests.
 - Duplicate-rule rejection with an admin notice; overlapping-but-different rules allowed by design.
 
-[Unreleased]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/theanother/the-another-multi-brand-global-styles/releases/tag/v0.1.0

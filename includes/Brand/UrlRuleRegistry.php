@@ -8,6 +8,8 @@
 
 namespace TheAnother\Plugin\MultiBrandGlobalStyles\Brand;
 
+use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandRepository;
+
 /**
  * Class UrlRuleRegistry
  *
@@ -22,6 +24,22 @@ class UrlRuleRegistry {
 	 * @var string
 	 */
 	private const CACHE_KEY = 'mbgs_rule_map';
+
+	/**
+	 * Brand repository.
+	 *
+	 * @var BrandRepository
+	 */
+	private BrandRepository $brand_repository;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param BrandRepository $brand_repository Brand repository service.
+	 */
+	public function __construct( BrandRepository $brand_repository ) {
+		$this->brand_repository = $brand_repository;
+	}
 
 	/**
 	 * Normalize a hostname: lowercase, strip scheme/path, strip port, strip leading www.
@@ -164,24 +182,10 @@ class UrlRuleRegistry {
 			return $cached;
 		}
 
-		$map       = array();
-		$brand_ids = get_posts(
-			array(
-				'post_type'      => 'mbgs_brand',
-				'post_status'    => 'publish',
-				'posts_per_page' => -1,
-				'fields'         => 'ids',
-			)
-		);
+		$map = array();
 
-		foreach ( $brand_ids as $brand_id ) {
-			$rules = get_post_meta( $brand_id, '_mbgs_rules', true );
-
-			if ( ! is_array( $rules ) ) {
-				continue;
-			}
-
-			foreach ( $rules as $rule ) {
+		foreach ( $this->brand_repository->get_published_brand_ids() as $brand_id ) {
+			foreach ( $this->brand_repository->get_rules( $brand_id ) as $rule ) {
 				list( $host, $path_prefix ) = $this->split_rule( $rule );
 
 				$map[ $host ][ $path_prefix ] = $brand_id;

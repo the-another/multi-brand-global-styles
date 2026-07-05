@@ -5,9 +5,11 @@ namespace TheAnother\Plugin\MultiBrandGlobalStyles\Tests\Media;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;
+use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandRepository;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Media\ImageMapBuilder;
 
 #[CoversClass( ImageMapBuilder::class )]
@@ -33,6 +35,12 @@ class ImageMapBuilderTest extends TestCase {
 		);
 	}
 
+	private function make_builder( ?BrandRepository $brand_repository = null ): ImageMapBuilder {
+		return new ImageMapBuilder(
+			$brand_repository ?? Mockery::mock( BrandRepository::class )->shouldIgnoreMissing()
+		);
+	}
+
 	public function test_maps_full_and_matching_size_urls(): void {
 		$this->stub_attachments(
 			array(
@@ -45,7 +53,7 @@ class ImageMapBuilderTest extends TestCase {
 			)
 		);
 
-		$map = ( new ImageMapBuilder() )->build_url_map( array( 10 => 20 ) );
+		$map = $this->make_builder()->build_url_map( array( 10 => 20 ) );
 
 		$this->assertSame( 'https://ex.com/up/repl.jpg', $map['https://ex.com/up/orig.jpg'] );
 		$this->assertSame( 'https://ex.com/up/repl-150x150.jpg', $map['https://ex.com/up/orig-150x150.jpg'] );
@@ -63,7 +71,7 @@ class ImageMapBuilderTest extends TestCase {
 			)
 		);
 
-		$map = ( new ImageMapBuilder() )->build_url_map( array( 10 => 20 ) );
+		$map = $this->make_builder()->build_url_map( array( 10 => 20 ) );
 
 		$this->assertSame( 'https://ex.com/up/repl.jpg', $map['https://ex.com/up/orig-1024x768.jpg'] );
 	}
@@ -71,7 +79,7 @@ class ImageMapBuilderTest extends TestCase {
 	public function test_skips_pairs_whose_attachments_do_not_resolve(): void {
 		$this->stub_attachments( array( 10 => 'https://ex.com/up/orig.jpg' ), array() );
 
-		$this->assertSame( array(), ( new ImageMapBuilder() )->build_url_map( array( 10 => 99 ) ) );
+		$this->assertSame( array(), $this->make_builder()->build_url_map( array( 10 => 99 ) ) );
 	}
 
 	public function test_orders_keys_longest_first(): void {
@@ -86,12 +94,12 @@ class ImageMapBuilderTest extends TestCase {
 			)
 		);
 
-		$keys = array_keys( ( new ImageMapBuilder() )->build_url_map( array( 10 => 20 ) ) );
+		$keys = array_keys( $this->make_builder()->build_url_map( array( 10 => 20 ) ) );
 
 		$this->assertSame( 'https://ex.com/up/orig-150x150.jpg', $keys[0] );
 	}
 
-	public function test_persist_writes_both_meta_keys(): void {
+	public function test_persist_writes_both_settings_keys_in_one_update(): void {
 		$this->stub_attachments(
 			array(
 				10 => 'https://ex.com/up/orig.jpg',
@@ -100,13 +108,17 @@ class ImageMapBuilderTest extends TestCase {
 			array()
 		);
 
-		Functions\expect( 'update_post_meta' )->once()->with( 5, '_mbgs_image_map', array( 10 => 20 ) );
-		Functions\expect( 'update_post_meta' )->once()->with(
-			5,
-			'_mbgs_image_url_map',
-			array( 'https://ex.com/up/orig.jpg' => 'https://ex.com/up/repl.jpg' )
-		);
+		$brand_repository = Mockery::mock( BrandRepository::class );
+		$brand_repository->shouldReceive( 'update_settings' )
+			->once()
+			->with(
+				5,
+				array(
+					'image_map'     => array( 10 => 20 ),
+					'image_url_map' => array( 'https://ex.com/up/orig.jpg' => 'https://ex.com/up/repl.jpg' ),
+				)
+			);
 
-		( new ImageMapBuilder() )->persist( 5, array( 10 => 20 ) );
+		$this->make_builder( $brand_repository )->persist( 5, array( 10 => 20 ) );
 	}
 }

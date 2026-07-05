@@ -8,15 +8,34 @@
 
 namespace TheAnother\Plugin\MultiBrandGlobalStyles\Media;
 
+use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandRepository;
+
 /**
  * Class ImageMapBuilder
  *
  * Turns a Brand's `original attachment => replacement attachment` pairs into
  * a flat URL map (full-size + every registered size variant, matched by size
- * name) and persists both meta keys. The URL map is precomputed at save time
- * so render time needs zero attachment queries.
+ * name) and persists both (`image_map` + the derived `image_url_map`) into
+ * the consolidated `_mbgs_settings` entry via the repository. The URL map is
+ * precomputed at save time so render time needs zero attachment queries.
  */
 class ImageMapBuilder {
+
+	/**
+	 * Brand repository.
+	 *
+	 * @var BrandRepository
+	 */
+	private BrandRepository $brand_repository;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param BrandRepository $brand_repository Brand repository service.
+	 */
+	public function __construct( BrandRepository $brand_repository ) {
+		$this->brand_repository = $brand_repository;
+	}
 
 	/**
 	 * Build the flat URL map for a set of replacement pairs.
@@ -62,15 +81,20 @@ class ImageMapBuilder {
 	}
 
 	/**
-	 * Persist a Brand's pairs and the derived URL map.
+	 * Persist a Brand's pairs and the derived URL map into the settings entry.
 	 *
 	 * @param int             $brand_id Brand post ID.
 	 * @param array<int, int> $pairs    Original attachment ID => replacement attachment ID.
 	 * @return void
 	 */
 	public function persist( int $brand_id, array $pairs ): void {
-		update_post_meta( $brand_id, '_mbgs_image_map', $pairs );
-		update_post_meta( $brand_id, '_mbgs_image_url_map', $this->build_url_map( $pairs ) );
+		$this->brand_repository->update_settings(
+			$brand_id,
+			array(
+				'image_map'     => $pairs,
+				'image_url_map' => $this->build_url_map( $pairs ),
+			)
+		);
 	}
 
 	/**

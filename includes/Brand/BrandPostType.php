@@ -58,23 +58,33 @@ class BrandPostType {
 	private ImageMapBuilder $image_map_builder;
 
 	/**
+	 * Brand repository.
+	 *
+	 * @var BrandRepository
+	 */
+	private BrandRepository $brand_repository;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param UrlRuleRegistry         $url_rule_registry             URL rule registry service.
 	 * @param VariableParser          $variable_parser             Variable parser service.
 	 * @param GlobalStylesPostService $global_styles_post_service  Global styles post service.
 	 * @param ImageMapBuilder         $image_map_builder           Image map builder service.
+	 * @param BrandRepository         $brand_repository            Brand repository service.
 	 */
 	public function __construct(
 		UrlRuleRegistry $url_rule_registry,
 		VariableParser $variable_parser,
 		GlobalStylesPostService $global_styles_post_service,
-		ImageMapBuilder $image_map_builder
+		ImageMapBuilder $image_map_builder,
+		BrandRepository $brand_repository
 	) {
 		$this->url_rule_registry          = $url_rule_registry;
 		$this->variable_parser            = $variable_parser;
 		$this->global_styles_post_service = $global_styles_post_service;
 		$this->image_map_builder          = $image_map_builder;
+		$this->brand_repository           = $brand_repository;
 	}
 
 	/**
@@ -124,6 +134,7 @@ class BrandPostType {
 		add_meta_box( 'mbgs_styles', __( 'Global Styles (raw JSON)', 'the-another-multi-brand-global-styles' ), array( $this, 'render_styles_meta_box' ), self::POST_TYPE, 'normal', 'default' );
 		add_meta_box( 'mbgs_identity', __( 'Brand Identity', 'the-another-multi-brand-global-styles' ), array( $this, 'render_identity_meta_box' ), self::POST_TYPE, 'side', 'default' );
 		add_meta_box( 'mbgs_image_map', __( 'Image Replacements', 'the-another-multi-brand-global-styles' ), array( $this, 'render_image_map_meta_box' ), self::POST_TYPE, 'normal', 'default' );
+		add_meta_box( 'mbgs_url_rewrite', __( 'URL Rewrite', 'the-another-multi-brand-global-styles' ), array( $this, 'render_url_rewrite_meta_box' ), self::POST_TYPE, 'side', 'default' );
 	}
 
 	/**
@@ -133,8 +144,7 @@ class BrandPostType {
 	 * @return void
 	 */
 	public function render_rules_meta_box( WP_Post $post ): void {
-		$rules = get_post_meta( $post->ID, '_mbgs_rules', true );
-		$rules = is_array( $rules ) ? $rules : array();
+		$rules = $this->brand_repository->get_settings( $post->ID )->rules();
 
 		wp_nonce_field( 'mbgs_save_brand', 'mbgs_brand_nonce' );
 		?>
@@ -150,8 +160,7 @@ class BrandPostType {
 	 * @return void
 	 */
 	public function render_variables_meta_box( WP_Post $post ): void {
-		$variables = get_post_meta( $post->ID, '_mbgs_variables', true );
-		$variables = is_array( $variables ) ? $variables : array();
+		$variables = $this->brand_repository->get_settings( $post->ID )->variables();
 
 		$lines = array();
 		foreach ( $variables as $key => $value ) {
@@ -170,10 +179,10 @@ class BrandPostType {
 	 * @return void
 	 */
 	public function render_default_meta_box( WP_Post $post ): void {
-		$is_default = get_post_meta( $post->ID, '_mbgs_is_default', true );
+		$is_default = $this->brand_repository->get_settings( $post->ID )->is_default();
 		?>
 		<label>
-			<input type="checkbox" name="mbgs_is_default" value="1" <?php checked( $is_default, '1' ); ?> />
+			<input type="checkbox" name="mbgs_is_default" value="1" <?php checked( $is_default ); ?> />
 			<?php esc_html_e( 'Use as fallback for unmatched domains', 'the-another-multi-brand-global-styles' ); ?>
 		</label>
 		<?php
@@ -186,8 +195,8 @@ class BrandPostType {
 	 * @return void
 	 */
 	public function render_styles_meta_box( WP_Post $post ): void {
-		$global_styles_post_id = get_post_meta( $post->ID, '_mbgs_global_styles_post_id', true );
-		$data                  = $global_styles_post_id ? $this->global_styles_post_service->get_global_styles_data( (int) $global_styles_post_id ) : array();
+		$global_styles_post_id = $this->brand_repository->get_settings( $post->ID )->global_styles_post_id();
+		$data                  = $global_styles_post_id ? $this->global_styles_post_service->get_global_styles_data( $global_styles_post_id ) : array();
 
 		$active_styles_url = add_query_arg(
 			'_wpnonce',
@@ -212,8 +221,7 @@ class BrandPostType {
 	 * @return void
 	 */
 	public function render_identity_meta_box( WP_Post $post ): void {
-		$identity = get_post_meta( $post->ID, '_mbgs_identity', true );
-		$identity = is_array( $identity ) ? $identity : array();
+		$identity = $this->brand_repository->get_settings( $post->ID )->identity();
 		?>
 		<p><?php esc_html_e( 'Each field is optional; empty fields fall back to the site default.', 'the-another-multi-brand-global-styles' ); ?></p>
 		<?php
@@ -259,8 +267,7 @@ class BrandPostType {
 	 * @return void
 	 */
 	public function render_image_map_meta_box( WP_Post $post ): void {
-		$pairs = get_post_meta( $post->ID, '_mbgs_image_map', true );
-		$pairs = is_array( $pairs ) ? $pairs : array();
+		$pairs = $this->brand_repository->get_settings( $post->ID )->image_map();
 		?>
 		<p><?php esc_html_e( 'Wherever this Brand matches, each original image is replaced by its counterpart on the frontend. Same-aspect-ratio replacements are recommended. Replacements can also be set in the block editor, on any selected Image block.', 'the-another-multi-brand-global-styles' ); ?></p>
 		<div class="mbgs-image-map-rows">
@@ -307,7 +314,36 @@ class BrandPostType {
 	}
 
 	/**
+	 * Render the URL Rewrite meta box.
+	 *
+	 * @param WP_Post $post Current post.
+	 * @return void
+	 */
+	public function render_url_rewrite_meta_box( WP_Post $post ): void {
+		$settings = $this->brand_repository->get_settings( $post->ID );
+		?>
+		<p>
+			<label>
+				<input type="checkbox" name="mbgs_url_rewrite_enabled" value="1" <?php checked( $settings->url_rewrite_enabled() ); ?> />
+				<?php esc_html_e( 'Rewrite URLs to the domain being browsed', 'the-another-multi-brand-global-styles' ); ?>
+			</label>
+		</p>
+		<p>
+			<label>
+				<input type="checkbox" name="mbgs_url_rewrite_force_https" value="1" <?php checked( $settings->url_rewrite_force_https() ); ?> />
+				<?php esc_html_e( 'Force https in rewritten URLs', 'the-another-multi-brand-global-styles' ); ?>
+			</label>
+		</p>
+		<p class="description"><?php esc_html_e( 'When enabled, links pointing at the canonical site address are rewritten to the domain the visitor is browsing. Only the domain is changed, never the path.', 'the-another-multi-brand-global-styles' ); ?></p>
+		<?php
+	}
+
+	/**
 	 * Save handler. Hooked to `save_post_mbgs_brand`.
+	 *
+	 * Builds the full form-derived settings array and performs ONE merge-write
+	 * (update_settings), so keys owned by other writers — global_styles_post_id —
+	 * survive the admin save.
 	 *
 	 * @param int $post_id Post ID being saved.
 	 * @return void
@@ -325,24 +361,34 @@ class BrandPostType {
 			return;
 		}
 
-		$this->save_rules( $post_id );
-		$this->save_variables( $post_id );
-		$this->save_default_flag( $post_id );
+		$pairs = $this->collect_image_map_pairs();
+
+		$this->brand_repository->update_settings(
+			$post_id,
+			array(
+				'rules'         => $this->collect_rules( $post_id ),
+				'variables'     => $this->collect_variables(),
+				'is_default'    => $this->collect_default_flag( $post_id ),
+				'identity'      => $this->collect_identity(),
+				'image_map'     => $pairs,
+				'image_url_map' => $this->image_map_builder->build_url_map( $pairs ),
+				'url_rewrite'   => $this->collect_url_rewrite(),
+			)
+		);
+
 		$this->save_styles( $post_id );
-		$this->save_identity( $post_id );
-		$this->save_image_map( $post_id );
 
 		$this->url_rule_registry->invalidate_cache();
 		$this->global_styles_post_service->ensure_global_styles_post( $post_id );
 	}
 
 	/**
-	 * Parse, validate, and persist the URL rules field.
+	 * Parse and validate the URL rules field, rejecting exact-rule conflicts.
 	 *
 	 * @param int $post_id Post ID.
-	 * @return void
+	 * @return array<int, string> Accepted rules.
 	 */
-	private function save_rules( int $post_id ): void {
+	private function collect_rules( int $post_id ): array {
 		$raw   = isset( $_POST['mbgs_rules'] ) ? sanitize_textarea_field( wp_unslash( $_POST['mbgs_rules'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in save() before delegation.
 		$rules = $this->url_rule_registry->parse_rules_input( $raw );
 
@@ -361,50 +407,41 @@ class BrandPostType {
 			set_transient( 'mbgs_rule_conflict_' . get_current_user_id(), $rejected, 30 );
 		}
 
-		update_post_meta( $post_id, '_mbgs_rules', $accepted );
+		return $accepted;
 	}
 
 	/**
-	 * Parse and persist the content variables field.
+	 * Parse the content variables field.
 	 *
-	 * @param int $post_id Post ID.
-	 * @return void
+	 * @return array<string, string> Variables.
 	 */
-	private function save_variables( int $post_id ): void {
+	private function collect_variables(): array {
 		$raw = isset( $_POST['mbgs_variables'] ) ? sanitize_textarea_field( wp_unslash( $_POST['mbgs_variables'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in save() before delegation.
 
-		update_post_meta( $post_id, '_mbgs_variables', $this->variable_parser->parse( $raw ) );
+		return $this->variable_parser->parse( $raw );
 	}
 
 	/**
-	 * Persist the default-Brand flag, clearing it from any other Brand.
+	 * Read the default-Brand flag, clearing it from any other Brand when set.
 	 *
 	 * @param int $post_id Post ID.
-	 * @return void
+	 * @return bool Whether this Brand is now the default.
 	 */
-	private function save_default_flag( int $post_id ): void {
-		$is_default = ! empty( $_POST['mbgs_is_default'] ) ? '1' : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in save() before delegation.
+	private function collect_default_flag( int $post_id ): bool {
+		$is_default = ! empty( $_POST['mbgs_is_default'] ); // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in save() before delegation.
 
-		if ( '1' === $is_default ) {
-			$others = get_posts(
-				array(
-					'post_type'      => self::POST_TYPE,
-					'posts_per_page' => -1,
-					'fields'         => 'ids',
-					'post_status'    => 'any',
-					'meta_key'       => '_mbgs_is_default', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Save-time flag lookup over the handful of Brands a site defines.
-					'meta_value'     => '1', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value -- Save-time flag lookup over the handful of Brands a site defines.
-				)
-			);
-			foreach ( $others as $other_id ) {
+		if ( $is_default ) {
+			foreach ( $this->brand_repository->get_brand_ids() as $other_id ) {
 				if ( $other_id === $post_id ) {
 					continue;
 				}
-				delete_post_meta( $other_id, '_mbgs_is_default' );
+				if ( $this->brand_repository->get_settings( $other_id )->is_default() ) {
+					$this->brand_repository->update_settings( $other_id, array( 'is_default' => false ) );
+				}
 			}
 		}
 
-		update_post_meta( $post_id, '_mbgs_is_default', $is_default );
+		return $is_default;
 	}
 
 	/**
@@ -442,12 +479,11 @@ class BrandPostType {
 	}
 
 	/**
-	 * Parse, validate, and persist the identity fields.
+	 * Parse and validate the identity fields.
 	 *
-	 * @param int $post_id Post ID.
-	 * @return void
+	 * @return array<string, int|string> Identity (keys present only when set).
 	 */
-	private function save_identity( int $post_id ): void {
+	private function collect_identity(): array {
 		$identity = array();
 
 		foreach ( array(
@@ -470,16 +506,15 @@ class BrandPostType {
 			}
 		}
 
-		update_post_meta( $post_id, '_mbgs_identity', $identity );
+		return $identity;
 	}
 
 	/**
-	 * Parse, validate, and persist the image replacement pairs.
+	 * Parse and validate the image replacement pairs.
 	 *
-	 * @param int $post_id Post ID.
-	 * @return void
+	 * @return array<int, int> Original attachment ID => replacement attachment ID.
 	 */
-	private function save_image_map( int $post_id ): void {
+	private function collect_image_map_pairs(): array {
 		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in save() before delegation.
 		$originals = isset( $_POST['mbgs_image_map_original'] ) ? array_map( 'absint', (array) wp_unslash( $_POST['mbgs_image_map_original'] ) ) : array();
 		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in save() before delegation.
@@ -501,7 +536,26 @@ class BrandPostType {
 			$pairs[ $original_id ] = $replacement_id;
 		}
 
-		$this->image_map_builder->persist( $post_id, $pairs );
+		return $pairs;
+	}
+
+	/**
+	 * Read the URL rewrite checkboxes (keys present only when checked).
+	 *
+	 * @return array<string, bool> Any of enabled, force_https.
+	 */
+	private function collect_url_rewrite(): array {
+		$url_rewrite = array();
+
+		if ( ! empty( $_POST['mbgs_url_rewrite_enabled'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in save() before delegation.
+			$url_rewrite['enabled'] = true;
+		}
+
+		if ( ! empty( $_POST['mbgs_url_rewrite_force_https'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in save() before delegation.
+			$url_rewrite['force_https'] = true;
+		}
+
+		return $url_rewrite;
 	}
 
 	/**
