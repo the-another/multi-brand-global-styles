@@ -24,6 +24,7 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\Media\ImageUrlReplacer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Media\ImageMapBuilder;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Rendering\PageBuffer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Rest\ReplacementsController;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\HostRewriter;
 
 /**
  * Class Plugin
@@ -84,19 +85,23 @@ class Plugin {
 		// The rule-map transient never expires, and the nonce-gated save()
 		// handler above doesn't run on trash/untrash/delete — invalidate
 		// unconditionally on any Brand status change so the map can't go
-		// stale when a Brand is trashed or permanently deleted.
+		// stale when a Brand is trashed or permanently deleted. The same
+		// applies to the per-Brand settings + default-Brand transients.
 		$url_rule_registry = $this->container->get( 'url_rule_registry' );
+		$brand_repository  = $this->container->get( 'brand_repository' );
 		$hooks->register_action( 'save_post_' . BrandPostType::POST_TYPE, array( $url_rule_registry, 'invalidate_cache' ) );
 		$hooks->register_action(
 			'deleted_post',
-			function ( $post_id, $post ) use ( $url_rule_registry ) {
+			function ( $post_id, $post ) use ( $url_rule_registry, $brand_repository ) {
 				if ( $post && BrandPostType::POST_TYPE === $post->post_type ) {
 					$url_rule_registry->invalidate_cache();
+					$brand_repository->flush_brand_caches( (int) $post_id );
 				}
 			},
 			10,
 			2
 		);
+		$hooks->register_action( 'save_post_' . BrandPostType::POST_TYPE, array( $brand_repository, 'flush_brand_caches' ) );
 
 		$global_styles_override = $this->container->get( 'global_styles_override' );
 		$hooks->register_filter( 'wp_theme_json_data_user', array( $global_styles_override, 'filter_theme_json' ) );
@@ -110,6 +115,9 @@ class Plugin {
 
 		$page_buffer = $this->container->get( 'page_buffer' );
 		$hooks->register_action( 'template_redirect', array( $page_buffer, 'start_buffer' ) );
+
+		$host_rewriter = $this->container->get( 'host_rewriter' );
+		$hooks->register_filter( 'redirect_canonical', array( $host_rewriter, 'filter_redirect_canonical' ), 10, 2 );
 
 		$admin_notices = $this->container->get( 'admin_notices' );
 		$hooks->register_action( 'admin_notices', array( $admin_notices, 'render' ) );
@@ -173,6 +181,11 @@ class Plugin {
 		);
 
 		$this->container->register(
+			'host_rewriter',
+			fn( Container $c ) => new HostRewriter( $c->get( 'brand_resolver' ), $c->get( 'brand_repository' ) )
+		);
+
+		$this->container->register(
 			'image_map_builder',
 			fn( Container $c ) => new ImageMapBuilder( $c->get( 'brand_repository' ) )
 		);
@@ -188,6 +201,9 @@ class Plugin {
 				array(
 					array( $c->get( 'variable_substitution_service' ), 'replace' ),
 					array( $c->get( 'image_url_replacer' ), 'replace' ),
+					// LAST: the image URL map's keys carry canonical-host URLs,
+					// so hosts must still be canonical when the image pass runs.
+					array( $c->get( 'host_rewriter' ), 'replace' ),
 				)
 			)
 		);
