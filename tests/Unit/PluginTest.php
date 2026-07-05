@@ -156,6 +156,24 @@ class PluginTest extends TestCase {
 		$this->assertInstanceOf( BrandPostType::class, $container->get( 'brand_post_type' ) );
 	}
 
+	public function test_page_buffer_transformer_order_is_load_bearing(): void {
+		Plugin::get_instance()->start();
+
+		$page_buffer = Container::get_instance()->get( 'page_buffer' );
+
+		$transformers = ( new \ReflectionProperty( PageBuffer::class, 'transformers' ) )->getValue( $page_buffer );
+
+		$this->assertSame(
+			array(
+				VariableSubstitutionService::class,
+				ImageUrlReplacer::class,
+				HostRewriter::class,
+			),
+			array_map( static fn( array $transformer ): string => get_class( $transformer[0] ), $transformers ),
+			'Host rewrite must run LAST: the image URL map keys carry canonical-host URLs.'
+		);
+	}
+
 	public static function deleted_post_cases(): array {
 		return array(
 			'matching post type triggers invalidation'     => array( new WP_Post( 5, BrandPostType::POST_TYPE ), true ),

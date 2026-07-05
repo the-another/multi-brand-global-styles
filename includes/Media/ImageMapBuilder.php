@@ -15,8 +15,9 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandRepository;
  *
  * Turns a Brand's `original attachment => replacement attachment` pairs into
  * a flat URL map (full-size + every registered size variant, matched by size
- * name) and persists both meta keys. The URL map is precomputed at save time
- * so render time needs zero attachment queries.
+ * name) and persists both (`image_map` + the derived `image_url_map`) into
+ * the consolidated `_mbgs_settings` entry via the repository. The URL map is
+ * precomputed at save time so render time needs zero attachment queries.
  */
 class ImageMapBuilder {
 
