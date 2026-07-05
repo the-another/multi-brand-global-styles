@@ -35,9 +35,10 @@ Wherever a Brand's rules match the incoming request, three things happen at rend
 ### Bounded contexts (domain, organized by concept not layer)
 
 - `includes/Brand/` — the Brand aggregate + URL rule matching:
-  - `BrandPostType.php` — the `mbgs_brand` CPT (aggregate root), meta boxes (rules / variables / default / styles / **identity** / **image replacements**), and save handler. `POST_TYPE = 'mbgs_brand'`. Enqueues `assets/admin/brand-media.js` (plain JS, committed, no build step) for the `wp.media` pickers on the identity and image-replacement meta boxes.
+  - `BrandPostType.php` — the `mbgs_brand` CPT (aggregate root), meta boxes (rules / variables / default / styles / identity / image replacements / **URL rewrite**), and save handler. `POST_TYPE = 'mbgs_brand'`. Enqueues `assets/admin/brand-media.js` (plain JS, committed, no build step) for the `wp.media` pickers on the identity and image-replacement meta boxes.
   - `UrlRuleRegistry.php` — normalize/parse/dedupe URL rules, exact-rule conflict detection, and the cached host→path→Brand rule map.
-  - `BrandRepository.php` — read helpers (rules, variables, default Brand, global-styles post id, identity, image map(s), brand-id listings).
+  - `BrandSettings.php` — readonly value object over the single `_mbgs_settings` meta entry; ALL normalization/defaulting of stored Brand data lives here.
+  - `BrandRepository.php` — the single gateway to per-Brand data: `get_settings()` hydrates `BrandSettings` behind a per-request memo + a per-Brand `mbgs_brand_settings_<id>` transient; `save_settings()`/`update_settings()` write and flush; thin per-concern getters delegate to it.
   - `BrandResolver.php` — `HTTP_HOST` + `REQUEST_URI` → Brand id (most-specific rule wins); per-request memoization plus a capability-gated `?mbgs_preview_brand` override (see Gotchas).
   - `AdminNotices.php` — renders the duplicate-rule rejection notice.
 - `includes/GlobalStyles/` — the per-Brand style-override mechanism:
@@ -54,6 +55,8 @@ Wherever a Brand's rules match the incoming request, three things happen at rend
   - `AttachmentLifecycle.php` — keeps every Brand's URL map truthful when attachments change: rebuilds affected Brands' maps when `_wp_attachment_metadata` is written, prunes pairs referencing a deleted attachment (either side).
 - `includes/Rendering/` — the single frontend output buffer:
   - `PageBuffer.php` — one `template_redirect`-started `ob_start()`; applies an ordered list of transformers (variable substitution, then image URL replacement) to the final HTML in one pass — one buffer, N passes, no nesting. Skipped for admin/AJAX/feeds/REST.
+- `includes/Urls/` — per-Brand URL host rewriting:
+  - `HostRewriter.php` — the LAST PageBuffer transformer: for Brands with the option on, swaps the canonical `home`/`siteurl` authority (host[:port]) in the final HTML for the authority being browsed — absolute, protocol-relative, and JSON-escaped forms; path/query never touched. Also filters `redirect_canonical` so core can't bounce visitors back to the canonical host (returns false when only the host differed).
 - `includes/Rest/` — the editor-facing REST surface:
   - `ReplacementsController.php` — the `mbgs/v1` namespace: `GET`/`POST /replacements` (per-image replacement rows for the Image-block panel), `GET /brands` and `GET /preview-map` (Brand list + per-Brand preview payload for the editor preview sidebar). All routes gated by `edit_theme_options`.
 - `includes/Editor/` — block editor integration:
@@ -61,28 +64,32 @@ Wherever a Brand's rules match the incoming request, three things happen at rend
 
 ### Data model (all on the `mbgs_brand` CPT)
 
-Post meta (authoritative keys — grep these, not the design doc):
-- `_mbgs_rules` — array of normalized URL rules (`host` or `host/path/prefix`).
-- `_mbgs_variables` — assoc array of variable key → value.
-- `_mbgs_is_default` — `'1'` on the single fallback Brand for unmatched requests.
-- `_mbgs_global_styles_post_id` — id of this Brand's dedicated `wp_global_styles` post.
-- `_mbgs_identity` — assoc array of `logo_id` / `icon_id` / `title` / `tagline`; each key is present only when that field is actually set (no empty-string/zero placeholders).
-- `_mbgs_image_map` — assoc array of `original attachment ID => replacement attachment ID`.
-- `_mbgs_image_url_map` — **derived, precomputed at save time** by `ImageMapBuilder` from `_mbgs_image_map` (`original URL => replacement URL`, keys sorted longest-first). Render-time code (`ImageUrlReplacer`) reads only this key — never `_mbgs_image_map` — so it costs one meta fetch and zero attachment queries.
+Post meta — ONE entry (authoritative key — grep this, not the design doc):
+- `_mbgs_settings` — everything, hydrated through `BrandSettings`:
+  - `rules` — array of normalized URL rules (`host` or `host/path/prefix`).
+  - `variables` — assoc array of variable key → value.
+  - `is_default` — bool; true on the single fallback Brand.
+  - `identity` — assoc array of `logo_id` / `icon_id` / `title` / `tagline`; each key present only when set.
+  - `image_map` — assoc array of `original attachment ID => replacement attachment ID`.
+  - `image_url_map` — **derived, precomputed at save time** by `ImageMapBuilder` (`original URL => replacement URL`, longest-first). Render-time code reads only this key.
+  - `global_styles_post_id` — id of this Brand's dedicated `wp_global_styles` post.
+  - `url_rewrite` — assoc array of `enabled` / `force_https` (bools, present only when checked).
 
-Admin form fields (POST): `mbgs_rules`, `mbgs_variables`, `mbgs_is_default`, `mbgs_styles_json`, `mbgs_logo_id`, `mbgs_icon_id`, `mbgs_title`, `mbgs_tagline`, `mbgs_image_map_original[]`, `mbgs_image_map_replacement[]` (parallel arrays, same index = one pair); nonce field `mbgs_brand_nonce` / action `mbgs_save_brand`.
+Admin form fields (POST): `mbgs_rules`, `mbgs_variables`, `mbgs_is_default`, `mbgs_styles_json`, `mbgs_logo_id`, `mbgs_icon_id`, `mbgs_title`, `mbgs_tagline`, `mbgs_image_map_original[]`, `mbgs_image_map_replacement[]` (parallel arrays, same index = one pair), `mbgs_url_rewrite_enabled`, `mbgs_url_rewrite_force_https`; nonce field `mbgs_brand_nonce` / action `mbgs_save_brand`.
 
-Transients: `mbgs_rule_map` (cached rule map, rebuilt on any Brand save via `UrlRuleRegistry::invalidate_cache()`); `mbgs_rule_conflict_<post_id>` (one-shot conflict-notice payload).
+Transients: `mbgs_rule_map` (cached rule map); `mbgs_brand_settings_<brand_id>` (one Brand's raw settings array — created on first read, dropped on any save/update/delete of that Brand); `mbgs_default_brand` (default-Brand id, `0` sentinel = none flagged); `mbgs_rule_conflict_<user_id>` (one-shot conflict-notice payload). The first three are flushed from the same `save_post_mbgs_brand` / `deleted_post` hooks.
 
 ### Key hooks (wired in `Plugin::start()`)
 
 | Hook | Callback | Purpose |
 |------|----------|---------|
 | `init` | `BrandPostType::register` | register the `mbgs_brand` CPT |
-| `add_meta_boxes` | `BrandPostType::register_meta_boxes` | rules / variables / default / styles / identity / image-replacement boxes |
+| `add_meta_boxes` | `BrandPostType::register_meta_boxes` | rules / variables / default / styles / identity / image-replacement / URL-rewrite boxes |
 | `save_post_mbgs_brand` | `BrandPostType::save`, then `UrlRuleRegistry::invalidate_cache` | persist + bust rule-map cache |
 | `wp_theme_json_data_user` | `GlobalStylesOverride::filter_theme_json` | merge the matched Brand's styles at render |
-| `template_redirect` | `PageBuffer::start_buffer` | open the whole-page buffer; runs variable substitution then image URL replacement |
+| `template_redirect` | `PageBuffer::start_buffer` | open the whole-page buffer; runs variable substitution, then image URL replacement, then host rewrite |
+| `redirect_canonical` | `HostRewriter::filter_redirect_canonical` | keep opted-in Brands' visitors on the browsed host |
+| `save_post_mbgs_brand` | `BrandRepository::flush_brand_caches` | drop the Brand's settings + default-Brand transients |
 | `pre_option_site_logo` | `SiteIdentityOverride::filter_logo_option` | per-Brand logo (block themes / REST-facing option) |
 | `theme_mod_custom_logo` | `SiteIdentityOverride::filter_logo_theme_mod` | per-Brand logo (`get_custom_logo()` / classic themes) |
 | `pre_option_blogname` | `SiteIdentityOverride::filter_blogname` | per-Brand site title |
@@ -169,7 +176,8 @@ Both suites run via `scripts/tests/e2e.sh` / `scripts/tests/plugin-check.sh` (sh
 - **Both suites install the plugin from the packaged `-test` zip — never from a source mount or file-by-file copy.** The shared `scripts/tests/lib/build-test-zip.sh` pre-flight builds the zip fresh every run for both suites, so `.distignore` is load-bearing for the functional suite too, and packaging bugs fail functionally, not just in Plugin Check. Two consequences: source edits require the rebuild every run already performs (no live mount), and `make test-e2e`/`make check-plugin` both leave `vendor/` in no-dev state (`composer build` runs inside the zip pipeline) — run `make install-dev` before `make test`/`make lint` afterwards.
 - **CI runners are pinned to `ubuntu-24.04`, never `ubuntu-latest`.** PHP 8.3 (the plugin's target) is that image's native series, and `scripts/setup/unit.sh` hard-fails on any other PHP — a `-latest` rollover to a newer Ubuntu would break every job at setup. Bump the runner label and the Docker base images together, deliberately.
 - **`PHP_CLI_SERVER_WORKERS=6` on `wp server` is required, not tuning**: with a single built-in-server worker, WordPress's own loopback requests (cron spawn, site health) deadlock the one PHP process.
-- **The classic-editor publish click in `createBrand()` needs `{ force: true }`** — WP admin's postbox layout never settles enough to pass Playwright's actionability/stability check, confirmed engine-independent on native PHP (no wasm involved; the plain click hung until test timeout on the first run). Don't "clean it up" by removing the force option.
+- **The classic-editor publish click in `createBrand()` needs `{ force: true }`** — WP admin's postbox layout never settles enough to pass Playwright's actionability/stability check, confirmed engine-independent on native PHP (no wasm involved; the plain click hung until test timeout on the first run). Don't "clean it up" by removing the force option. The same postbox instability also hangs Playwright's `.check()` on the Brand meta-box checkboxes, so every checkbox interaction in `createBrand()` (and the url-rewrite spec's edit-screen check) uses `{ force: true }` too — the round-trip `toBeChecked()` assertions are what prove the forced clicks persisted.
+- **wp-cli's `wp server` router follows the Host header — the functional e2e pins the canonical URLs against it.** The server-command router rewrites `home`/`siteurl` to `http://$_SERVER['HTTP_HOST']` on every request, for any host, plugin or no plugin — which silently defeats any test of host-dependent behavior (the off-state of the URL-rewrite option becomes unobservable, and the on-state can't be attributed to the plugin). `tests/e2e/functional/environment/serve-wp.sh` therefore writes an mu-plugin into the ephemeral install pinning both options at `PHP_INT_MAX` (both `pre_option_*` and `option_*` layers) to the install URL. Don't remove it, and don't move it into the shared `tests/e2e/lib/provision-wp.sh` (the check-plugin suite never serves requests and doesn't need it).
 - **Plugin Check runtime checks only work via PCP's WP-CLI runner — never go back to the wp-admin AJAX flow for them.** PCP's 5 runtime checks (`enqueued_scripts_size`, `enqueued_styles_size`, `enqueued_styles_scope`, `enqueued_scripts_scope`, `non_blocking_scripts`) swap the ENTIRE table set (users, usermeta, options included) to a freshly-installed `wp_pc_*` environment via an `object-cache.php` drop-in, and nothing carries the requester's identity into it: the cookie's user doesn't exist in `wp_pc_users`, the pc_-swapped install keeps auth salts in DB options (fresh random ones), and the roles option is written as `wp_user_roles` but read back as `wp_pc_user_roles`. Result: the AJAX request arrives unauthenticated and admin-ajax dies with a bare `0` (HTTP 400). Verified 2026-07 by grafting user+salts+roles into the pc\_ tables, which made all 5 checks pass. (An earlier "loopback HTTP request" theory was wrong — no loopback exists in those checks.) The CLI runner needs no auth at all, but requires the drop-in pre-placed AND a canonical `$_SERVER['argv']`. Under real wp-cli, argv and stdout are canonical; `pcp-early-init-marker.php` (wp-cli `--require`) still records whether PCP early-initialized, which is the tripwire distinguishing "runtime checks found nothing" from "runtime checks silently never ran". This is upstream-reportable (PCP identity gap).
 - **`wp_theme_json_data_user` (not `wp_theme_json_data_theme`) is the filter actually used** for the per-Brand override — match the code, not the earlier design draft.
 - **No activation/deactivation/uninstall hooks yet** and no `uninstall.php`. Cleanup of a Brand's `wp_global_styles` post on delete, and uninstall cleanup, are known open follow-ups — don't assume they exist.
