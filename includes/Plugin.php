@@ -172,7 +172,10 @@ class Plugin {
 			fn( Container $c ) => new ImageUrlReplacer( $c->get( 'brand_resolver' ), $c->get( 'brand_repository' ) )
 		);
 
-		$this->container->register( 'image_map_builder', fn() => new ImageMapBuilder() );
+		$this->container->register(
+			'image_map_builder',
+			fn( Container $c ) => new ImageMapBuilder( $c->get( 'brand_repository' ) )
+		);
 
 		$this->container->register(
 			'attachment_lifecycle',
