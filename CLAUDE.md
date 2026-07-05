@@ -54,7 +54,7 @@ Wherever a Brand's rules match the incoming request, three things happen at rend
   - `ImageUrlReplacer.php` — one `str_replace()` pass over the rendered HTML using the precomputed URL map — no attachment queries at render time.
   - `AttachmentLifecycle.php` — keeps every Brand's URL map truthful when attachments change: rebuilds affected Brands' maps when `_wp_attachment_metadata` is written, prunes pairs referencing a deleted attachment (either side).
 - `includes/Rendering/` — the single frontend output buffer:
-  - `PageBuffer.php` — one `template_redirect`-started `ob_start()`; applies an ordered list of transformers (variable substitution, then image URL replacement) to the final HTML in one pass — one buffer, N passes, no nesting. Skipped for admin/AJAX/feeds/REST.
+  - `PageBuffer.php` — one `template_redirect`-started `ob_start()`; applies an ordered list of transformers (variable substitution, then image URL replacement, then host rewrite) to the final HTML in one pass — one buffer, N passes, no nesting. Skipped for admin/AJAX/feeds/REST.
 - `includes/Urls/` — per-Brand URL host rewriting:
   - `HostRewriter.php` — the LAST PageBuffer transformer: for Brands with the option on, swaps the canonical `home`/`siteurl` authority (host[:port]) in the final HTML for the authority being browsed — absolute, protocol-relative, and JSON-escaped forms; path/query never touched. Also filters `redirect_canonical` so core can't bounce visitors back to the canonical host (returns false when only the host differed).
 - `includes/Rest/` — the editor-facing REST surface:
