@@ -59,8 +59,16 @@ export async function createBrand(
 			.fill( JSON.stringify( options.stylesJson ) );
 	}
 
+	// force on all three checkboxes below: same WP-admin postbox-instability
+	// gotcha as the publish click at the end of this helper — the meta-box
+	// layout never settles enough to pass Playwright's "stable" actionability
+	// check, so an unforced .check() hangs until the test timeout. force
+	// skips actionability only — check() still verifies the element ends up
+	// checked.
 	if ( options.isDefault ) {
-		await page.locator( 'input[name="mbgs_is_default"]' ).check();
+		await page
+			.locator( 'input[name="mbgs_is_default"]' )
+			.check( { force: true } );
 	}
 
 	if ( options.identityTitle !== undefined ) {
@@ -84,13 +92,15 @@ export async function createBrand(
 	}
 
 	if ( options.urlRewrite ) {
-		await page.locator( 'input[name="mbgs_url_rewrite_enabled"]' ).check();
+		await page
+			.locator( 'input[name="mbgs_url_rewrite_enabled"]' )
+			.check( { force: true } );
 	}
 
 	if ( options.urlRewriteForceHttps ) {
 		await page
 			.locator( 'input[name="mbgs_url_rewrite_force_https"]' )
-			.check();
+			.check( { force: true } );
 	}
 
 	// force: confirmed empirically on native PHP (no wasm involved) — the

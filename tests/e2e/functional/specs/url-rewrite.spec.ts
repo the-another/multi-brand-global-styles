@@ -33,9 +33,11 @@ test.describe( 'Brand URL rewrite', () => {
 
 		// Phase 2: enable the option through the real edit form.
 		await page.goto( `/wp-admin/post.php?post=${ brandId }&action=edit` );
+		// force: WP-admin postbox instability — see the checkbox comment in
+		// helpers.ts. The toBeChecked() round-trip below proves persistence.
 		await page
 			.locator( 'input[name="mbgs_url_rewrite_enabled"]' )
-			.check();
+			.check( { force: true } );
 		// Same force+guard dance as createBrand() — see helpers.ts.
 		await page
 			.locator( '#publish:not(.disabled)' )
