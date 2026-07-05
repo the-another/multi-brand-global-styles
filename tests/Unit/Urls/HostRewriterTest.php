@@ -224,4 +224,61 @@ class HostRewriterTest extends TestCase {
 		$html = '<a href="https://canonical.com/x">x</a>';
 		$this->assertSame( $html, $this->rewriter->replace( $html ) );
 	}
+
+	public function test_redirect_canonical_is_cancelled_when_only_the_host_differs(): void {
+		$this->arrange( array( 'enabled' => true ), ssl: false );
+
+		$this->assertFalse(
+			$this->rewriter->filter_redirect_canonical(
+				'https://canonical.com/sample-page/',
+				'http://brand.com/sample-page/'
+			)
+		);
+	}
+
+	public function test_redirect_canonical_keeps_path_fixes_on_the_browsed_host(): void {
+		$this->arrange( array( 'enabled' => true ), ssl: false );
+
+		$this->assertSame(
+			'http://brand.com/sample-page/',
+			$this->rewriter->filter_redirect_canonical(
+				'https://canonical.com/sample-page/',
+				'http://brand.com/sample-page' // trailing-slash canonicalization stays, host does not.
+			)
+		);
+	}
+
+	public function test_redirect_canonical_untouched_when_feature_disabled(): void {
+		$this->arrange( array() );
+
+		$this->assertSame(
+			'https://canonical.com/x/',
+			$this->rewriter->filter_redirect_canonical( 'https://canonical.com/x/', 'https://brand.com/x' )
+		);
+	}
+
+	public function test_redirect_canonical_passes_through_non_string_redirects(): void {
+		$this->brand_resolver->shouldReceive( 'resolve_current_request' )->never();
+
+		$this->assertFalse( $this->rewriter->filter_redirect_canonical( false, 'https://brand.com/x' ) );
+	}
+
+	public function test_redirect_canonical_forces_https_upgrade_redirect(): void {
+		$this->arrange(
+			array(
+				'enabled'     => true,
+				'force_https' => true,
+			),
+			http_host: 'brand.com',
+			ssl: false
+		);
+
+		$this->assertSame(
+			'https://brand.com/sample-page/',
+			$this->rewriter->filter_redirect_canonical(
+				'https://canonical.com/sample-page/',
+				'http://brand.com/sample-page/'
+			)
+		);
+	}
 }

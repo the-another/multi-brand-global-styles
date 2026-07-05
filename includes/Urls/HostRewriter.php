@@ -20,7 +20,8 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandResolver;
  * absolute (https://host), protocol-relative (//host), and JSON-escaped
  * (https:\/\/host, \/\/host) forms. Runs LAST among PageBuffer transformers:
  * the image URL map's keys carry canonical-host URLs, so hosts must still be
- * canonical when the image pass runs.
+ * canonical when the image pass runs. Also guards redirect_canonical so core
+ * cannot bounce opted-in Brands' visitors back to the canonical host.
  */
 class HostRewriter {
 
@@ -89,6 +90,38 @@ class HostRewriter {
 		}
 
 		return $html;
+	}
+
+	/**
+	 * Guard WordPress's canonical redirect. Hooked to `redirect_canonical`.
+	 *
+	 * Core rebuilds canonical URLs from home_url()/get_permalink(), so on a
+	 * non-canonical Brand host every request would 301 back to the canonical
+	 * domain before the HTML pass ever ran. Apply the same authority rewrite
+	 * to the proposed redirect: if nothing but the host differed, cancel the
+	 * redirect entirely; otherwise keep the path/query canonicalization on
+	 * the browsed host.
+	 *
+	 * @param mixed $redirect_url  Proposed canonical redirect URL (string|false).
+	 * @param mixed $requested_url Originally requested URL.
+	 * @return mixed False to cancel, or the (possibly rewritten) redirect URL.
+	 */
+	public function filter_redirect_canonical( mixed $redirect_url, mixed $requested_url ): mixed {
+		if ( ! is_string( $redirect_url ) || '' === $redirect_url ) {
+			return $redirect_url;
+		}
+
+		$rewritten = $this->replace( $redirect_url );
+
+		if ( $rewritten === $redirect_url ) {
+			return $redirect_url;
+		}
+
+		if ( is_string( $requested_url ) && $rewritten === $requested_url ) {
+			return false;
+		}
+
+		return $rewritten;
 	}
 
 	/**
