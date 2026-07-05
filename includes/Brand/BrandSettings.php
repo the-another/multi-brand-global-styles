@@ -100,6 +100,7 @@ final class BrandSettings {
 	 * @param int|null                  $global_styles_post_id   Linked wp_global_styles post ID.
 	 * @param bool                      $url_rewrite_enabled     URL rewrite opt-in.
 	 * @param bool                      $url_rewrite_force_https Force-https flag.
+	 * @param string                    $url_rewrite_host_form   Canonical host form ('www', 'apex', or '').
 	 */
 	private function __construct(
 		array $rules,
