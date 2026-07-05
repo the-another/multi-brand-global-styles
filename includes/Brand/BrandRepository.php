@@ -16,6 +16,13 @@ namespace TheAnother\Plugin\MultiBrandGlobalStyles\Brand;
 class BrandRepository {
 
 	/**
+	 * Transient key for the cached default-Brand ID.
+	 *
+	 * @var string
+	 */
+	private const DEFAULT_BRAND_CACHE_KEY = 'mbgs_default_brand';
+
+	/**
 	 * Get a Brand's registered URL rules.
 	 *
 	 * @param int $brand_id Brand post ID.
@@ -42,9 +49,19 @@ class BrandRepository {
 	/**
 	 * Get the Brand ID flagged as the fallback for unmatched requests.
 	 *
+	 * Cached in a never-expiring transient on first read (0 = no default
+	 * Brand flagged, so the "none" answer is cached too). Invalidated via
+	 * invalidate_cache() on any Brand save/trash/delete.
+	 *
 	 * @return int|null Brand post ID, or null if none is flagged.
 	 */
 	public function get_default_brand_id(): ?int {
+		$cached = get_transient( self::DEFAULT_BRAND_CACHE_KEY );
+
+		if ( false !== $cached ) {
+			return (int) $cached > 0 ? (int) $cached : null;
+		}
+
 		$posts = get_posts(
 			array(
 				'post_type'      => 'mbgs_brand',
@@ -56,7 +73,20 @@ class BrandRepository {
 			)
 		);
 
-		return ! empty( $posts ) ? (int) $posts[0] : null;
+		$default_brand_id = ! empty( $posts ) ? (int) $posts[0] : 0;
+
+		set_transient( self::DEFAULT_BRAND_CACHE_KEY, $default_brand_id, 0 );
+
+		return $default_brand_id > 0 ? $default_brand_id : null;
+	}
+
+	/**
+	 * Invalidate the cached default-Brand ID. Call after any Brand save/trash/delete.
+	 *
+	 * @return void
+	 */
+	public function invalidate_cache(): void {
+		delete_transient( self::DEFAULT_BRAND_CACHE_KEY );
 	}
 
 	/**

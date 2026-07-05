@@ -81,17 +81,25 @@ class Plugin {
 		$hooks->register_action( 'save_post_' . BrandPostType::POST_TYPE, array( $brand_post_type, 'save' ) );
 		$hooks->register_action( 'admin_enqueue_scripts', array( $brand_post_type, 'enqueue_admin_assets' ) );
 
-		// The rule-map transient never expires, and the nonce-gated save()
-		// handler above doesn't run on trash/untrash/delete — invalidate
-		// unconditionally on any Brand status change so the map can't go
-		// stale when a Brand is trashed or permanently deleted.
+		// The rule-map and default-Brand transients never expire, and the
+		// nonce-gated save() handler above doesn't run on trash/untrash/delete
+		// — invalidate unconditionally on any Brand status change so neither
+		// cache can go stale when a Brand is trashed or permanently deleted.
 		$url_rule_registry = $this->container->get( 'url_rule_registry' );
-		$hooks->register_action( 'save_post_' . BrandPostType::POST_TYPE, array( $url_rule_registry, 'invalidate_cache' ) );
+		$brand_repository  = $this->container->get( 'brand_repository' );
+		$hooks->register_action(
+			'save_post_' . BrandPostType::POST_TYPE,
+			function () use ( $url_rule_registry, $brand_repository ) {
+				$url_rule_registry->invalidate_cache();
+				$brand_repository->invalidate_cache();
+			}
+		);
 		$hooks->register_action(
 			'deleted_post',
-			function ( $post_id, $post ) use ( $url_rule_registry ) {
+			function ( $post_id, $post ) use ( $url_rule_registry, $brand_repository ) {
 				if ( $post && BrandPostType::POST_TYPE === $post->post_type ) {
 					$url_rule_registry->invalidate_cache();
+					$brand_repository->invalidate_cache();
 				}
 			},
 			10,

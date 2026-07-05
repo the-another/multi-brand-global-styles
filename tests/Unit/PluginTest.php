@@ -11,6 +11,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\UsesClass;
 use PHPUnit\Framework\TestCase;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandPostType;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandRepository;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandResolver;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\UrlRuleRegistry;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Container;
@@ -36,6 +37,7 @@ use WP_Post;
 #[UsesClass( Container::class )]
 #[UsesClass( HookManager::class )]
 #[UsesClass( BrandPostType::class )]
+#[UsesClass( BrandRepository::class )]
 #[UsesClass( BrandResolver::class )]
 #[UsesClass( UrlRuleRegistry::class )]
 #[UsesClass( GlobalStylesOverride::class )]
@@ -164,10 +166,26 @@ class PluginTest extends TestCase {
 
 		if ( $expect_invalidation ) {
 			Functions\expect( 'delete_transient' )->once()->with( 'mbgs_rule_map' );
+			Functions\expect( 'delete_transient' )->once()->with( 'mbgs_default_brand' );
 		} else {
 			Functions\expect( 'delete_transient' )->never();
 		}
 
 		( $matches[0]['callback'] )( 5, $post );
+	}
+
+	public function test_save_post_hook_invalidates_rule_map_and_default_brand_caches(): void {
+		Plugin::get_instance()->start();
+
+		$hooks   = Container::get_instance()->get_hook_manager()->get_registered_hooks();
+		$matches = array_values( array_filter( $hooks, fn( $h ) => 'save_post_mbgs_brand' === $h['hook'] ) );
+		$this->assertCount( 2, $matches );
+
+		Functions\expect( 'delete_transient' )->once()->with( 'mbgs_rule_map' );
+		Functions\expect( 'delete_transient' )->once()->with( 'mbgs_default_brand' );
+
+		// The second save_post_mbgs_brand registration is the cache
+		// invalidator (the first is the meta-box save handler).
+		( $matches[1]['callback'] )();
 	}
 }

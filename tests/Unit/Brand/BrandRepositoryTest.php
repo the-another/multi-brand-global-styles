@@ -59,7 +59,11 @@ class BrandRepositoryTest extends TestCase {
 		$this->assertSame( array(), $this->repository->get_variables( 5 ) );
 	}
 
-	public function test_get_default_brand_id_returns_id_when_found(): void {
+	public function test_get_default_brand_id_queries_and_caches_on_first_read(): void {
+		Functions\expect( 'get_transient' )
+			->once()
+			->with( 'mbgs_default_brand' )
+			->andReturn( false );
 		Functions\expect( 'get_posts' )
 			->once()
 			->with(
@@ -73,14 +77,48 @@ class BrandRepositoryTest extends TestCase {
 				)
 			)
 			->andReturn( array( 12 ) );
+		Functions\expect( 'set_transient' )
+			->once()
+			->with( 'mbgs_default_brand', 12, 0 );
 
 		$this->assertSame( 12, $this->repository->get_default_brand_id() );
 	}
 
-	public function test_get_default_brand_id_returns_null_when_none_found(): void {
+	public function test_get_default_brand_id_caches_zero_sentinel_when_none_found(): void {
+		Functions\expect( 'get_transient' )->once()->andReturn( false );
 		Functions\expect( 'get_posts' )->once()->andReturn( array() );
+		Functions\expect( 'set_transient' )
+			->once()
+			->with( 'mbgs_default_brand', 0, 0 );
 
 		$this->assertNull( $this->repository->get_default_brand_id() );
+	}
+
+	public function test_get_default_brand_id_serves_cached_id_without_querying(): void {
+		Functions\expect( 'get_transient' )
+			->once()
+			->with( 'mbgs_default_brand' )
+			->andReturn( 12 );
+		Functions\expect( 'get_posts' )->never();
+		Functions\expect( 'set_transient' )->never();
+
+		$this->assertSame( 12, $this->repository->get_default_brand_id() );
+	}
+
+	public function test_get_default_brand_id_serves_cached_sentinel_as_null_without_querying(): void {
+		Functions\expect( 'get_transient' )->once()->andReturn( 0 );
+		Functions\expect( 'get_posts' )->never();
+		Functions\expect( 'set_transient' )->never();
+
+		$this->assertNull( $this->repository->get_default_brand_id() );
+	}
+
+	public function test_invalidate_cache_deletes_default_brand_transient(): void {
+		Functions\expect( 'delete_transient' )
+			->once()
+			->with( 'mbgs_default_brand' );
+
+		$this->repository->invalidate_cache();
 	}
 
 	public function test_get_global_styles_post_id_returns_int_when_set(): void {
