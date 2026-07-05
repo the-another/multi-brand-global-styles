@@ -25,6 +25,22 @@ WP_SITE_URL="http://localhost:$PORT"
 . "$REPO_ROOT/tests/e2e/lib/provision-wp.sh"
 provision_wp
 
+# wp-cli's server-command router rewrites home/siteurl to the incoming Host
+# header on EVERY request, which silently defeats any e2e test of
+# host-dependent behavior: the environment "follows" the browsed host even
+# with the plugin inactive. Real servers take the canonical host from the DB
+# options, so pin both options back to the install URL at max priority —
+# covering both the pre_option_* short-circuit and the option_* value filter,
+# whichever the router hooks. No-op for requests on the canonical host.
+mkdir -p "$WP_DIR/wp-content/mu-plugins"
+cat > "$WP_DIR/wp-content/mu-plugins/mbgs-e2e-pin-canonical.php" <<PHP
+<?php
+add_filter( 'pre_option_home', static fn() => '$WP_SITE_URL', PHP_INT_MAX );
+add_filter( 'pre_option_siteurl', static fn() => '$WP_SITE_URL', PHP_INT_MAX );
+add_filter( 'option_home', static fn() => '$WP_SITE_URL', PHP_INT_MAX );
+add_filter( 'option_siteurl', static fn() => '$WP_SITE_URL', PHP_INT_MAX );
+PHP
+
 # The same packaged artifact the check-plugin suite gates — never a
 # file-by-file source copy, so packaging bugs (missing file, wrong
 # autoloader, bad .distignore exclusion) fail functionally too. The zip's
