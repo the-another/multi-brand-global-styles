@@ -266,6 +266,7 @@ class BrandPostTypeTest extends TestCase {
 			$output
 		);
 		$this->assertStringContainsString( 'target="_blank"', $output );
+		$this->assertStringContainsString( 'rel="noopener noreferrer"', $output );
 	}
 
 	public function test_render_url_rewrite_meta_box_reflects_settings(): void {
@@ -481,6 +482,25 @@ class BrandPostTypeTest extends TestCase {
 					)
 				)
 			);
+
+		$this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service, $image_map_builder, $brand_repository )->save( 77 );
+	}
+
+	public function test_save_drops_non_image_pairs(): void {
+		$_POST['mbgs_rules']                 = '';
+		$_POST['mbgs_variables']             = '';
+		$_POST['mbgs_image_map_original']    = array( '10' );
+		$_POST['mbgs_image_map_replacement'] = array( '20' );
+
+		Functions\when( 'absint' )->alias( static fn( $v ) => abs( (int) $v ) );
+		Functions\when( 'wp_attachment_is_image' )->justReturn( false );
+
+		list( $url_rule_registry, $variable_parser, $global_styles_post_service, $image_map_builder ) = $this->empty_form_mocks();
+
+		$brand_repository = Mockery::mock( BrandRepository::class );
+		$brand_repository->shouldReceive( 'update_settings' )
+			->once()
+			->with( 77, self::expected_settings() );
 
 		$this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service, $image_map_builder, $brand_repository )->save( 77 );
 	}
