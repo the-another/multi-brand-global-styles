@@ -10,6 +10,7 @@ namespace TheAnother\Plugin\MultiBrandGlobalStyles\Urls;
 
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandRepository;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandResolver;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\RequestAuthority;
 
 /**
  * Class HostRewriter
@@ -71,7 +72,7 @@ class HostRewriter {
 			return $html;
 		}
 
-		$current_authority = $this->current_authority();
+		$current_authority = RequestAuthority::current();
 
 		if ( '' === $current_authority ) {
 			return $html;
@@ -122,21 +123,6 @@ class HostRewriter {
 		}
 
 		return $rewritten;
-	}
-
-	/**
-	 * Get the sanitized, validated authority (host[:port]) being browsed.
-	 *
-	 * @return string Lowercased authority, or empty string when unusable.
-	 */
-	private function current_authority(): string {
-		$host = isset( $_SERVER['HTTP_HOST'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_HOST'] ) ) : '';
-
-		if ( ! preg_match( '/^[a-z0-9.-]+(:\d+)?$/i', $host ) ) {
-			return '';
-		}
-
-		return strtolower( $host );
 	}
 
 	/**

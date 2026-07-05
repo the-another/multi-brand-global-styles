@@ -14,9 +14,11 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandRepository;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandResolver;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandSettings;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\HostRewriter;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\RequestAuthority;
 
 #[CoversClass( HostRewriter::class )]
 #[UsesClass( BrandSettings::class )]
+#[UsesClass( RequestAuthority::class )]
 class HostRewriterTest extends TestCase {
 	use MockeryPHPUnitIntegration;
 
