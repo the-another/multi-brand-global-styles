@@ -24,6 +24,7 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\Media\ImageUrlReplacer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Media\ImageMapBuilder;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Rendering\PageBuffer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Rest\ReplacementsController;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Cors\CorsHeaders;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\HostCanonicalizer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\HostRewriter;
 
@@ -114,6 +115,9 @@ class Plugin {
 		$hooks->register_filter( 'pre_option_blogdescription', array( $site_identity_override, 'filter_blogdescription' ) );
 		$hooks->register_filter( 'pre_option_site_icon', array( $site_identity_override, 'filter_site_icon' ) );
 
+		$cors_headers = $this->container->get( 'cors_headers' );
+		$hooks->register_action( 'send_headers', array( $cors_headers, 'handle' ) );
+
 		$host_canonicalizer = $this->container->get( 'host_canonicalizer' );
 		$hooks->register_action( 'template_redirect', array( $host_canonicalizer, 'handle' ), 1 );
 
@@ -187,6 +191,11 @@ class Plugin {
 		$this->container->register(
 			'host_rewriter',
 			fn( Container $c ) => new HostRewriter( $c->get( 'brand_resolver' ), $c->get( 'brand_repository' ) )
+		);
+
+		$this->container->register(
+			'cors_headers',
+			fn( Container $c ) => new CorsHeaders( $c->get( 'url_rule_registry' ) )
 		);
 
 		$this->container->register(
