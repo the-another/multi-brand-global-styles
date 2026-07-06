@@ -481,21 +481,7 @@ class BrandPostType {
 
 		$global_styles_post_id = $this->global_styles_post_service->ensure_global_styles_post( $post_id );
 
-		wp_update_post(
-			wp_slash(
-				array(
-					'ID'           => $global_styles_post_id,
-					'post_content' => wp_json_encode(
-						array(
-							'version'                     => 3,
-							'isGlobalStylesUserThemeJSON' => true,
-							'settings'                    => $decoded['settings'] ?? new \stdClass(),
-							'styles'                      => $decoded['styles'] ?? new \stdClass(),
-						)
-					),
-				)
-			)
-		);
+		$this->global_styles_post_service->update_global_styles( $global_styles_post_id, $decoded );
 	}
 
 	/**

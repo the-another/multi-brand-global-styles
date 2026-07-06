@@ -139,4 +139,68 @@ class GlobalStylesPostServiceTest extends TestCase {
 
 		$this->assertSame( array(), $this->service->get_global_styles_data( 42 ) );
 	}
+
+	public function test_update_global_styles_routes_content_through_theme_json(): void {
+		// Simulate core's WP_Theme_JSON normalization: a flat preset list is
+		// returned in its origin-keyed form (the shape that survives core's
+		// wp_filter_global_styles_post kses filter). The stub lets us assert the
+		// service writes whatever WP_Theme_JSON hands back, not the raw input.
+		\WP_Theme_JSON::$raw_data_override = array(
+			'version'  => 3,
+			'settings' => array( 'color' => array( 'palette' => array( 'custom' => array( array( 'slug' => 'accent-1', 'color' => '#1E40AF', 'name' => 'Accent 1' ) ) ) ) ),
+			'styles'   => array( 'color' => array( 'background' => '#eeffee' ) ),
+		);
+
+		Functions\expect( 'wp_slash' )->once()->andReturnUsing( fn( $v ) => $v );
+		Functions\expect( 'wp_json_encode' )->andReturnUsing( 'json_encode' );
+
+		Functions\expect( 'wp_update_post' )
+			->once()
+			->with(
+				Mockery::on(
+					function ( $args ) {
+						return 42 === $args['ID']
+							&& is_string( $args['post_content'] )
+							&& str_contains( $args['post_content'], '"isGlobalStylesUserThemeJSON":true' )
+							// The origin-keyed palette from WP_Theme_JSON is what gets persisted.
+							&& str_contains( $args['post_content'], '"palette":{"custom":[' )
+							&& str_contains( $args['post_content'], '"background":"#eeffee"' );
+					}
+				)
+			);
+
+		$this->service->update_global_styles(
+			42,
+			array( 'settings' => array( 'color' => array( 'palette' => array( array( 'slug' => 'accent-1', 'color' => '#1E40AF', 'name' => 'Accent 1' ) ) ) ) )
+		);
+
+		\WP_Theme_JSON::$raw_data_override = null;
+	}
+
+	public function test_update_global_styles_defaults_missing_subtrees_to_empty_objects(): void {
+		// WP_Theme_JSON drops empty settings/styles from get_raw_data(); the
+		// service must still persist them as empty objects so the stored post
+		// keeps the canonical {version, isGlobalStylesUserThemeJSON, settings,
+		// styles} shape.
+		\WP_Theme_JSON::$raw_data_override = array( 'version' => 3 );
+
+		Functions\expect( 'wp_slash' )->once()->andReturnUsing( fn( $v ) => $v );
+		Functions\expect( 'wp_json_encode' )->andReturnUsing( 'json_encode' );
+
+		Functions\expect( 'wp_update_post' )
+			->once()
+			->with(
+				Mockery::on(
+					function ( $args ) {
+						return 42 === $args['ID']
+							&& str_contains( $args['post_content'], '"settings":{}' )
+							&& str_contains( $args['post_content'], '"styles":{}' );
+					}
+				)
+			);
+
+		$this->service->update_global_styles( 42, array() );
+
+		\WP_Theme_JSON::$raw_data_override = null;
+	}
 }

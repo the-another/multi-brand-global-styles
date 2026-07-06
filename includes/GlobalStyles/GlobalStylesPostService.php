@@ -81,6 +81,59 @@ class GlobalStylesPostService {
 	}
 
 	/**
+	 * Write decoded theme.json-shaped data into a Brand's wp_global_styles post.
+	 *
+	 * The decoded settings/styles are first run through WP_Theme_JSON (origin
+	 * `custom`) and read back via get_raw_data(). This is load-bearing, not
+	 * cosmetic: core registers wp_filter_global_styles_post() on
+	 * `content_save_pre` for any user WITHOUT the `unfiltered_html` capability
+	 * (every multisite site admin, and any site where a security plugin drops
+	 * that cap). That filter re-runs WP_Theme_JSON::remove_insecure_properties()
+	 * over the post_content on save, and remove_insecure_settings() only
+	 * preserves presets stored in their origin-keyed form
+	 * (settings.color.palette.custom => [...]) — a flat theme.json preset list
+	 * (settings.color.palette => [...], exactly what an admin pastes) is
+	 * silently dropped, leaving only {version, isGlobalStylesUserThemeJSON}.
+	 * WP_Theme_JSON normalizes the flat list into the keyed form that survives
+	 * that filter (and renders identically), using core's own API so no preset
+	 * path list has to be hard-coded here. kses still runs on the write, so
+	 * unsafe styles are sanitized exactly as core intends — we are not
+	 * bypassing it, only handing it data in the shape it keeps.
+	 *
+	 * @param int                  $global_styles_post_id wp_global_styles post ID.
+	 * @param array<string, mixed> $decoded               Decoded theme.json-shaped data (settings/styles).
+	 * @return void
+	 */
+	public function update_global_styles( int $global_styles_post_id, array $decoded ): void {
+		$theme_json = new \WP_Theme_JSON(
+			array(
+				'version'  => 3,
+				'settings' => isset( $decoded['settings'] ) && is_array( $decoded['settings'] ) ? $decoded['settings'] : array(),
+				'styles'   => isset( $decoded['styles'] ) && is_array( $decoded['styles'] ) ? $decoded['styles'] : array(),
+			),
+			'custom'
+		);
+
+		$raw = $theme_json->get_raw_data();
+
+		wp_update_post(
+			wp_slash(
+				array(
+					'ID'           => $global_styles_post_id,
+					'post_content' => wp_json_encode(
+						array(
+							'version'                     => 3,
+							'isGlobalStylesUserThemeJSON' => true,
+							'settings'                    => $raw['settings'] ?? new \stdClass(),
+							'styles'                      => $raw['styles'] ?? new \stdClass(),
+						)
+					),
+				)
+			)
+		);
+	}
+
+	/**
 	 * Get the decoded settings/styles data for a wp_global_styles post.
 	 *
 	 * @param int $global_styles_post_id wp_global_styles post ID.

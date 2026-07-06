@@ -41,6 +41,33 @@ add_filter( 'option_home', static fn() => '$WP_SITE_URL', PHP_INT_MAX );
 add_filter( 'option_siteurl', static fn() => '$WP_SITE_URL', PHP_INT_MAX );
 PHP
 
+# Global-styles save must survive core's kses sanitization. Core registers
+# wp_filter_global_styles_post() on content_save_pre for any user WITHOUT the
+# unfiltered_html capability (every multisite site admin; any security-hardened
+# single site), and that filter drops flat theme.json presets a Brand's raw
+# JSON stores. The e2e admin HAS unfiltered_html, so that path is invisible by
+# default — drop the cap, but ONLY while saving a Brand whose title carries the
+# [kses] sentinel, so the reproduction stays scoped to global-styles-kses.spec
+# and every other spec's Brand saves are untouched.
+cat > "$WP_DIR/wp-content/mu-plugins/mbgs-e2e-force-kses.php" <<'PHP'
+<?php
+add_filter(
+	'map_meta_cap',
+	static function ( $caps, $cap ) {
+		if ( 'unfiltered_html' === $cap
+			&& isset( $_POST['post_type'], $_POST['post_title'] )
+			&& 'mbgs_brand' === $_POST['post_type']
+			&& is_string( $_POST['post_title'] )
+			&& str_contains( wp_unslash( $_POST['post_title'] ), '[kses]' ) ) {
+			return array( 'do_not_allow' );
+		}
+		return $caps;
+	},
+	10,
+	2
+);
+PHP
+
 # The same packaged artifact the check-plugin suite gates — never a
 # file-by-file source copy, so packaging bugs (missing file, wrong
 # autoloader, bad .distignore exclusion) fail functionally too. The zip's

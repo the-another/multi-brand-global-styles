@@ -70,6 +70,33 @@ if ( ! class_exists( 'WP_REST_Request' ) ) {
 	}
 }
 
+if ( ! class_exists( 'WP_Theme_JSON' ) ) {
+	/**
+	 * Minimal stand-in for core's WP_Theme_JSON. The real class normalizes a
+	 * theme.json structure (e.g. flat presets => origin-keyed) and validates it
+	 * against the schema; that behavior is exercised against real WordPress in
+	 * the e2e suite. Here it only needs to round-trip the data so the wiring —
+	 * that GlobalStylesPostService routes stored styles through WP_Theme_JSON —
+	 * can be asserted. Tests may override get_raw_data() output via the public
+	 * $raw_data_override to simulate core's normalization.
+	 */
+	class WP_Theme_JSON {
+		public const LATEST_SCHEMA = 3;
+
+		public static ?array $raw_data_override = null;
+
+		private array $data;
+
+		public function __construct( array $data = array(), string $origin = 'theme' ) {
+			$this->data = $data;
+		}
+
+		public function get_raw_data(): array {
+			return self::$raw_data_override ?? $this->data;
+		}
+	}
+}
+
 // Do NOT define esc_html() (or other Brain Monkey-stubable WP functions) here:
 // a real definition blocks Brain Monkey/Patchwork from redefining them per-test.
 // Tests that need them stub via Functions\when() in their own setUp().
