@@ -540,25 +540,20 @@ class BrandPostTypeTest extends TestCase {
 
 		list( $url_rule_registry, $variable_parser, , $image_map_builder ) = $this->empty_form_mocks();
 
+		// The decoded JSON is handed to the service, which owns the WP_Theme_JSON
+		// normalization + wp_update_post write (see GlobalStylesPostServiceTest).
 		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
 		$global_styles_post_service->shouldReceive( 'ensure_global_styles_post' )
 			->twice()
 			->with( 5 )
 			->andReturn( 42 );
-
-		Functions\expect( 'wp_slash' )->once()->andReturnUsing( fn( $v ) => $v );
-		Functions\expect( 'wp_json_encode' )->andReturnUsing( 'json_encode' );
-
-		Functions\expect( 'wp_update_post' )
+		$global_styles_post_service->shouldReceive( 'update_global_styles' )
 			->once()
 			->with(
-				Mockery::on(
-					function ( $args ) {
-						return 42 === $args['ID']
-							&& is_string( $args['post_content'] )
-							&& str_contains( $args['post_content'], '"isGlobalStylesUserThemeJSON":true' )
-							&& str_contains( $args['post_content'], '"settings":{"color":{"palette":[]}}' );
-					}
+				42,
+				array(
+					'settings' => array( 'color' => array( 'palette' => array() ) ),
+					'styles'   => array(),
 				)
 			);
 
@@ -580,8 +575,7 @@ class BrandPostTypeTest extends TestCase {
 			->once()
 			->with( 5 )
 			->andReturn( 42 );
-
-		Functions\expect( 'wp_update_post' )->never();
+		$global_styles_post_service->shouldNotReceive( 'update_global_styles' );
 
 		$brand_repository = Mockery::mock( BrandRepository::class );
 		$brand_repository->shouldReceive( 'update_settings' )->once()->with( 5, self::expected_settings() );
