@@ -16,9 +16,9 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandResolver;
  *
  * Rewrites mapped attachment URLs in the final HTML to the resolved Brand's
  * replacements. Consumes the URL map precomputed at Brand-save time, so this
- * costs one meta fetch and one linear str_replace() pass — no attachment
- * queries at render. URLs appear literally in src, srcset, and inline style
- * attributes, so a single string pass covers all of them.
+ * costs one meta fetch and one linear strtr() pass — no attachment queries at
+ * render. URLs appear literally in src, srcset, and inline style attributes,
+ * so a single string pass covers all of them.
  */
 class ImageUrlReplacer {
 
@@ -66,9 +66,12 @@ class ImageUrlReplacer {
 			return $html;
 		}
 
-		// URL map MUST be ordered longest-key-first (guaranteed by ImageMapBuilder::build_url_map
-		// via uksort) so that no key that is a substring of another is replaced first and corrupts
-		// the longer key's matches.
-		return str_replace( array_keys( $url_map ), array_values( $url_map ), $html );
+		// strtr() scans the HTML ONCE and, at each position, substitutes the
+		// LONGEST matching key — so cost is O(html) regardless of how many
+		// mappings the Brand has, and a key that is a substring of another can
+		// never pre-empt the longer key (making the map's longest-first ordering
+		// moot here). It also never re-scans replaced text, so a replacement URL
+		// can't cascade into a later mapping — unlike sequential str_replace().
+		return strtr( $html, $url_map );
 	}
 }
