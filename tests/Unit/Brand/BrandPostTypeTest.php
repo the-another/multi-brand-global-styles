@@ -223,7 +223,7 @@ class BrandPostTypeTest extends TestCase {
 		Functions\when( 'esc_html_e' )->justReturn( null );
 		Functions\when( 'esc_textarea' )->returnArg();
 		Functions\when( 'esc_url' )->returnArg();
-		Functions\when( 'wp_json_encode' )->alias( fn( $data ) => json_encode( $data ) );
+		Functions\when( 'wp_json_encode' )->alias( fn( $data, $flags = 0 ) => json_encode( $data, $flags ) );
 		Functions\when( 'get_stylesheet' )->justReturn( 'twentytwentyfour' );
 		Functions\when( 'wp_create_nonce' )->justReturn( 'abc123' );
 		Functions\when( 'rest_url' )->alias( fn( $path ) => 'https://example.com/wp-json/' . $path );
@@ -235,7 +235,14 @@ class BrandPostTypeTest extends TestCase {
 		$global_styles_post_service->shouldReceive( 'get_global_styles_data' )
 			->once()
 			->with( 42 )
-			->andReturn( array( 'settings' => array() ) );
+			->andReturn(
+				array(
+					'version'                     => 3,
+					'isGlobalStylesUserThemeJSON' => true,
+					'settings'                    => array( 'color' => array() ),
+					'styles'                      => array(),
+				)
+			);
 
 		ob_start();
 		$this->make_post_type( null, null, $global_styles_post_service, null, $repository )->render_styles_meta_box( new WP_Post( 5 ) );
@@ -243,6 +250,9 @@ class BrandPostTypeTest extends TestCase {
 
 		$this->assertStringContainsString( 'name="mbgs_styles_json"', $output );
 		$this->assertStringContainsString( '"settings"', $output );
+		// Wrapper keys must not leak into the admin textarea.
+		$this->assertStringNotContainsString( '"version"', $output );
+		$this->assertStringNotContainsString( '"isGlobalStylesUserThemeJSON"', $output );
 	}
 
 	public function test_render_styles_meta_box_outputs_active_styles_link(): void {
@@ -542,7 +552,7 @@ class BrandPostTypeTest extends TestCase {
 
 		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
 		$global_styles_post_service->shouldReceive( 'ensure_global_styles_post' )
-			->twice()
+			->once()
 			->with( 5 )
 			->andReturn( 42 );
 
@@ -636,6 +646,195 @@ class BrandPostTypeTest extends TestCase {
 					)
 				)
 			);
+
+		$this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service, $image_map_builder, $brand_repository )->save( 5 );
+	}
+
+	public function test_save_persists_settings_only_input(): void {
+		$_POST['mbgs_rules']       = '';
+		$_POST['mbgs_variables']   = '';
+		$_POST['mbgs_styles_json'] = '{"settings":{"color":{"palette":[{"slug":"primary","color":"#ff0000","name":"Primary"}]}}}';
+
+		list( $url_rule_registry, $variable_parser, , $image_map_builder ) = $this->empty_form_mocks();
+
+		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
+		$global_styles_post_service->shouldReceive( 'ensure_global_styles_post' )
+			->once()
+			->with( 5 )
+			->andReturn( 42 );
+
+		Functions\expect( 'wp_slash' )->once()->andReturnUsing( fn( $v ) => $v );
+		Functions\expect( 'wp_json_encode' )->andReturnUsing( 'json_encode' );
+
+		Functions\expect( 'wp_update_post' )
+			->once()
+			->with(
+				Mockery::on(
+					function ( $args ) {
+						$content = json_decode( $args['post_content'], true );
+
+						return 42 === $args['ID']
+							&& 'Primary' === ( $content['settings']['color']['palette'][0]['name'] ?? null )
+							// Empty styles should encode as {} (object), not [].
+							&& '{}' === json_encode( $content['styles'] );
+					}
+				)
+			);
+
+		$brand_repository = Mockery::mock( BrandRepository::class );
+		$brand_repository->shouldReceive( 'update_settings' )->once()->with( 5, self::expected_settings() );
+
+		$this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service, $image_map_builder, $brand_repository )->save( 5 );
+	}
+
+	public function test_save_encodes_empty_styles_as_json_object(): void {
+		$_POST['mbgs_rules']       = '';
+		$_POST['mbgs_variables']   = '';
+		$_POST['mbgs_styles_json'] = '{"settings":{},"styles":{}}';
+
+		list( $url_rule_registry, $variable_parser, , $image_map_builder ) = $this->empty_form_mocks();
+
+		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
+		$global_styles_post_service->shouldReceive( 'ensure_global_styles_post' )
+			->once()
+			->with( 5 )
+			->andReturn( 42 );
+
+		Functions\expect( 'wp_slash' )->once()->andReturnUsing( fn( $v ) => $v );
+		Functions\expect( 'wp_json_encode' )->andReturnUsing( 'json_encode' );
+
+		Functions\expect( 'wp_update_post' )
+			->once()
+			->with(
+				Mockery::on(
+					function ( $args ) {
+						$content = $args['post_content'];
+
+						// Both empty subtrees must encode as {} (JSON object), not [].
+						return str_contains( $content, '"settings":{}' )
+							&& str_contains( $content, '"styles":{}' );
+					}
+				)
+			);
+
+		$brand_repository = Mockery::mock( BrandRepository::class );
+		$brand_repository->shouldReceive( 'update_settings' )->once()->with( 5, self::expected_settings() );
+
+		$this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service, $image_map_builder, $brand_repository )->save( 5 );
+	}
+
+	public function test_save_encodes_empty_settings_as_json_object_on_re_save(): void {
+		$_POST['mbgs_rules']       = '';
+		$_POST['mbgs_variables']   = '';
+		// Simulates a round-trip where the admin cleared out settings/styles entirely.
+		$_POST['mbgs_styles_json'] = '{}';
+
+		list( $url_rule_registry, $variable_parser, , $image_map_builder ) = $this->empty_form_mocks();
+
+		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
+		$global_styles_post_service->shouldReceive( 'ensure_global_styles_post' )
+			->once()
+			->with( 5 )
+			->andReturn( 42 );
+
+		Functions\expect( 'wp_slash' )->once()->andReturnUsing( fn( $v ) => $v );
+		Functions\expect( 'wp_json_encode' )->andReturnUsing( 'json_encode' );
+
+		Functions\expect( 'wp_update_post' )
+			->once()
+			->with(
+				Mockery::on(
+					function ( $args ) {
+						$content = $args['post_content'];
+
+						return str_contains( $content, '"settings":{}' )
+							&& str_contains( $content, '"styles":{}' );
+					}
+				)
+			);
+
+		$brand_repository = Mockery::mock( BrandRepository::class );
+		$brand_repository->shouldReceive( 'update_settings' )->once()->with( 5, self::expected_settings() );
+
+		$this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service, $image_map_builder, $brand_repository )->save( 5 );
+	}
+
+	public function test_render_styles_meta_box_excludes_wrapper_keys(): void {
+		Functions\when( 'esc_html_e' )->justReturn( null );
+		Functions\when( 'esc_textarea' )->returnArg();
+		Functions\when( 'esc_url' )->returnArg();
+		Functions\when( 'wp_json_encode' )->alias( fn( $data, $flags = 0 ) => json_encode( $data, $flags ) );
+		Functions\when( 'get_stylesheet' )->justReturn( 'twentytwentyfour' );
+		Functions\when( 'wp_create_nonce' )->justReturn( 'abc123' );
+		Functions\when( 'rest_url' )->alias( fn( $path ) => 'https://example.com/wp-json/' . $path );
+		Functions\when( 'add_query_arg' )->alias( fn( $key, $value, $url ) => $url . '?' . $key . '=' . $value );
+
+		$repository = $this->repository_with_settings( array( 'global_styles_post_id' => 42 ) );
+
+		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
+		$global_styles_post_service->shouldReceive( 'get_global_styles_data' )
+			->once()
+			->with( 42 )
+			->andReturn(
+				array(
+					'version'                     => 3,
+					'isGlobalStylesUserThemeJSON' => true,
+					'settings'                    => array( 'typography' => array( 'fontSizes' => array() ) ),
+					'styles'                      => array( 'color' => array( 'background' => '#fff' ) ),
+				)
+			);
+
+		ob_start();
+		$this->make_post_type( null, null, $global_styles_post_service, null, $repository )->render_styles_meta_box( new WP_Post( 5 ) );
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( '"settings"', $output );
+		$this->assertStringContainsString( '"styles"', $output );
+		$this->assertStringNotContainsString( '"version"', $output );
+		$this->assertStringNotContainsString( '"isGlobalStylesUserThemeJSON"', $output );
+	}
+
+	public function test_render_styles_meta_box_shows_empty_object_when_no_data(): void {
+		Functions\when( 'esc_html_e' )->justReturn( null );
+		Functions\when( 'esc_textarea' )->returnArg();
+		Functions\when( 'esc_url' )->returnArg();
+		Functions\when( 'wp_json_encode' )->alias( fn( $data, $flags = 0 ) => json_encode( $data, $flags ) );
+		Functions\when( 'get_stylesheet' )->justReturn( 'twentytwentyfour' );
+		Functions\when( 'wp_create_nonce' )->justReturn( 'abc123' );
+		Functions\when( 'rest_url' )->alias( fn( $path ) => 'https://example.com/wp-json/' . $path );
+		Functions\when( 'add_query_arg' )->alias( fn( $key, $value, $url ) => $url . '?' . $key . '=' . $value );
+
+		$repository = $this->repository_with_settings( array() );
+
+		ob_start();
+		$this->make_post_type( brand_repository: $repository )->render_styles_meta_box( new WP_Post( 5 ) );
+		$output = ob_get_clean();
+
+		// With no global_styles_post_id, data is empty — both subtrees should
+		// still render as {} (objects), not [] (arrays).
+		$this->assertStringContainsString( '"settings":{}', $output );
+		$this->assertStringContainsString( '"styles":{}', $output );
+	}
+
+	public function test_save_calls_ensure_global_styles_post_only_once(): void {
+		$_POST['mbgs_rules']       = '';
+		$_POST['mbgs_variables']   = '';
+		$_POST['mbgs_styles_json'] = '{"settings":{},"styles":{}}';
+
+		list( $url_rule_registry, $variable_parser, , $image_map_builder ) = $this->empty_form_mocks();
+
+		$global_styles_post_service = Mockery::mock( GlobalStylesPostService::class );
+		$global_styles_post_service->shouldReceive( 'ensure_global_styles_post' )
+			->once()
+			->with( 5 )
+			->andReturn( 42 );
+
+		Functions\expect( 'wp_slash' )->once()->andReturnUsing( fn( $v ) => $v );
+		Functions\expect( 'wp_json_encode' )->andReturnUsing( 'json_encode' );
+		Functions\expect( 'wp_update_post' )->once();
+
+		$brand_repository = Mockery::mock( BrandRepository::class );
+		$brand_repository->shouldReceive( 'update_settings' )->once()->with( 5, self::expected_settings() );
 
 		$this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service, $image_map_builder, $brand_repository )->save( 5 );
 	}

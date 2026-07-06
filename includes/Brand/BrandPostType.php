@@ -198,6 +198,14 @@ class BrandPostType {
 		$global_styles_post_id = $this->brand_repository->get_settings( $post->ID )->global_styles_post_id();
 		$data                  = $global_styles_post_id ? $this->global_styles_post_service->get_global_styles_data( $global_styles_post_id ) : array();
 
+		// Show only the settings/styles subtrees — the wrapper keys (version,
+		// isGlobalStylesUserThemeJSON) are managed internally and would confuse
+		// the admin.
+		$display = array(
+			'settings' => self::ensure_json_object( $data['settings'] ?? array() ),
+			'styles'   => self::ensure_json_object( $data['styles'] ?? array() ),
+		);
+
 		$active_styles_url = add_query_arg(
 			'_wpnonce',
 			wp_create_nonce( 'wp_rest' ),
@@ -205,7 +213,7 @@ class BrandPostType {
 		);
 		?>
 		<p><?php esc_html_e( 'Raw theme.json-shaped settings/styles for this Brand. A richer visual editor is planned; this is the interim editing UI.', 'the-another-multi-brand-global-styles' ); ?></p>
-		<textarea name="mbgs_styles_json" rows="12" style="width:100%;font-family:monospace;"><?php echo esc_textarea( wp_json_encode( $data, JSON_PRETTY_PRINT ) ); ?></textarea>
+		<textarea name="mbgs_styles_json" rows="12" style="width:100%;font-family:monospace;"><?php echo esc_textarea( wp_json_encode( $display, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) ); ?></textarea>
 		<p>
 			<a href="<?php echo esc_url( $active_styles_url ); ?>" target="_blank" rel="noopener noreferrer">
 				<?php esc_html_e( 'View current global styles (JSON)', 'the-another-multi-brand-global-styles' ); ?>
@@ -396,10 +404,10 @@ class BrandPostType {
 			)
 		);
 
-		$this->save_styles( $post_id );
+		$global_styles_post_id = $this->global_styles_post_service->ensure_global_styles_post( $post_id );
+		$this->save_styles( $post_id, $global_styles_post_id );
 
 		$this->url_rule_registry->invalidate_cache();
-		$this->global_styles_post_service->ensure_global_styles_post( $post_id );
 	}
 
 	/**
@@ -467,10 +475,11 @@ class BrandPostType {
 	/**
 	 * Parse and persist the raw-JSON styles field into the linked wp_global_styles post.
 	 *
-	 * @param int $post_id Post ID.
+	 * @param int $post_id              Post ID.
+	 * @param int $global_styles_post_id wp_global_styles post ID.
 	 * @return void
 	 */
-	private function save_styles( int $post_id ): void {
+	private function save_styles( int $post_id, int $global_styles_post_id ): void {
 		$raw = isset( $_POST['mbgs_styles_json'] ) && is_string( $_POST['mbgs_styles_json'] ) ? wp_unslash( $_POST['mbgs_styles_json'] ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce verified in save() before delegation; raw JSON would be corrupted by sanitize_*(), so it is validated instead: json_decode() below discards anything that is not a JSON object, and only a wp_json_encode() re-encoding of the parsed settings/styles subtrees is ever persisted.
 
 		$decoded = json_decode( $raw, true );
@@ -478,8 +487,6 @@ class BrandPostType {
 		if ( ! is_array( $decoded ) ) {
 			return;
 		}
-
-		$global_styles_post_id = $this->global_styles_post_service->ensure_global_styles_post( $post_id );
 
 		wp_update_post(
 			wp_slash(
@@ -489,13 +496,32 @@ class BrandPostType {
 						array(
 							'version'                     => 3,
 							'isGlobalStylesUserThemeJSON' => true,
-							'settings'                    => $decoded['settings'] ?? new \stdClass(),
-							'styles'                      => $decoded['styles'] ?? new \stdClass(),
+							'settings'                    => self::ensure_json_object( $decoded['settings'] ?? array() ),
+							'styles'                      => self::ensure_json_object( $decoded['styles'] ?? array() ),
 						)
 					),
 				)
 			)
 		);
+	}
+
+	/**
+	 * Cast an empty PHP array to stdClass so json_encode produces {} not [].
+	 *
+	 * Associative arrays encode to JSON objects, but an empty PHP array is
+	 * ambiguous — json_encode([]) produces "[]". WordPress and the global-
+	 * styles schema expect {}, so this helper forces the stdClass cast when
+	 * the value is empty.
+	 *
+	 * @param array<string, mixed>|\stdClass $value Settings or styles subtree.
+	 * @return array<string, mixed>|\stdClass The same value, or stdClass if empty.
+	 */
+	private static function ensure_json_object( $value ) {
+		if ( is_array( $value ) && 0 === count( $value ) ) {
+			return new \stdClass();
+		}
+
+		return $value;
 	}
 
 	/**
