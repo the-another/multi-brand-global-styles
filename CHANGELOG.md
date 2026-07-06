@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-07-06
+
+### Added
+- **Cross-origin (CORS) headers for cross-brand assets** — a new `Cors\CorsHeaders` service, hooked to `send_headers`, validates the request `Origin` against the set of known hosts (the canonical `home`/`siteurl` plus every host from published Brands' URL rules) and reflects a matching origin back as `Access-Control-Allow-Origin` with `Vary: Origin` (both `http` and `https` accepted per host). This unblocks assets (CSS, JS, fonts) that a page rendered on a Brand domain loads from the canonical domain — previously handled externally via `WP_BRAND_HOSTS`, now derived from the plugin's own Brand configuration. Skipped for admin/AJAX/REST requests.
+
 ### Fixed
 - **Global styles silently dropped on save** for any user without the `unfiltered_html` capability (multisite site admins; security-hardened single sites). Core registers `wp_filter_global_styles_post()` on `content_save_pre` for those users, which re-runs `WP_Theme_JSON::remove_insecure_properties()` over the saved post and preserves only origin-keyed presets — so a flat `settings.color.palette` list (what an admin pastes into the Global Styles box) collapsed to `{version, isGlobalStylesUserThemeJSON}`. `GlobalStyles\GlobalStylesPostService::update_global_styles()` now normalizes the submitted theme.json through `WP_Theme_JSON` before writing, so presets are stored in the origin-keyed form that survives that filter (and renders identically). kses still runs on the write — unsafe styles are sanitized exactly as core intends; the fix only hands core data in the shape it keeps.
 - **Redirect loop** between the www and apex host forms when a web server (nginx/Apache) or another plugin canonicalizes the host in the opposite direction to a Brand's `canonical_host_form`. `Urls\HostCanonicalizer` now defers to the WordPress Site Address: for the install's own domain it will not 301 to a form that opposes the `home`/`siteurl` host form, so it can no longer fight core's `redirect_canonical` or a Site-Address-following web server. Multi-domain Brands (a different apex than the install) are unaffected — their chosen form is always honored. See `docs/superpowers/specs/2026-07-06-host-form-canonicalization-loop-fix-design.md`.
@@ -58,7 +63,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Optional default Brand as the fallback for unmatched requests.
 - Duplicate-rule rejection with an admin notice; overlapping-but-different rules allowed by design.
 
-[Unreleased]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.1.0...v0.1.1

@@ -1,6 +1,6 @@
 {
   "name": "the-another-multi-brand-global-styles",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Define Brands - URL match rules (whole domains or path sections) with per-Brand global style overrides and content variables - on a single WordPress install.",
   "author": "The Another",
   "license": "GPL-2.0-or-later",

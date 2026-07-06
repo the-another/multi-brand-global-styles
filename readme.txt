@@ -4,7 +4,7 @@ Tags: multi-brand, global styles, branding, theme-json, variables
 Requires at least: 6.9
 Tested up to: 7.0
 Requires PHP: 8.3
-Stable tag: 0.3.0
+Stable tag: 0.3.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -47,6 +47,12 @@ No — registering the exact same rule twice is rejected with an admin notice. O
 
 
 
+
+
+= 0.3.1 - 2026-07-06 =
+* Add: cross-origin (CORS) headers so assets (CSS, JS, fonts) loaded from the canonical domain are no longer blocked when a page renders on a Brand domain — the request Origin is validated against the canonical host plus every published Brand's hosts and reflected back with a Vary: Origin header.
+* Fix: Brand global styles (for example a pasted color palette) were silently dropped on save for users without the unfiltered_html capability (multisite admins, security-hardened sites); the submitted theme.json is now normalized so its presets survive WordPress core's sanitization and render identically.
+* Fix: redirect loop between the www and apex host forms when a web server or another plugin canonicalizes the host in the opposite direction to a Brand's preferred form; for the install's own domain the plugin now defers to the WordPress Site Address, while multi-domain Brands keep honoring their chosen form.
 
 = 0.3.0 - 2026-07-06 =
 * Add: per-Brand canonical host form (www or apex) for the URL Rewrite option — a new admin radio lets a Brand declare its preferred form; visitors browsing the non-preferred form are 301-redirected to it before the page renders, so the existing URL-rewrite pass then applies for free.
