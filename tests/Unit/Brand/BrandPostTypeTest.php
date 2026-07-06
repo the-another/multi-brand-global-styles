@@ -288,7 +288,9 @@ class BrandPostTypeTest extends TestCase {
 
 		$this->assertStringContainsString( 'name="mbgs_url_rewrite_enabled"', $output );
 		$this->assertStringContainsString( 'name="mbgs_url_rewrite_force_https"', $output );
-		$this->assertSame( array( true, false ), $checked_calls );
+		$this->assertStringContainsString( 'name="mbgs_url_rewrite_host_form"', $output );
+		// checked() calls: enabled (true), force_https (false), host_form radio: '' (true), 'www' (false), 'apex' (false).
+		$this->assertSame( array( true, false, '', 'www', 'apex' ), $checked_calls );
 	}
 
 	public function test_save_skips_when_nonce_missing(): void {
@@ -583,6 +585,57 @@ class BrandPostTypeTest extends TestCase {
 
 		$brand_repository = Mockery::mock( BrandRepository::class );
 		$brand_repository->shouldReceive( 'update_settings' )->once()->with( 5, self::expected_settings() );
+
+		$this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service, $image_map_builder, $brand_repository )->save( 5 );
+	}
+
+	public function test_save_persists_www_host_form(): void {
+		$_POST['mbgs_rules']                 = '';
+		$_POST['mbgs_variables']             = '';
+		$_POST['mbgs_url_rewrite_enabled']   = '1';
+		$_POST['mbgs_url_rewrite_host_form'] = 'www';
+
+		list( $url_rule_registry, $variable_parser, $global_styles_post_service, $image_map_builder ) = $this->empty_form_mocks();
+
+		$brand_repository = Mockery::mock( BrandRepository::class );
+		$brand_repository->shouldReceive( 'update_settings' )
+			->once()
+			->with(
+				5,
+				self::expected_settings(
+					array(
+						'url_rewrite' => array(
+							'enabled'             => true,
+							'canonical_host_form' => 'www',
+						),
+					)
+				)
+			);
+
+		$this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service, $image_map_builder, $brand_repository )->save( 5 );
+	}
+
+	public function test_save_drops_invalid_host_form(): void {
+		$_POST['mbgs_rules']                 = '';
+		$_POST['mbgs_variables']             = '';
+		$_POST['mbgs_url_rewrite_enabled']   = '1';
+		$_POST['mbgs_url_rewrite_host_form'] = 'bogus';
+
+		list( $url_rule_registry, $variable_parser, $global_styles_post_service, $image_map_builder ) = $this->empty_form_mocks();
+
+		$brand_repository = Mockery::mock( BrandRepository::class );
+		$brand_repository->shouldReceive( 'update_settings' )
+			->once()
+			->with(
+				5,
+				self::expected_settings(
+					array(
+						'url_rewrite' => array(
+							'enabled' => true,
+						),
+					)
+				)
+			);
 
 		$this->make_post_type( $url_rule_registry, $variable_parser, $global_styles_post_service, $image_map_builder, $brand_repository )->save( 5 );
 	}

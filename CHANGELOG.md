@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+- **Redirect loop** between the www and apex host forms when a web server (nginx/Apache) or another plugin canonicalizes the host in the opposite direction to a Brand's `canonical_host_form`. `Urls\HostCanonicalizer` now defers to the WordPress Site Address: for the install's own domain it will not 301 to a form that opposes the `home`/`siteurl` host form, so it can no longer fight core's `redirect_canonical` or a Site-Address-following web server. Multi-domain Brands (a different apex than the install) are unaffected — their chosen form is always honored. See `docs/superpowers/specs/2026-07-06-host-form-canonicalization-loop-fix-design.md`.
+
+## [0.3.0] - 2026-07-06
+
+### Added
+- Per-Brand **canonical host form** (www/apex) for the URL Rewrite option: a new admin radio (`mbgs_url_rewrite_host_form`, stored as `canonical_host_form` in `url_rewrite`) lets a Brand declare `www` or `apex` as its preferred form. A new `Urls\HostCanonicalizer`, hooked to `template_redirect` at priority 1 (before `PageBuffer` opens its buffer), 301-redirects visitors on the non-preferred form to the preferred one; `Urls\HostForm` supplies the pure www↔apex transforms and `Urls\RequestAuthority` the shared current-request-authority helper (also adopted by `HostRewriter`). After the redirect the browsed host is already the preferred form, so `HostRewriter`'s existing canonical→browsed rewrite applies with no further changes.
+
 ## [0.2.0] - 2026-07-05
 
 ### Added
@@ -49,7 +57,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Optional default Brand as the fallback for unmatched requests.
 - Duplicate-rule rejection with an admin notice; overlapping-but-different rules allowed by design.
 
-[Unreleased]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/theanother/the-another-multi-brand-global-styles/releases/tag/v0.1.0

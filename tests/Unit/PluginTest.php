@@ -28,6 +28,7 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\Media\ImageUrlReplacer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Plugin;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Rendering\PageBuffer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Rest\ReplacementsController;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\HostCanonicalizer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\HostRewriter;
 use WP_Post;
 
@@ -54,6 +55,7 @@ use WP_Post;
 #[UsesClass( PageBuffer::class )]
 #[UsesClass( ReplacementsController::class )]
 #[UsesClass( EditorAssets::class )]
+#[UsesClass( HostCanonicalizer::class )]
 #[UsesClass( HostRewriter::class )]
 class PluginTest extends TestCase {
 	use MockeryPHPUnitIntegration;
@@ -103,13 +105,13 @@ class PluginTest extends TestCase {
 
 		$hooks = Container::get_instance()->get_hook_manager()->get_registered_hooks();
 
-		$this->assertCount( 21, $hooks );
+		$this->assertCount( 22, $hooks );
 
 		$actions = array_column( array_filter( $hooks, fn( $h ) => 'action' === $h['type'] ), 'hook' );
 		$filters = array_column( array_filter( $hooks, fn( $h ) => 'filter' === $h['type'] ), 'hook' );
 
 		$this->assertSame(
-			array( 'init', 'add_meta_boxes', 'save_post_mbgs_brand', 'admin_enqueue_scripts', 'save_post_mbgs_brand', 'deleted_post', 'save_post_mbgs_brand', 'template_redirect', 'admin_notices', 'added_post_meta', 'updated_post_meta', 'delete_attachment', 'rest_api_init', 'enqueue_block_editor_assets' ),
+			array( 'init', 'add_meta_boxes', 'save_post_mbgs_brand', 'admin_enqueue_scripts', 'save_post_mbgs_brand', 'deleted_post', 'save_post_mbgs_brand', 'template_redirect', 'template_redirect', 'admin_notices', 'added_post_meta', 'updated_post_meta', 'delete_attachment', 'rest_api_init', 'enqueue_block_editor_assets' ),
 			$actions
 		);
 		$this->assertSame(
@@ -145,6 +147,7 @@ class PluginTest extends TestCase {
 			'attachment_lifecycle',
 			'page_buffer',
 			'host_rewriter',
+			'host_canonicalizer',
 			'brand_post_type',
 			'admin_notices',
 			'replacements_controller',
@@ -171,6 +174,32 @@ class PluginTest extends TestCase {
 			),
 			array_map( static fn( array $transformer ): string => get_class( $transformer[0] ), $transformers ),
 			'Host rewrite must run LAST: the image URL map keys carry canonical-host URLs.'
+		);
+	}
+
+	public function test_host_canonicalizer_precedes_page_buffer_on_template_redirect(): void {
+		Plugin::get_instance()->start();
+
+		$hooks   = Container::get_instance()->get_hook_manager()->get_registered_hooks();
+		$matches = array_values( array_filter( $hooks, fn( $h ) => 'template_redirect' === $h['hook'] ) );
+
+		$this->assertCount( 2, $matches );
+
+		$by_method = array();
+		foreach ( $matches as $match ) {
+			$by_method[ $match['callback'][1] ] = $match;
+		}
+
+		$this->assertSame( 1, $by_method['handle']['priority'] );
+		$this->assertInstanceOf( HostCanonicalizer::class, $by_method['handle']['callback'][0] );
+
+		$this->assertSame( 10, $by_method['start_buffer']['priority'] );
+		$this->assertInstanceOf( PageBuffer::class, $by_method['start_buffer']['callback'][0] );
+
+		$this->assertLessThan(
+			$by_method['start_buffer']['priority'],
+			$by_method['handle']['priority'],
+			'HostCanonicalizer must run before PageBuffer on template_redirect: the canonicalization redirect must precede the output buffer.'
 		);
 	}
 

@@ -334,6 +334,26 @@ class BrandPostType {
 				<?php esc_html_e( 'Force https in rewritten URLs', 'the-another-multi-brand-global-styles' ); ?>
 			</label>
 		</p>
+		<?php $host_form = $settings->url_rewrite_host_form(); ?>
+		<p>
+			<strong><?php esc_html_e( 'Canonical host form', 'the-another-multi-brand-global-styles' ); ?></strong>
+		</p>
+		<p>
+			<label>
+				<input type="radio" name="mbgs_url_rewrite_host_form" value="" <?php checked( '', $host_form ); ?> />
+				<?php esc_html_e( 'Follow browsed host (no change)', 'the-another-multi-brand-global-styles' ); ?>
+			</label><br />
+			<label>
+				<input type="radio" name="mbgs_url_rewrite_host_form" value="www" <?php checked( 'www', $host_form ); ?> />
+				<?php esc_html_e( 'Force www', 'the-another-multi-brand-global-styles' ); ?>
+			</label><br />
+			<label>
+				<input type="radio" name="mbgs_url_rewrite_host_form" value="apex" <?php checked( 'apex', $host_form ); ?> />
+				<?php esc_html_e( 'Force apex (no www)', 'the-another-multi-brand-global-styles' ); ?>
+			</label>
+		</p>
+		<p class="description"><?php esc_html_e( 'Only applies when "Rewrite URLs" is enabled. Visitors on the other form are redirected to the chosen one. Applies to this Brand\'s own domain(s).', 'the-another-multi-brand-global-styles' ); ?></p>
+		<p class="description"><?php esc_html_e( 'For this site\'s own domain, the chosen form must match your WordPress Address (Settings → General) and any web-server redirect. Choosing the opposite form while the server or WordPress redirects the other way causes an infinite redirect loop.', 'the-another-multi-brand-global-styles' ); ?></p>
 		<p class="description"><?php esc_html_e( 'When enabled, links pointing at the canonical site address are rewritten to the domain the visitor is browsing. Only the domain is changed, never the path.', 'the-another-multi-brand-global-styles' ); ?></p>
 		<?php
 	}
@@ -553,6 +573,14 @@ class BrandPostType {
 
 		if ( ! empty( $_POST['mbgs_url_rewrite_force_https'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in save() before delegation.
 			$url_rewrite['force_https'] = true;
+		}
+
+		$host_form = isset( $_POST['mbgs_url_rewrite_host_form'] ) // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified in save() before delegation.
+			? sanitize_text_field( wp_unslash( $_POST['mbgs_url_rewrite_host_form'] ) ) // phpcs:ignore WordPress.Security.NonceVerification.Missing -- See above.
+			: '';
+
+		if ( in_array( $host_form, array( 'www', 'apex' ), true ) ) {
+			$url_rewrite['canonical_host_form'] = $host_form;
 		}
 
 		return $url_rewrite;

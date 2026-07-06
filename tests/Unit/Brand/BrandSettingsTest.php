@@ -145,4 +145,20 @@ class BrandSettingsTest extends TestCase {
 		$this->assertFalse( $settings->url_rewrite_enabled() );
 		$this->assertFalse( $settings->url_rewrite_force_https() );
 	}
+
+	public function test_url_rewrite_host_form_hydrates_valid_tokens(): void {
+		foreach ( array( 'www', 'apex' ) as $form ) {
+			$settings = BrandSettings::from_meta(
+				array( 'url_rewrite' => array( 'enabled' => true, 'canonical_host_form' => $form ) )
+			);
+			$this->assertSame( $form, $settings->url_rewrite_host_form() );
+		}
+	}
+
+	public function test_url_rewrite_host_form_rejects_junk_and_absence(): void {
+		foreach ( array( array(), array( 'canonical_host_form' => 'bogus' ), array( 'canonical_host_form' => 5 ) ) as $url_rewrite ) {
+			$settings = BrandSettings::from_meta( array( 'url_rewrite' => $url_rewrite ) );
+			$this->assertSame( '', $settings->url_rewrite_host_form() );
+		}
+	}
 }

@@ -4,7 +4,7 @@ Tags: multi-brand, global styles, branding, theme-json, variables
 Requires at least: 6.9
 Tested up to: 7.0
 Requires PHP: 8.3
-Stable tag: 0.2.0
+Stable tag: 0.3.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -46,6 +46,10 @@ No — registering the exact same rule twice is rejected with an admin notice. O
 == Changelog ==
 
 
+
+
+= 0.3.0 - 2026-07-06 =
+* Add: per-Brand canonical host form (www or apex) for the URL Rewrite option — a new admin radio lets a Brand declare its preferred form; visitors browsing the non-preferred form are 301-redirected to it before the page renders, so the existing URL-rewrite pass then applies for free.
 
 = 0.2.0 - 2026-07-05 =
 * Add: per-Brand URL rewrite option — links pointing at the canonical site address are rewritten in the rendered page to the domain being browsed (domain/port only, never paths), covering absolute, protocol-relative, and JSON-escaped URLs.

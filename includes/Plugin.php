@@ -24,6 +24,7 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\Media\ImageUrlReplacer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Media\ImageMapBuilder;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Rendering\PageBuffer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Rest\ReplacementsController;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\HostCanonicalizer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\HostRewriter;
 
 /**
@@ -113,6 +114,9 @@ class Plugin {
 		$hooks->register_filter( 'pre_option_blogdescription', array( $site_identity_override, 'filter_blogdescription' ) );
 		$hooks->register_filter( 'pre_option_site_icon', array( $site_identity_override, 'filter_site_icon' ) );
 
+		$host_canonicalizer = $this->container->get( 'host_canonicalizer' );
+		$hooks->register_action( 'template_redirect', array( $host_canonicalizer, 'handle' ), 1 );
+
 		$page_buffer = $this->container->get( 'page_buffer' );
 		$hooks->register_action( 'template_redirect', array( $page_buffer, 'start_buffer' ) );
 
@@ -183,6 +187,11 @@ class Plugin {
 		$this->container->register(
 			'host_rewriter',
 			fn( Container $c ) => new HostRewriter( $c->get( 'brand_resolver' ), $c->get( 'brand_repository' ) )
+		);
+
+		$this->container->register(
+			'host_canonicalizer',
+			fn( Container $c ) => new HostCanonicalizer( $c->get( 'brand_resolver' ), $c->get( 'brand_repository' ) )
 		);
 
 		$this->container->register(

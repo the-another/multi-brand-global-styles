@@ -3,7 +3,7 @@
 	"description": "Define Brands - URL match rules (whole domains or path sections) with per-Brand global style overrides and content variables - on a single WordPress install.",
 	"type": "wordpress-plugin",
 	"license": "GPL-2.0-or-later",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"authors": [
 		{
 			"name": "The Another",
