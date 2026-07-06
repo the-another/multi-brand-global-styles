@@ -105,7 +105,7 @@ class CorsHeaders {
 		$origin = sanitize_text_field( wp_unslash( $_SERVER['HTTP_ORIGIN'] ) );
 
 		// Origins are scheme + host (+ optional port), never bare hostnames.
-		if ( ! preg_match( '#^https?://[a-z0-9.-]+(:\d+)?$#i', $origin ) ) {
+		if ( ! preg_match( '#^https?://[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:\d+)?$#i', $origin ) ) {
 			return '';
 		}
 
