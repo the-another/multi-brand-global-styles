@@ -4,7 +4,7 @@ Tags: multi-brand, global styles, branding, theme-json, variables
 Requires at least: 6.9
 Tested up to: 7.0
 Requires PHP: 8.3
-Stable tag: 0.3.1
+Stable tag: 0.3.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -48,6 +48,12 @@ No — registering the exact same rule twice is rejected with an admin notice. O
 
 
 
+
+
+= 0.3.2 - 2026-07-06 =
+* Fix: a Brand's custom CSS (the theme's Additional CSS) was silently dropped on save on security-hardened sites where the administrator lacks the edit_css capability (DISALLOW_UNFILTERED_HTML or a security plugin) — the 0.3.1 fix restored the palette but not the custom CSS, so styles looked half-applied. The Brand's own custom CSS is now preserved (sanitized against markup breakout) while all other sanitization still runs.
+* Fix: with the custom CSS restored, canonical-domain asset URLs referenced inside it (fonts, background images) are again rewritten to the domain the visitor is browsing, so those assets load same-host instead of cross-host.
+* Change: image replacement and canonical-host URL rewriting each now make a single pass over the page, so per-request cost no longer grows with the number of image replacements or canonical hosts — a noticeable saving on sites that cannot use a page cache.
 
 = 0.3.1 - 2026-07-06 =
 * Add: cross-origin (CORS) headers so assets (CSS, JS, fonts) loaded from the canonical domain are no longer blocked when a page renders on a Brand domain — the request Origin is validated against the canonical host plus every published Brand's hosts and reflected back with a Vary: Origin header.

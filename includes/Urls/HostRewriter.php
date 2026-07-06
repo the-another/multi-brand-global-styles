@@ -81,16 +81,23 @@ class HostRewriter {
 		$force_https = $settings->url_rewrite_force_https();
 		$scheme      = $force_https || is_ssl() ? 'https' : 'http';
 
+		$hosts = array();
+
 		foreach ( $this->canonical_authorities() as $authority ) {
 			if ( ! $force_https && $authority === $current_authority ) {
 				// Already browsing this canonical authority — nothing to move.
 				continue;
 			}
 
-			$html = $this->rewrite_authority( $html, $authority, $current_authority, $scheme );
+			list( $host )                 = explode( ':', $authority, 2 );
+			$hosts[ strtolower( $host ) ] = true;
 		}
 
-		return $html;
+		if ( empty( $hosts ) ) {
+			return $html;
+		}
+
+		return $this->rewrite_hosts( $html, array_keys( $hosts ), $current_authority, $scheme );
 	}
 
 	/**
@@ -154,24 +161,37 @@ class HostRewriter {
 	}
 
 	/**
-	 * Swap one canonical authority for the browsed one, in every URL form.
+	 * Swap every canonical host for the browsed authority, in every URL form,
+	 * in ONE pass.
 	 *
-	 * @param string $html                Subject HTML.
-	 * @param string $canonical_authority Canonical authority (host[:port]).
-	 * @param string $current_authority   Browsed authority (host[:port]).
-	 * @param string $scheme              Target scheme for absolute URLs.
+	 * All canonical hosts are combined into a single alternation so the HTML is
+	 * scanned once no matter how many canonical hosts there are (home + siteurl
+	 * when they differ) — instead of one full pass per host.
+	 *
+	 * @param string             $html              Subject HTML.
+	 * @param array<int, string> $hosts             Canonical hosts (no port), deduped.
+	 * @param string             $current_authority Browsed authority (host[:port]).
+	 * @param string             $scheme            Target scheme for absolute URLs.
 	 * @return string Rewritten HTML.
 	 */
-	private function rewrite_authority( string $html, string $canonical_authority, string $current_authority, string $scheme ): string {
-		list( $host ) = explode( ':', $canonical_authority, 2 );
+	private function rewrite_hosts( string $html, array $hosts, string $current_authority, string $scheme ): string {
+		$alternation = implode(
+			'|',
+			array_map(
+				static fn( string $host ): string => preg_quote( $host, '#' ),
+				$hosts
+			)
+		);
 
 		// (\\?/\\?/) matches // and the JSON-escaped \/\/ (each slash optionally
 		// preceded by a backslash), capturing the separator so the replacement
 		// keeps the original form. (?::\d+)? swallows any port so it is replaced
 		// together with the host — never appended twice. The lookarounds keep
 		// host-boundary safety: canonical.com never matches inside
-		// canonical.com.evil.net, sub.canonical.com, or not-canonical.com.
-		$pattern = '#(?<![\w.-])(?:(https?):)?(\\\\?/\\\\?/)' . preg_quote( $host, '#' ) . '(?::\d+)?(?![\w.-])#i';
+		// canonical.com.evil.net, sub.canonical.com, or not-canonical.com — and
+		// the host alternation is anchored right after the slashes, so a
+		// canonical host embedded in a longer non-canonical host is never hit.
+		$pattern = '#(?<![\w.-])(?:(https?):)?(\\\\?/\\\\?/)(?:' . $alternation . ')(?::\d+)?(?![\w.-])#i';
 
 		$result = preg_replace_callback(
 			$pattern,

@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-07-06
+
+### Changed
+- **Cheaper per-request image replacement.** `Media\ImageUrlReplacer` now uses a single `strtr()` pass instead of `str_replace()` with parallel key/value arrays. PHP's array `str_replace()` scans the whole page once *per mapping* (cost ∝ page-size × number of image replacements); `strtr()` scans once total and substitutes the longest match at each position, so the cost is ∝ page-size regardless of how many replacements a Brand defines — and it can't cascade a replacement URL into a later mapping. On an uncached site with ~20 replacements this dropped the pass from ~240 µs to ~80 µs on a 64 KB page (and ~2.0 ms to ~0.7 ms on 512 KB). The map's longest-first ordering is no longer relied upon here (`strtr()` is inherently longest-match).
+- **`Urls\HostRewriter` rewrites all canonical hosts in one pass.** When `home` and `siteurl` resolve to different hosts it previously ran one full regex pass per host; the hosts are now combined into a single alternation so the page is scanned once. Same host-boundary safety and URL-form coverage (absolute, protocol-relative, JSON-escaped, any port).
+
+### Fixed
+- **Brand custom CSS silently dropped on save** on security-hardened sites (`DISALLOW_UNFILTERED_HTML`, or a security plugin that revokes `unfiltered_html`), where even the administrator lacks `edit_css`. The 0.3.1 preset fix rescued a Brand's palette but not its top-level custom CSS (`styles.css` — the "Additional CSS" a theme like GlobalAg ships): core's `wp_filter_global_styles_post()` keeps `css` only for users with `edit_css`, so it kept vanishing while the palette came back, leaving the Brand's styles half-applied. `GlobalStyles\GlobalStylesPostService::update_global_styles()` now applies core's value-level safety itself (`WP_Theme_JSON::remove_insecure_properties()` — origin-keyed presets kept, style values `safecss`-filtered), re-attaches the Brand's own custom CSS sanitized against `</style>`/markup breakout, and suspends only `wp_filter_global_styles_post` (at its real registered priority) for that one controlled write so the CSS survives. The Brand CPT is already gated at `edit_theme_options`, so this keeps the operator's own CSS without weakening any other sanitization.
+- **Brand-host asset URLs inside custom CSS no longer stranded on the canonical host.** Because the custom CSS above was being dropped before it reached the page, any canonical-host asset URLs it referenced (e.g. `@font-face`/`background: url(...)` fonts and images) never made it into the buffer for `Urls\HostRewriter` to rewrite — so on a rewriting Brand's domain those assets appeared to load cross-host. With the custom CSS preserved, `HostRewriter` rewrites its canonical-host URLs to the browsed Brand host along with the rest of the page, so the assets load same-host.
+
 ## [0.3.1] - 2026-07-06
 
 ### Added
@@ -63,7 +73,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Optional default Brand as the fallback for unmatched requests.
 - Duplicate-rule rejection with an admin notice; overlapping-but-different rules allowed by design.
 
-[Unreleased]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.1.1...v0.2.0
