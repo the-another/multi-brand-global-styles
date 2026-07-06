@@ -516,7 +516,7 @@ class BrandPostType {
 	 * @param array<string, mixed>|\stdClass $value Settings or styles subtree.
 	 * @return array<string, mixed>|\stdClass The same value, or stdClass if empty.
 	 */
-	private static function ensure_json_object( $value ) {
+	private static function ensure_json_object( array|\stdClass $value ): array|\stdClass {
 		if ( is_array( $value ) && 0 === count( $value ) ) {
 			return new \stdClass();
 		}
