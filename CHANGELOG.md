@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+- **Brand custom CSS silently dropped on save** on security-hardened sites (`DISALLOW_UNFILTERED_HTML`, or a security plugin that revokes `unfiltered_html`), where even the administrator lacks `edit_css`. The 0.3.1 preset fix rescued a Brand's palette but not its top-level custom CSS (`styles.css` — the "Additional CSS" a theme like GlobalAg ships): core's `wp_filter_global_styles_post()` keeps `css` only for users with `edit_css`, so it kept vanishing while the palette came back, leaving the Brand's styles half-applied. `GlobalStyles\GlobalStylesPostService::update_global_styles()` now applies core's value-level safety itself (`WP_Theme_JSON::remove_insecure_properties()` — origin-keyed presets kept, style values `safecss`-filtered), re-attaches the Brand's own custom CSS sanitized against `</style>`/markup breakout, and suspends only `wp_filter_global_styles_post` (at its real registered priority) for that one controlled write so the CSS survives. The Brand CPT is already gated at `edit_theme_options`, so this keeps the operator's own CSS without weakening any other sanitization.
+- **Brand-host asset URLs inside custom CSS no longer stranded on the canonical host.** Because the custom CSS above was being dropped before it reached the page, any canonical-host asset URLs it referenced (e.g. `@font-face`/`background: url(...)` fonts and images) never made it into the buffer for `Urls\HostRewriter` to rewrite — so on a rewriting Brand's domain those assets appeared to load cross-host. With the custom CSS preserved, `HostRewriter` rewrites its canonical-host URLs to the browsed Brand host along with the rest of the page, so the assets load same-host.
+
 ## [0.3.1] - 2026-07-06
 
 ### Added

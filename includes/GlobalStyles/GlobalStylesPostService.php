@@ -96,9 +96,26 @@ class GlobalStylesPostService {
 	 * silently dropped, leaving only {version, isGlobalStylesUserThemeJSON}.
 	 * WP_Theme_JSON normalizes the flat list into the keyed form that survives
 	 * that filter (and renders identically), using core's own API so no preset
-	 * path list has to be hard-coded here. kses still runs on the write, so
-	 * unsafe styles are sanitized exactly as core intends — we are not
-	 * bypassing it, only handing it data in the shape it keeps.
+	 * path list has to be hard-coded here.
+	 *
+	 * Presets are only half the story: that same content_save_pre filter also
+	 * drops the Brand's top-level custom CSS (`styles.css` — the "Additional
+	 * CSS" a theme like GlobalAg ships), because
+	 * WP_Theme_JSON::remove_insecure_properties() keeps `css` only when
+	 * current_user_can('edit_css'). On a security-hardened single site
+	 * (DISALLOW_UNFILTERED_HTML, or a security plugin that revokes
+	 * unfiltered_html) even the administrator lacks that cap, so the Brand's
+	 * custom CSS vanished on save while the palette came back — the styles
+	 * looked half-applied. The Brand CPT is already gated at
+	 * `edit_theme_options` and the plugin owns this dedicated wp_global_styles
+	 * post, so we keep the operator's own custom CSS: we run the payload
+	 * through remove_insecure_properties() OURSELVES (which still applies
+	 * core's value-level safety — safecss_filter_attr on every style value —
+	 * and keeps the origin-keyed presets), re-attach the custom CSS sanitized
+	 * against `</style>`/markup breakout, and suspend only
+	 * wp_filter_global_styles_post for the one controlled write so it cannot
+	 * strip the CSS back out. Everything else is still sanitized exactly as
+	 * core intends.
 	 *
 	 * @param int                  $global_styles_post_id wp_global_styles post ID.
 	 * @param array<string, mixed> $decoded               Decoded theme.json-shaped data (settings/styles).
@@ -116,21 +133,85 @@ class GlobalStylesPostService {
 
 		$raw = $theme_json->get_raw_data();
 
+		// Preserve the Brand's own top-level custom CSS across the save (see
+		// method docblock). Captured before the value-safety pass, which drops
+		// it whenever the current user lacks `edit_css`.
+		$custom_css = ( isset( $raw['styles']['css'] ) && is_string( $raw['styles']['css'] ) )
+			? $this->sanitize_custom_css( $raw['styles']['css'] )
+			: '';
+
+		// Apply core's value-level safety ourselves so we do not depend on
+		// whether wp_filter_global_styles_post is registered for this user:
+		// keeps origin-keyed presets, safecss-filters style values, strips
+		// insecure declarations — and (harmlessly, since we re-attach it) the
+		// custom CSS.
+		$safe = \WP_Theme_JSON::remove_insecure_properties(
+			array(
+				'version'  => 3,
+				'settings' => $raw['settings'] ?? array(),
+				'styles'   => $raw['styles'] ?? array(),
+			),
+			'custom'
+		);
+
+		$settings = $safe['settings'] ?? array();
+		$styles   = $safe['styles'] ?? array();
+
+		if ( '' !== $custom_css ) {
+			$styles['css'] = $custom_css;
+		}
+
+		$post_content = wp_json_encode(
+			array(
+				'version'                     => 3,
+				'isGlobalStylesUserThemeJSON' => true,
+				'settings'                    => empty( $settings ) ? new \stdClass() : $settings,
+				'styles'                      => empty( $styles ) ? new \stdClass() : $styles,
+			)
+		);
+
+		// Suspend core's global-styles kses for this one write so the
+		// re-attached custom CSS survives; the payload above is already
+		// value-safe. has_filter() returns the registered priority (core hooks
+		// it at 9 via kses_init_filters(), not the default 10) or false when it
+		// is not registered at all (users WITH unfiltered_html) — in which case
+		// nothing is suspended or restored.
+		$kses_priority = has_filter( 'content_save_pre', 'wp_filter_global_styles_post' );
+
+		if ( false !== $kses_priority ) {
+			remove_filter( 'content_save_pre', 'wp_filter_global_styles_post', (int) $kses_priority );
+		}
+
 		wp_update_post(
 			wp_slash(
 				array(
 					'ID'           => $global_styles_post_id,
-					'post_content' => wp_json_encode(
-						array(
-							'version'                     => 3,
-							'isGlobalStylesUserThemeJSON' => true,
-							'settings'                    => $raw['settings'] ?? new \stdClass(),
-							'styles'                      => $raw['styles'] ?? new \stdClass(),
-						)
-					),
+					'post_content' => $post_content,
 				)
 			)
 		);
+
+		if ( false !== $kses_priority ) {
+			add_filter( 'content_save_pre', 'wp_filter_global_styles_post', (int) $kses_priority );
+		}
+	}
+
+	/**
+	 * Sanitize a Brand's top-level custom CSS so it cannot break out of the
+	 * <style> element it is later printed inside.
+	 *
+	 * The only sequence that terminates a raw-text <style> element is a literal
+	 * `</style` (any case); everything else — including inline SVG data URIs and
+	 * the child combinator `>` — is legitimate CSS and left untouched. A stray
+	 * backslash neutralizes the end-tag match for the HTML parser while reading
+	 * as a no-op `/` for the CSS parser inside strings/url(), so well-formed CSS
+	 * still renders identically.
+	 *
+	 * @param string $css Raw custom CSS.
+	 * @return string Sanitized custom CSS.
+	 */
+	private function sanitize_custom_css( string $css ): string {
+		return str_ireplace( '</style', '<\\/style', $css );
 	}
 
 	/**

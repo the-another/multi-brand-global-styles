@@ -44,6 +44,9 @@ class GlobalStylesPostServiceTest extends TestCase {
 	}
 
 	protected function tearDown(): void {
+		\WP_Theme_JSON::$raw_data_override            = null;
+		\WP_Theme_JSON::$insecure_properties_override = null;
+		\WP_Theme_JSON::$insecure_properties_calls    = array();
 		Monkey\tearDown();
 		parent::tearDown();
 	}
@@ -153,6 +156,11 @@ class GlobalStylesPostServiceTest extends TestCase {
 
 		Functions\expect( 'wp_slash' )->once()->andReturnUsing( fn( $v ) => $v );
 		Functions\expect( 'wp_json_encode' )->andReturnUsing( 'json_encode' );
+		// No global-styles filter registered for this user (has unfiltered_html):
+		// nothing to suspend or restore.
+		Functions\expect( 'has_filter' )->once()->with( 'content_save_pre', 'wp_filter_global_styles_post' )->andReturn( false );
+		Functions\expect( 'remove_filter' )->never();
+		Functions\expect( 'add_filter' )->never();
 
 		Functions\expect( 'wp_update_post' )
 			->once()
@@ -174,7 +182,9 @@ class GlobalStylesPostServiceTest extends TestCase {
 			array( 'settings' => array( 'color' => array( 'palette' => array( array( 'slug' => 'accent-1', 'color' => '#1E40AF', 'name' => 'Accent 1' ) ) ) ) )
 		);
 
-		\WP_Theme_JSON::$raw_data_override = null;
+		// The persisted payload is routed through core's value-safety pass.
+		$this->assertCount( 1, \WP_Theme_JSON::$insecure_properties_calls );
+		$this->assertSame( 'custom', \WP_Theme_JSON::$insecure_properties_calls[0][1] );
 	}
 
 	public function test_update_global_styles_defaults_missing_subtrees_to_empty_objects(): void {
@@ -186,6 +196,9 @@ class GlobalStylesPostServiceTest extends TestCase {
 
 		Functions\expect( 'wp_slash' )->once()->andReturnUsing( fn( $v ) => $v );
 		Functions\expect( 'wp_json_encode' )->andReturnUsing( 'json_encode' );
+		Functions\expect( 'has_filter' )->once()->with( 'content_save_pre', 'wp_filter_global_styles_post' )->andReturn( false );
+		Functions\expect( 'remove_filter' )->never();
+		Functions\expect( 'add_filter' )->never();
 
 		Functions\expect( 'wp_update_post' )
 			->once()
@@ -200,7 +213,60 @@ class GlobalStylesPostServiceTest extends TestCase {
 			);
 
 		$this->service->update_global_styles( 42, array() );
+	}
 
-		\WP_Theme_JSON::$raw_data_override = null;
+	public function test_update_global_styles_preserves_custom_css_stripped_by_core_kses(): void {
+		// Core's wp_filter_global_styles_post is registered (user lacks
+		// edit_css) and drops the top-level custom CSS. remove_insecure_properties
+		// returns the value-safe payload WITHOUT the css; the service must
+		// re-attach the Brand's own custom CSS and suspend the filter for the
+		// write so it survives.
+		\WP_Theme_JSON::$raw_data_override = array(
+			'version'  => 3,
+			'settings' => array(),
+			'styles'   => array(
+				'color' => array( 'background' => '#eeffee' ),
+				'css'   => '.globalag{color:red} </style><script>x</script>',
+			),
+		);
+		// Simulate core stripping the css (no edit_css) but keeping the rest.
+		\WP_Theme_JSON::$insecure_properties_override = array(
+			'version'  => 3,
+			'settings' => array(),
+			'styles'   => array( 'color' => array( 'background' => '#eeffee' ) ),
+		);
+
+		Functions\expect( 'wp_slash' )->once()->andReturnUsing( fn( $v ) => $v );
+		Functions\expect( 'wp_json_encode' )->andReturnUsing( 'json_encode' );
+		// Filter WAS registered at core's priority 9 → suspended at that exact
+		// priority for the write, then restored.
+		Functions\expect( 'has_filter' )->once()->with( 'content_save_pre', 'wp_filter_global_styles_post' )->andReturn( 9 );
+		Functions\expect( 'remove_filter' )->once()->with( 'content_save_pre', 'wp_filter_global_styles_post', 9 );
+		Functions\expect( 'add_filter' )->once()->with( 'content_save_pre', 'wp_filter_global_styles_post', 9 );
+
+		Functions\expect( 'wp_update_post' )
+			->once()
+			->with(
+				Mockery::on(
+					function ( $args ) {
+						$decoded = json_decode( $args['post_content'], true );
+						$css     = $decoded['styles']['css'] ?? '';
+
+						return 42 === $args['ID']
+							// The Brand's custom CSS is re-attached...
+							&& str_contains( $css, '.globalag{color:red}' )
+							// ...with the </style> breakout neutralized...
+							&& ! str_contains( $css, '</style' )
+							&& str_contains( $css, '<\\/style' )
+							// ...and the value-safe rest preserved.
+							&& ( $decoded['styles']['color']['background'] ?? '' ) === '#eeffee';
+					}
+				)
+			);
+
+		$this->service->update_global_styles(
+			42,
+			array( 'styles' => array( 'css' => '.globalag{color:red} </style><script>x</script>' ) )
+		);
 	}
 }
