@@ -177,6 +177,32 @@ class PluginTest extends TestCase {
 		);
 	}
 
+	public function test_host_canonicalizer_precedes_page_buffer_on_template_redirect(): void {
+		Plugin::get_instance()->start();
+
+		$hooks   = Container::get_instance()->get_hook_manager()->get_registered_hooks();
+		$matches = array_values( array_filter( $hooks, fn( $h ) => 'template_redirect' === $h['hook'] ) );
+
+		$this->assertCount( 2, $matches );
+
+		$by_method = array();
+		foreach ( $matches as $match ) {
+			$by_method[ $match['callback'][1] ] = $match;
+		}
+
+		$this->assertSame( 1, $by_method['handle']['priority'] );
+		$this->assertInstanceOf( HostCanonicalizer::class, $by_method['handle']['callback'][0] );
+
+		$this->assertSame( 10, $by_method['start_buffer']['priority'] );
+		$this->assertInstanceOf( PageBuffer::class, $by_method['start_buffer']['callback'][0] );
+
+		$this->assertLessThan(
+			$by_method['start_buffer']['priority'],
+			$by_method['handle']['priority'],
+			'HostCanonicalizer must run before PageBuffer on template_redirect: the canonicalization redirect must precede the output buffer.'
+		);
+	}
+
 	public static function deleted_post_cases(): array {
 		return array(
 			'matching post type triggers invalidation'     => array( new WP_Post( 5, BrandPostType::POST_TYPE ), true ),
