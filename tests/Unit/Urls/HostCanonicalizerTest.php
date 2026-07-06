@@ -40,6 +40,12 @@ class HostCanonicalizerTest extends TestCase {
 		Functions\when( 'wp_doing_ajax' )->justReturn( false );
 		Functions\when( 'is_feed' )->justReturn( false );
 		Functions\when( 'is_ssl' )->justReturn( true );
+		Functions\when( 'wp_parse_url' )->alias( fn( $url ) => parse_url( (string) $url ) );
+
+		// Default Site Address is a DIFFERENT domain than the test hosts
+		// ('brand.com'), so the same-domain loop guard never triggers unless a
+		// test opts in via set_site_address(). Mirrors the multi-domain case.
+		$this->set_site_address( 'http://install.example' );
 
 		$this->resolver       = Mockery::mock( BrandResolver::class );
 		$this->repository     = Mockery::mock( BrandRepository::class );
@@ -50,6 +56,17 @@ class HostCanonicalizerTest extends TestCase {
 		unset( $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
 		Monkey\tearDown();
 		parent::tearDown();
+	}
+
+	/**
+	 * Point WordPress's Site Address (home + siteurl) at a URL.
+	 */
+	private function set_site_address( string $url ): void {
+		Functions\when( 'get_option' )->alias(
+			static function ( $name ) use ( $url ) {
+				return ( 'home' === $name || 'siteurl' === $name ) ? $url : false;
+			}
+		);
 	}
 
 	/**
@@ -138,5 +155,45 @@ class HostCanonicalizerTest extends TestCase {
 		Functions\expect( 'wp_redirect' )->never();
 		$this->canonicalizer->handle(); // returns without redirect
 		$this->assertTrue( true );
+	}
+
+	/**
+	 * Loop guard: when the Site Address is the SAME domain in the OPPOSITE form,
+	 * redirecting would fight core / a Site-Address-following web server, so the
+	 * plugin defers instead of looping.
+	 */
+	public function test_defers_when_site_address_is_same_domain_opposite_form(): void {
+		// Site Address is apex; Brand wants www — the browsed apex host would be
+		// sent to www, but core/the server canonicalize back to apex → defer.
+		$this->set_site_address( 'http://brand.com' );
+		$this->arrange( array( 'enabled' => true, 'canonical_host_form' => 'www' ), 'brand.com' );
+		$this->assertNull( $this->canonicalizer->maybe_redirect() );
+	}
+
+	public function test_defers_when_site_address_www_and_form_apex_same_domain(): void {
+		// Site Address is www; Brand wants apex; browsing www → defer (would loop).
+		$this->set_site_address( 'http://www.brand.com' );
+		$this->arrange( array( 'enabled' => true, 'canonical_host_form' => 'apex' ), 'www.brand.com' );
+		$this->assertNull( $this->canonicalizer->maybe_redirect() );
+	}
+
+	/**
+	 * When the Site Address AGREES with the target form (same domain), the plugin
+	 * still canonicalizes the other form.
+	 */
+	public function test_redirects_when_site_address_agrees_same_domain(): void {
+		$this->set_site_address( 'http://brand.com' ); // apex, matches form=apex
+		$this->arrange( array( 'enabled' => true, 'canonical_host_form' => 'apex' ), 'www.brand.com' );
+		$this->assertSame( 'https://brand.com/page/?x=1', $this->canonicalizer->maybe_redirect() );
+	}
+
+	/**
+	 * Multi-domain Brand: the Site Address is a DIFFERENT domain, so its form is
+	 * irrelevant and the Brand's chosen form is honoured.
+	 */
+	public function test_redirects_when_site_address_is_different_domain(): void {
+		$this->set_site_address( 'http://www.install.example' ); // www, but different domain
+		$this->arrange( array( 'enabled' => true, 'canonical_host_form' => 'apex' ), 'www.brand.com' );
+		$this->assertSame( 'https://brand.com/page/?x=1', $this->canonicalizer->maybe_redirect() );
 	}
 }

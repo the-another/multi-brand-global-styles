@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+- **Redirect loop** between the www and apex host forms when a web server (nginx/Apache) or another plugin canonicalizes the host in the opposite direction to a Brand's `canonical_host_form`. `Urls\HostCanonicalizer` now defers to the WordPress Site Address: for the install's own domain it will not 301 to a form that opposes the `home`/`siteurl` host form, so it can no longer fight core's `redirect_canonical` or a Site-Address-following web server. Multi-domain Brands (a different apex than the install) are unaffected — their chosen form is always honored. See `docs/superpowers/specs/2026-07-06-host-form-canonicalization-loop-fix-design.md`.
+
 ## [0.3.0] - 2026-07-06
 
 ### Added
