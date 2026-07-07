@@ -21,8 +21,11 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\RequestAuthority;
  * absolute (https://host), protocol-relative (//host), and JSON-escaped
  * (https:\/\/host, \/\/host) forms. Runs LAST among PageBuffer transformers:
  * the image URL map's keys carry canonical-host URLs, so hosts must still be
- * canonical when the image pass runs. Also guards redirect_canonical so core
- * cannot bounce opted-in Brands' visitors back to the canonical host.
+ * canonical when the image pass runs. Also keeps server-side redirects on the
+ * browsed host: guards redirect_canonical so core cannot bounce visitors back
+ * to the canonical host, adds the browsed host to wp_validate_redirect()'s
+ * allowlist, and rewrites canonical-host Location targets on the wp_redirect
+ * filter (login/logout/PRG flows never pass through the HTML buffer).
  */
 class HostRewriter {
 
@@ -130,6 +133,120 @@ class HostRewriter {
 		}
 
 		return $rewritten;
+	}
+
+	/**
+	 * Allow redirects to the browsed Brand host. Hooked to `allowed_redirect_hosts`.
+	 *
+	 * The wp_validate_redirect() allowlist contains only the canonical home
+	 * host, so a redirect target already carrying the browsed Brand host (e.g.
+	 * WooCommerce's referer-based login redirect) is rejected and swapped for a
+	 * canonical-host fallback, bouncing the visitor off the Brand domain.
+	 *
+	 * @param mixed $hosts Allowed redirect hosts.
+	 * @return mixed Hosts plus the browsed host when the Brand opted in.
+	 */
+	public function filter_allowed_redirect_hosts( mixed $hosts ): mixed {
+		if ( ! is_array( $hosts ) || ! $this->rewrite_enabled() ) {
+			return $hosts;
+		}
+
+		$authority = RequestAuthority::current();
+
+		if ( '' === $authority ) {
+			return $hosts;
+		}
+
+		// Bare host only: wp_validate_redirect() compares parse_url() hosts,
+		// which never carry a port.
+		list( $host ) = explode( ':', $authority, 2 );
+
+		if ( ! in_array( $host, $hosts, true ) ) {
+			$hosts[] = $host;
+		}
+
+		return $hosts;
+	}
+
+	/**
+	 * Rewrite canonical-host Location targets to the browsed authority. Hooked
+	 * to the `wp_redirect` filter.
+	 *
+	 * Server-side redirects (login, logout, add-to-cart, any POST/redirect/GET
+	 * flow) build their targets from home_url(), so they carry the canonical
+	 * host and would move an opted-in Brand's visitor off the Brand domain —
+	 * a Location header never passes through the PageBuffer HTML pass.
+	 *
+	 * Exception: a GET/HEAD redirect whose REWRITTEN target is exactly the
+	 * current URL is left alone. Redirecting a GET to itself can only loop,
+	 * and the only legitimate source of such a target is a www/apex host
+	 * canonicalizer (HostCanonicalizer, or a web-server rule) whose cross-form
+	 * redirect must survive. The comparison is scheme-strict on purpose: an
+	 * http→https upgrade of the current URL is not a self-redirect, so
+	 * https-forcing redirects still get moved onto the browsed host.
+	 *
+	 * @param mixed $location Proposed redirect Location.
+	 * @return mixed The (possibly rewritten) Location.
+	 */
+	public function filter_wp_redirect( mixed $location ): mixed {
+		if ( ! is_string( $location ) || '' === $location ) {
+			return $location;
+		}
+
+		if ( is_admin() || wp_doing_ajax() || ( defined( 'REST_REQUEST' ) && REST_REQUEST ) ) {
+			return $location;
+		}
+
+		$rewritten = $this->replace( $location );
+
+		if ( $rewritten === $location || $this->is_get_self_redirect( $rewritten ) ) {
+			return $location;
+		}
+
+		return $rewritten;
+	}
+
+	/**
+	 * Whether the resolved Brand has the URL rewrite option on.
+	 *
+	 * @return bool True when a Brand resolved and opted in.
+	 */
+	private function rewrite_enabled(): bool {
+		$brand_id = $this->brand_resolver->resolve_current_request();
+
+		if ( null === $brand_id ) {
+			return false;
+		}
+
+		return $this->brand_repository->get_settings( $brand_id )->url_rewrite_enabled();
+	}
+
+	/**
+	 * Whether a redirect target is the current request URL fetched with a safe
+	 * (GET/HEAD) method — i.e. following it would re-request the same page.
+	 *
+	 * @param string $target Absolute redirect target.
+	 * @return bool True for a same-URL GET/HEAD redirect.
+	 */
+	private function is_get_self_redirect( string $target ): bool {
+		$method = isset( $_SERVER['REQUEST_METHOD'] )
+			? strtoupper( sanitize_text_field( wp_unslash( $_SERVER['REQUEST_METHOD'] ) ) )
+			: 'GET';
+
+		if ( 'GET' !== $method && 'HEAD' !== $method ) {
+			return false;
+		}
+
+		$authority = RequestAuthority::current();
+
+		if ( '' === $authority ) {
+			return false;
+		}
+
+		$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '/';
+		$scheme      = is_ssl() ? 'https' : 'http';
+
+		return $target === $scheme . '://' . $authority . $request_uri;
 	}
 
 	/**

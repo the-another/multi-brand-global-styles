@@ -4,7 +4,7 @@ Tags: multi-brand, global styles, branding, theme-json, variables
 Requires at least: 6.9
 Tested up to: 7.0
 Requires PHP: 8.3
-Stable tag: 0.3.2
+Stable tag: 0.3.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -49,6 +49,10 @@ No — registering the exact same rule twice is rejected with an admin notice. O
 
 
 
+
+
+= 0.3.3 - 2026-07-07 =
+* Fix: logging in on a Brand domain (e.g. the WooCommerce My Account form) redirected the visitor back to the canonical/origin domain. Server-side redirects are now kept on the browsed Brand host: the Brand host is accepted by WordPress's redirect validation (allowed_redirect_hosts), and canonical-host redirect targets (login, logout, add-to-cart, and other Location-header flows built from home_url()) are rewritten to the Brand host — with a loop guard that preserves www/apex canonicalization redirects.
 
 = 0.3.2 - 2026-07-06 =
 * Fix: a Brand's custom CSS (the theme's Additional CSS) was silently dropped on save on security-hardened sites where the administrator lacks the edit_css capability (DISALLOW_UNFILTERED_HTML or a security plugin) — the 0.3.1 fix restored the palette but not the custom CSS, so styles looked half-applied. The Brand's own custom CSS is now preserved (sanitized against markup breakout) while all other sanitization still runs.

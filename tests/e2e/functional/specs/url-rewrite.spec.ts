@@ -74,5 +74,47 @@ test.describe( 'Brand URL rewrite', () => {
 		const canonical = await page.request.get( `/sample-page/` );
 		expect( canonical.ok() ).toBe( true );
 		expect( await canonical.text() ).toContain( CANONICAL_AUTHORITY );
+
+		// Phase 5: server-side redirects (Location headers never pass through
+		// the HTML buffer) also stay on the browsed host. Both halves of the
+		// "login bounces back to the origin domain" bug:
+		//
+		// (a) a redirect target already on the browsed host must survive
+		// wp_validate_redirect() — without the allowed_redirect_hosts filter
+		// it is rejected (only the canonical host is allowlisted) and swapped
+		// for the canonical-host fallback.
+		const loginWithTarget = await page.request.post(
+			`${ ALT_URL }/wp-login.php`,
+			{
+				form: {
+					log: 'admin',
+					pwd: 'password',
+					redirect_to: `${ ALT_URL }/sample-page/`,
+				},
+				maxRedirects: 0,
+			}
+		);
+		expect( loginWithTarget.status() ).toBe( 302 );
+		expect( loginWithTarget.headers()[ 'location' ] ).toBe(
+			`${ ALT_URL }/sample-page/`
+		);
+
+		// (b) a canonical-host target (wp-login's default is admin_url(), the
+		// same home_url()-derived shape as WooCommerce's My Account fallback)
+		// must be rewritten onto the browsed host by the wp_redirect filter.
+		const loginDefault = await page.request.post(
+			`${ ALT_URL }/wp-login.php`,
+			{
+				form: {
+					log: 'admin',
+					pwd: 'password',
+				},
+				maxRedirects: 0,
+			}
+		);
+		expect( loginDefault.status() ).toBe( 302 );
+		expect( loginDefault.headers()[ 'location' ] ).toBe(
+			`${ ALT_URL }/wp-admin/`
+		);
 	} );
 } );

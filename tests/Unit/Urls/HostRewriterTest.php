@@ -48,9 +48,17 @@ class HostRewriterTest extends TestCase {
 	}
 
 	protected function tearDown(): void {
-		unset( $_SERVER['HTTP_HOST'] );
+		unset( $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_METHOD'], $_SERVER['REQUEST_URI'] );
 		Monkey\tearDown();
 		parent::tearDown();
+	}
+
+	/**
+	 * Stub the frontend-context signals filter_wp_redirect() guards on.
+	 */
+	private function stub_frontend_context( bool $admin = false, bool $ajax = false ): void {
+		Functions\when( 'is_admin' )->justReturn( $admin );
+		Functions\when( 'wp_doing_ajax' )->justReturn( $ajax );
 	}
 
 	/**
@@ -263,6 +271,189 @@ class HostRewriterTest extends TestCase {
 		$this->brand_resolver->shouldReceive( 'resolve_current_request' )->never();
 
 		$this->assertFalse( $this->rewriter->filter_redirect_canonical( false, 'https://brand.com/x' ) );
+	}
+
+	public function test_allowed_redirect_hosts_gains_browsed_host_when_enabled(): void {
+		$this->arrange( array( 'enabled' => true ) );
+
+		$this->assertSame(
+			array( 'canonical.com', 'brand.com' ),
+			$this->rewriter->filter_allowed_redirect_hosts( array( 'canonical.com' ) )
+		);
+	}
+
+	public function test_allowed_redirect_hosts_strips_port_from_browsed_authority(): void {
+		$this->arrange(
+			array( 'enabled' => true ),
+			home: 'http://localhost:8881',
+			siteurl: 'http://localhost:8881',
+			http_host: '127.0.0.1:8881',
+			ssl: false
+		);
+
+		// wp_validate_redirect() compares parse_url() hosts, which never carry
+		// a port — the allowlist entry must be the bare host.
+		$this->assertSame(
+			array( 'localhost', '127.0.0.1' ),
+			$this->rewriter->filter_allowed_redirect_hosts( array( 'localhost' ) )
+		);
+	}
+
+	public function test_allowed_redirect_hosts_does_not_duplicate_existing_host(): void {
+		$this->arrange( array( 'enabled' => true ) );
+
+		$this->assertSame(
+			array( 'canonical.com', 'brand.com' ),
+			$this->rewriter->filter_allowed_redirect_hosts( array( 'canonical.com', 'brand.com' ) )
+		);
+	}
+
+	public function test_allowed_redirect_hosts_untouched_when_feature_disabled(): void {
+		$this->arrange( array() );
+
+		$this->assertSame(
+			array( 'canonical.com' ),
+			$this->rewriter->filter_allowed_redirect_hosts( array( 'canonical.com' ) )
+		);
+	}
+
+	public function test_allowed_redirect_hosts_untouched_when_no_brand(): void {
+		$this->brand_resolver->shouldReceive( 'resolve_current_request' )->andReturn( null );
+
+		$this->assertSame(
+			array( 'canonical.com' ),
+			$this->rewriter->filter_allowed_redirect_hosts( array( 'canonical.com' ) )
+		);
+	}
+
+	public function test_allowed_redirect_hosts_untouched_for_garbage_host(): void {
+		$this->arrange( array( 'enabled' => true ), http_host: 'bad host/injection' );
+
+		$this->assertSame(
+			array( 'canonical.com' ),
+			$this->rewriter->filter_allowed_redirect_hosts( array( 'canonical.com' ) )
+		);
+	}
+
+	public function test_allowed_redirect_hosts_passes_through_non_array(): void {
+		$this->brand_resolver->shouldReceive( 'resolve_current_request' )->never();
+
+		$this->assertSame( 'nope', $this->rewriter->filter_allowed_redirect_hosts( 'nope' ) );
+	}
+
+	public function test_wp_redirect_rewrites_canonical_location_after_login_post(): void {
+		$this->stub_frontend_context();
+		$this->arrange( array( 'enabled' => true ) );
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['REQUEST_URI']    = '/my-account/';
+
+		// PRG: WooCommerce's login fallback redirects the POST back to the same
+		// path on the canonical host — the rewrite must keep the visitor on the
+		// brand host even though the path matches the current request.
+		$this->assertSame(
+			'https://brand.com/my-account/',
+			$this->rewriter->filter_wp_redirect( 'https://canonical.com/my-account/' )
+		);
+	}
+
+	public function test_wp_redirect_leaves_brand_host_location_alone(): void {
+		$this->stub_frontend_context();
+		$this->arrange( array( 'enabled' => true ) );
+
+		$this->assertSame(
+			'https://brand.com/my-account/',
+			$this->rewriter->filter_wp_redirect( 'https://brand.com/my-account/' )
+		);
+	}
+
+	public function test_wp_redirect_untouched_when_feature_disabled(): void {
+		$this->stub_frontend_context();
+		$this->arrange( array() );
+
+		$this->assertSame(
+			'https://canonical.com/x',
+			$this->rewriter->filter_wp_redirect( 'https://canonical.com/x' )
+		);
+	}
+
+	public function test_wp_redirect_untouched_in_admin(): void {
+		$this->stub_frontend_context( admin: true );
+		$this->brand_resolver->shouldReceive( 'resolve_current_request' )->never();
+
+		$this->assertSame(
+			'https://canonical.com/wp-admin/',
+			$this->rewriter->filter_wp_redirect( 'https://canonical.com/wp-admin/' )
+		);
+	}
+
+	public function test_wp_redirect_untouched_during_ajax(): void {
+		$this->stub_frontend_context( ajax: true );
+		$this->brand_resolver->shouldReceive( 'resolve_current_request' )->never();
+
+		$this->assertSame(
+			'https://canonical.com/x',
+			$this->rewriter->filter_wp_redirect( 'https://canonical.com/x' )
+		);
+	}
+
+	public function test_wp_redirect_passes_through_non_string(): void {
+		$this->assertFalse( $this->rewriter->filter_wp_redirect( false ) );
+	}
+
+	public function test_wp_redirect_preserves_host_canonicalizer_get_redirect(): void {
+		$this->stub_frontend_context();
+		// Install's own domain: the canonical host is the apex form of the
+		// browsed host, so HostCanonicalizer's www→apex 301 target IS a
+		// canonical-authority URL.
+		$this->arrange(
+			array( 'enabled' => true ),
+			home: 'http://brand.com',
+			siteurl: 'http://brand.com',
+			http_host: 'www.brand.com',
+			ssl: false
+		);
+		$_SERVER['REQUEST_METHOD'] = 'GET';
+		$_SERVER['REQUEST_URI']    = '/page/';
+
+		// Rewriting that target back to the browsed host would redirect the GET
+		// to itself — an infinite 301 loop. The original target must survive.
+		$this->assertSame(
+			'http://brand.com/page/',
+			$this->rewriter->filter_wp_redirect( 'http://brand.com/page/' )
+		);
+	}
+
+	public function test_wp_redirect_rewrites_get_redirect_to_a_different_path(): void {
+		$this->stub_frontend_context();
+		$this->arrange( array( 'enabled' => true ), ssl: false );
+		$_SERVER['REQUEST_METHOD'] = 'GET';
+		$_SERVER['REQUEST_URI']    = '/came-from/';
+
+		$this->assertSame(
+			'http://brand.com/go-to/',
+			$this->rewriter->filter_wp_redirect( 'https://canonical.com/go-to/' )
+		);
+	}
+
+	public function test_wp_redirect_rewrites_https_upgrade_onto_the_browsed_host(): void {
+		$this->stub_frontend_context();
+		$this->arrange(
+			array(
+				'enabled'     => true,
+				'force_https' => true,
+			),
+			ssl: false
+		);
+		$_SERVER['REQUEST_METHOD'] = 'GET';
+		$_SERVER['REQUEST_URI']    = '/x/';
+
+		// An https-forcing redirect built from home_url() targets the canonical
+		// host; the rewrite keeps the upgrade but moves it onto the browsed
+		// host. Not a self-redirect: the scheme differs from the current request.
+		$this->assertSame(
+			'https://brand.com/x/',
+			$this->rewriter->filter_wp_redirect( 'http://canonical.com/x/' )
+		);
 	}
 
 	public function test_redirect_canonical_forces_https_upgrade_redirect(): void {

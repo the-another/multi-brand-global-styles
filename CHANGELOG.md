@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-07-07
+
+### Fixed
+- **Login on a Brand domain bounced the visitor back to the canonical domain.** Server-side redirects (`Location:` headers) never pass through the page buffer, so the URL-rewrite option didn't cover them — a WooCommerce My Account or `wp-login.php` login on a rewriting Brand's host sent the visitor to the origin domain, twice over: `wp_validate_redirect()` allowlists only the canonical home host, so a redirect target already on the Brand host (WooCommerce's referer-based login redirect, `wp-login.php`'s `redirect_to`) was rejected and swapped for its canonical-host fallback; and that fallback (built from `home_url()`, like logout/add-to-cart/PRG targets generally) carried the canonical host with nothing to rewrite it. `Urls\HostRewriter` now adds the browsed Brand host to `allowed_redirect_hosts` and rewrites canonical-host `Location:` targets to the browsed authority on the `wp_redirect` filter (frontend only). Loop guard: a GET/HEAD redirect whose rewritten target is exactly the current URL is left untouched — redirecting a GET to itself can only loop, and the only legitimate source of such a target is a www/apex canonicalizer (`Urls\HostCanonicalizer` or a web-server rule) whose cross-form 301 must survive; the comparison is scheme-strict on purpose so https-forcing redirects still move onto the Brand host.
+
 ## [0.3.2] - 2026-07-06
 
 ### Changed
@@ -73,7 +78,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Optional default Brand as the fallback for unmatched requests.
 - Duplicate-rule rejection with an admin notice; overlapping-but-different rules allowed by design.
 
-[Unreleased]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.2.0...v0.3.0
