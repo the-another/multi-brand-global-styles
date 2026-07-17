@@ -128,6 +128,7 @@ class Plugin {
 		$hooks->register_filter( 'redirect_canonical', array( $host_rewriter, 'filter_redirect_canonical' ), 10, 2 );
 		$hooks->register_filter( 'allowed_redirect_hosts', array( $host_rewriter, 'filter_allowed_redirect_hosts' ) );
 		$hooks->register_filter( 'wp_redirect', array( $host_rewriter, 'filter_wp_redirect' ) );
+		$hooks->register_filter( 'rest_pre_echo_response', array( $host_rewriter, 'filter_rest_pre_echo_response' ), 10, 3 );
 
 		$admin_notices = $this->container->get( 'admin_notices' );
 		$hooks->register_action( 'admin_notices', array( $admin_notices, 'render' ) );

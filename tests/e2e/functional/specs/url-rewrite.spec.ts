@@ -116,5 +116,22 @@ test.describe( 'Brand URL rewrite', () => {
 		expect( loginDefault.headers()[ 'location' ] ).toBe(
 			`${ ALT_URL }/wp-admin/`
 		);
+
+		// Phase 6: served REST payloads (HTML fragments for infinite-scroll /
+		// AJAX flows never pass through the HTML buffer) are rewritten too —
+		// including _links, which are merged after rest_post_dispatch and
+		// would survive anything but the rest_pre_echo_response egress pass.
+		const rest = await page.request.get(
+			`${ ALT_URL }/wp-json/wp/v2/pages`
+		);
+		expect( rest.ok() ).toBe( true );
+		const restBody = await rest.text();
+		expect( restBody ).not.toContain( CANONICAL_AUTHORITY );
+		expect( restBody ).toContain( `127.0.0.1:${ PORT }` );
+
+		// The canonical host's own REST payload is untouched.
+		const restCanonical = await page.request.get( `/wp-json/wp/v2/pages` );
+		expect( restCanonical.ok() ).toBe( true );
+		expect( await restCanonical.text() ).toContain( CANONICAL_AUTHORITY );
 	} );
 } );

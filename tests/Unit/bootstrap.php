@@ -56,8 +56,11 @@ if ( ! class_exists( 'WP_REST_Request' ) ) {
 	class WP_REST_Request {
 		private array $params;
 
-		public function __construct( array $params = array() ) {
+		private string $method;
+
+		public function __construct( array $params = array(), string $method = 'GET' ) {
 			$this->params = $params;
+			$this->method = $method;
 		}
 
 		public function get_param( string $key ) {
@@ -66,6 +69,10 @@ if ( ! class_exists( 'WP_REST_Request' ) ) {
 
 		public function has_param( string $key ): bool {
 			return array_key_exists( $key, $this->params );
+		}
+
+		public function get_method(): string {
+			return $this->method;
 		}
 	}
 }

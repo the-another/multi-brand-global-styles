@@ -25,7 +25,10 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\RequestAuthority;
  * browsed host: guards redirect_canonical so core cannot bounce visitors back
  * to the canonical host, adds the browsed host to wp_validate_redirect()'s
  * allowlist, and rewrites canonical-host Location targets on the wp_redirect
- * filter (login/logout/PRG flows never pass through the HTML buffer).
+ * filter (login/logout/PRG flows never pass through the HTML buffer). Served
+ * REST payloads — another egress the buffer never sees, carrying HTML
+ * fragments for infinite-scroll/AJAX flows — get the same rewrite on the
+ * rest_pre_echo_response filter (GET/HEAD reads only, never context=edit).
  */
 class HostRewriter {
 
@@ -204,6 +207,71 @@ class HostRewriter {
 		}
 
 		return $rewritten;
+	}
+
+	/**
+	 * Rewrite canonical-host URLs inside a served REST payload. Hooked to
+	 * `rest_pre_echo_response`.
+	 *
+	 * This is the REST egress point: the filter fires only when a response is
+	 * actually served over HTTP (never for internal rest_do_request() callers),
+	 * and it receives the final payload AFTER response_to_data() has merged
+	 * _links/_embedded — which rest_post_dispatch would miss. HTML fragments
+	 * served to Brand-host pages (e.g. infinite-scroll card batches) never pass
+	 * through the PageBuffer, so without this pass their links would carry the
+	 * canonical host.
+	 *
+	 * Reads only: write methods are left alone, as are `context=edit` reads —
+	 * rewriting editor data would let Brand-host URLs be saved back into post
+	 * content.
+	 *
+	 * @param mixed $result  Final response payload about to be JSON-encoded.
+	 * @param mixed $server  REST server instance.
+	 * @param mixed $request Originating request.
+	 * @return mixed The (possibly rewritten) payload.
+	 */
+	public function filter_rest_pre_echo_response( mixed $result, mixed $server = null, mixed $request = null ): mixed {
+		if ( ! $request instanceof \WP_REST_Request ) {
+			return $result;
+		}
+
+		$method = strtoupper( $request->get_method() );
+
+		if ( 'GET' !== $method && 'HEAD' !== $method ) {
+			return $result;
+		}
+
+		if ( 'edit' === $request->get_param( 'context' ) ) {
+			return $result;
+		}
+
+		if ( ! $this->rewrite_enabled() ) {
+			return $result;
+		}
+
+		return $this->rewrite_data( $result );
+	}
+
+	/**
+	 * Apply the host rewrite to every string in a response data tree. Arrays
+	 * are walked recursively; objects and other non-string leaves pass through
+	 * untouched.
+	 *
+	 * @param mixed $data Response data node.
+	 * @return mixed Rewritten node.
+	 */
+	private function rewrite_data( mixed $data ): mixed {
+		if ( is_string( $data ) ) {
+			return $this->replace( $data );
+		}
+
+		if ( is_array( $data ) ) {
+			foreach ( $data as $key => $value ) {
+				$data[ $key ] = $this->rewrite_data( $value );
+			}
+		}
+
+		return $data;
 	}
 
 	/**

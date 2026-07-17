@@ -15,6 +15,7 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandResolver;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandSettings;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\HostRewriter;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\RequestAuthority;
+use WP_REST_Request;
 
 #[CoversClass( HostRewriter::class )]
 #[UsesClass( BrandSettings::class )]
@@ -454,6 +455,105 @@ class HostRewriterTest extends TestCase {
 			'https://brand.com/x/',
 			$this->rewriter->filter_wp_redirect( 'http://canonical.com/x/' )
 		);
+	}
+
+	public function test_rest_response_strings_are_rewritten_recursively_for_get_requests(): void {
+		$this->arrange( array( 'enabled' => true ) );
+
+		$data = array(
+			'html'       => '<a href="https://canonical.com/auction/a/">a</a>',
+			'pagination' => '<a href="https://brand.com/page/2/">2</a>',
+			'_links'     => array( 'self' => array( array( 'href' => 'https://canonical.com/wp-json/x' ) ) ),
+			'meta'       => array( 'link' => 'https:\/\/canonical.com\/x' ),
+			'page'       => 2,
+			'has_more'   => true,
+			'missing'    => null,
+		);
+
+		$this->assertSame(
+			array(
+				'html'       => '<a href="https://brand.com/auction/a/">a</a>',
+				'pagination' => '<a href="https://brand.com/page/2/">2</a>',
+				'_links'     => array( 'self' => array( array( 'href' => 'https://brand.com/wp-json/x' ) ) ),
+				'meta'       => array( 'link' => 'https:\/\/brand.com\/x' ),
+				'page'       => 2,
+				'has_more'   => true,
+				'missing'    => null,
+			),
+			$this->rewriter->filter_rest_pre_echo_response( $data, null, new WP_REST_Request() )
+		);
+	}
+
+	public function test_rest_response_untouched_for_write_methods(): void {
+		$this->brand_resolver->shouldReceive( 'resolve_current_request' )->never();
+
+		$data = array( 'html' => '<a href="https://canonical.com/x">x</a>' );
+
+		$this->assertSame(
+			$data,
+			$this->rewriter->filter_rest_pre_echo_response( $data, null, new WP_REST_Request( array(), 'POST' ) )
+		);
+	}
+
+	public function test_rest_response_untouched_for_edit_context(): void {
+		$this->brand_resolver->shouldReceive( 'resolve_current_request' )->never();
+
+		// A block-editor read: rewriting content.raw here would let brand-host
+		// URLs be saved back into post content.
+		$data = array( 'content' => array( 'raw' => '<a href="https://canonical.com/x">x</a>' ) );
+
+		$this->assertSame(
+			$data,
+			$this->rewriter->filter_rest_pre_echo_response( $data, null, new WP_REST_Request( array( 'context' => 'edit' ) ) )
+		);
+	}
+
+	public function test_rest_response_skipped_with_single_resolution_when_no_brand(): void {
+		// One early resolution decides the whole response — never one per string.
+		$this->brand_resolver->shouldReceive( 'resolve_current_request' )->once()->andReturn( null );
+
+		$data = array(
+			'html'       => '<a href="https://canonical.com/x">x</a>',
+			'pagination' => '<a href="https://canonical.com/page/2/">2</a>',
+			'meta'       => array( 'link' => 'https://canonical.com/y' ),
+		);
+
+		$this->assertSame(
+			$data,
+			$this->rewriter->filter_rest_pre_echo_response( $data, null, new WP_REST_Request() )
+		);
+	}
+
+	public function test_rest_response_untouched_when_feature_disabled(): void {
+		$this->arrange( array() );
+
+		$data = array( 'html' => '<a href="https://canonical.com/x">x</a>' );
+
+		$this->assertSame(
+			$data,
+			$this->rewriter->filter_rest_pre_echo_response( $data, null, new WP_REST_Request() )
+		);
+	}
+
+	public function test_rest_response_head_requests_are_rewritten(): void {
+		$this->arrange( array( 'enabled' => true ) );
+
+		$this->assertSame(
+			array( 'html' => '<a href="https://brand.com/x">x</a>' ),
+			$this->rewriter->filter_rest_pre_echo_response(
+				array( 'html' => '<a href="https://canonical.com/x">x</a>' ),
+				null,
+				new WP_REST_Request( array(), 'HEAD' )
+			)
+		);
+	}
+
+	public function test_rest_response_untouched_without_a_request(): void {
+		$this->brand_resolver->shouldReceive( 'resolve_current_request' )->never();
+
+		$data = array( 'html' => '<a href="https://canonical.com/x">x</a>' );
+
+		$this->assertSame( $data, $this->rewriter->filter_rest_pre_echo_response( $data, null, null ) );
 	}
 
 	public function test_redirect_canonical_forces_https_upgrade_redirect(): void {
