@@ -3,7 +3,7 @@
  * Plugin Name: The Another Multi-Brand Global Styles
  * Plugin URI: https://theanother.org/plugin/multi-brand-global-styles/
  * Description: Define Brands — URL match rules (whole domains or path sections) with per-Brand global style overrides and content variables — on a single WordPress install.
- * Version: 0.3.3
+ * Version: 0.3.4
  * Author: The Another
  * Author URI: https://theanother.org
  * Requires at least: 6.9
@@ -24,7 +24,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'THE_ANOTHER_MULTI_BRAND_GLOBAL_STYLES_VERSION', '0.3.3' );
+define( 'THE_ANOTHER_MULTI_BRAND_GLOBAL_STYLES_VERSION', '0.3.4' );
 define( 'THE_ANOTHER_MULTI_BRAND_GLOBAL_STYLES_PLUGIN_FILE', __FILE__ );
 define( 'THE_ANOTHER_MULTI_BRAND_GLOBAL_STYLES_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'THE_ANOTHER_MULTI_BRAND_GLOBAL_STYLES_PLUGIN_URL', plugin_dir_url( __FILE__ ) );

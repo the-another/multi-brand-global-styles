@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-07-17
+
+### Fixed
+- **Content fetched over the REST API on a Brand domain linked back to the canonical domain.** HTML fragments served over REST (infinite-scroll / AJAX card batches — e.g. an auction query loop's `format=html` endpoint) never pass through the page buffer, so on an opted-in Brand host the first server-rendered page linked to the Brand domain but every subsequently loaded batch carried canonical-host permalinks. `Urls\HostRewriter` now applies the authority rewrite to served REST payloads on `rest_pre_echo_response` — the REST egress point: it fires only for responses actually served over HTTP (internal `rest_do_request()` callers never see rewritten data) and it receives the payload after `_links`/`_embedded` are merged, which `rest_post_dispatch` would miss. Scoped to GET/HEAD reads and never `context=edit`, so block-editor reads can't save Brand-host URLs back into post content; a single early Brand resolution gates the walk, so non-Brand REST traffic pays one lookup. REST response *headers* (`Link`, `X-WP-Total`) still carry the canonical host — only the JSON body is rewritten.
+- **Duplicate-rule e2e hardened against WordPress core update nags.** Once a newer core than the pinned e2e WordPress is released, every wp-admin page grows an update nag that is also a `.notice-warning`, failing the conflict-notice assertions on Playwright's strict-mode ambiguity (seen with WP 7.0.2). The locator now excludes `.update-nag`.
+
 ## [0.3.3] - 2026-07-07
 
 ### Fixed
@@ -78,7 +84,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Optional default Brand as the fallback for unmatched requests.
 - Duplicate-rule rejection with an admin notice; overlapping-but-different rules allowed by design.
 
-[Unreleased]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.3.4...HEAD
+[0.3.4]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.3.0...v0.3.1
