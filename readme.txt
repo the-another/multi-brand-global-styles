@@ -4,7 +4,7 @@ Tags: multi-brand, global styles, branding, theme-json, variables
 Requires at least: 6.9
 Tested up to: 7.0
 Requires PHP: 8.3
-Stable tag: 0.3.3
+Stable tag: 0.3.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -50,6 +50,10 @@ No — registering the exact same rule twice is rejected with an admin notice. O
 
 
 
+
+
+= 0.3.4 - 2026-07-17 =
+* Fix: content loaded over the REST API on a Brand domain (infinite scroll, AJAX item batches) still linked to the canonical/origin domain. Served REST payloads are now rewritten onto the browsed Brand host — reads only, and never block-editor data, so editing can't save Brand URLs into content.
 
 = 0.3.3 - 2026-07-07 =
 * Fix: logging in on a Brand domain (e.g. the WooCommerce My Account form) redirected the visitor back to the canonical/origin domain. Server-side redirects are now kept on the browsed Brand host: the Brand host is accepted by WordPress's redirect validation (allowed_redirect_hosts), and canonical-host redirect targets (login, logout, add-to-cart, and other Location-header flows built from home_url()) are rewritten to the Brand host — with a loop guard that preserves www/apex canonicalization redirects.

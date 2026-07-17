@@ -16,12 +16,16 @@ test.describe( 'admin rule validation', () => {
 			rules: 'localhost',
 		} );
 
-		await expect( page.locator( '.notice-warning' ) ).toContainText(
+		// :not(.update-nag): when the pinned e2e core falls behind the latest
+		// WordPress release, every wp-admin page grows a core update nag that
+		// is ALSO a .notice-warning — strict mode would fail on the ambiguity.
+		const conflictNotice = page.locator(
+			'.notice-warning:not(.update-nag)'
+		);
+		await expect( conflictNotice ).toContainText(
 			'already assigned to another Brand'
 		);
-		await expect( page.locator( '.notice-warning' ) ).toContainText(
-			'localhost'
-		);
+		await expect( conflictNotice ).toContainText( 'localhost' );
 
 		// The conflicting rule was dropped, not saved.
 		await expect(
