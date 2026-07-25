@@ -14,10 +14,10 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandResolver;
 /**
  * Class RequestHomeUrl
  *
- * Callback behind the public `mbgs_request_home_url` bridge filter: given a
- * URL built for the canonical home (typically home_url()), returns it with
- * scheme and authority swapped to the authority the visitor is actually
- * browsing. For server-side consumers — emails, API payloads — whose output
+ * The transform behind the public `mbgs_request_home_url()` API function
+ * (includes/api.php): given a URL built for the canonical home (typically
+ * home_url()), returns it with scheme and authority swapped to the authority
+ * the visitor is actually browsing. For server-side consumers — emails, API payloads — whose output
  * never passes through the PageBuffer / redirect / REST egresses that
  * HostRewriter covers. Substitution requires the request's Host+path to have
  * explicitly matched a configured Brand URL rule (via
@@ -65,7 +65,7 @@ class RequestHomeUrl {
 	 * browsed Host+path explicitly matched a Brand URL rule that opted into
 	 * URL rewriting.
 	 *
-	 * Typed `mixed` rather than `string` because this is a PUBLIC filter:
+	 * Typed `mixed` rather than `string` because this backs a PUBLIC API:
 	 * the value comes from consumer code, and a `string` parameter would
 	 * fatal on null/array and silently coerce false to '' — neither of which
 	 * is failing open.

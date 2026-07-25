@@ -23,14 +23,24 @@ An optional **default Brand** acts as the fallback for requests that match no ru
 
 Only users with the `edit_theme_options` capability (admins/theme editors) can create or edit Brands.
 
-## Hooks
+## Public API
 
-- `mbgs_request_home_url` (filter) — server-side code that builds URLs outside the rendered page (emails, API payloads) can ask for the home URL as seen from the domain being browsed: `apply_filters( 'mbgs_request_home_url', home_url() )`. The URL's scheme and host are swapped to the browsed domain (path, query and fragment preserved) when **all** of the following hold:
+- `mbgs_request_home_url( mixed $url ): mixed` (function) — server-side code that builds URLs outside the rendered page (emails, API payloads) can ask for the home URL as seen from the domain being browsed:
+
+  ```php
+  $origin = function_exists( 'mbgs_request_home_url' )
+      ? mbgs_request_home_url( home_url() )
+      : home_url();
+  ```
+
+  The URL's scheme and host are swapped to the browsed domain (path, query and fragment preserved) when **all** of the following hold:
   - the request's Host+path explicitly matched a configured Brand URL rule — the default-Brand fallback and the admin preview override never trigger a swap;
   - that Brand has **URL rewrite** enabled;
   - the passed URL's host is the site's own `home`/`siteurl` host. This is a home-URL bridge, not a general URL rewriter — pass it anything else (a CDN asset, an external callback) and you get it back untouched.
 
-  The scheme honors the Brand's force-https setting and the current request, but is never downgraded below the passed URL's own: an `https://` home URL always comes back `https://`. In every other case — no rule match, rewrite off, a non-home URL, a non-string value, or this plugin being inactive — the passed value is returned unchanged. The substituted authority derives from the client-supplied Host header; it is only ever a host that explicitly matched a configured Brand URL rule, but consumers must still treat it as untrusted for anything beyond link/branding selection.
+  The scheme honors the Brand's force-https setting and the current request, but is never downgraded below the passed URL's own: an `https://` home URL always comes back `https://`. In every other case — no rule match, rewrite off, a non-home URL, a non-string value — the passed value is returned unchanged (and with this plugin inactive the function does not exist, hence the `function_exists()` guard). The substituted authority derives from the client-supplied Host header; it is only ever a host that explicitly matched a configured Brand URL rule, but consumers must still treat it as untrusted for anything beyond link/branding selection.
+
+- `mbgs_request_home_url` (filter) — extension point applied **inside** the function to its computed result: `apply_filters( 'mbgs_request_home_url', $brand_aware, $original )`. Third-party code can `add_filter` here to override the Brand-aware value; the substitution itself has already happened (or been declined) by the time it runs. Consumers wanting the value call the function above — they do not apply this filter themselves.
 
 ## Contributing
 

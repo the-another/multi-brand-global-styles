@@ -62,6 +62,8 @@ if ( file_exists( THE_ANOTHER_MULTI_BRAND_GLOBAL_STYLES_PLUGIN_DIR . 'vendor/aut
 	require_once THE_ANOTHER_MULTI_BRAND_GLOBAL_STYLES_PLUGIN_DIR . 'vendor/autoload.php';
 }
 
+require_once THE_ANOTHER_MULTI_BRAND_GLOBAL_STYLES_PLUGIN_DIR . 'includes/api.php';
+
 add_action(
 	'plugins_loaded',
 	function () {
