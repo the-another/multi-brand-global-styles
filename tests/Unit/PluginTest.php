@@ -150,6 +150,7 @@ class PluginTest extends TestCase {
 			'attachment_lifecycle',
 			'page_buffer',
 			'host_rewriter',
+			'request_home_url',
 			'host_canonicalizer',
 			'cors_headers',
 			'brand_post_type',

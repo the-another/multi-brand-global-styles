@@ -89,7 +89,7 @@ class HostRewriter {
 
 		$hosts = array();
 
-		foreach ( $this->canonical_authorities() as $authority ) {
+		foreach ( CanonicalAuthority::all() as $authority ) {
 			if ( ! $force_https && $authority === $current_authority ) {
 				// Already browsing this canonical authority — nothing to move.
 				continue;
@@ -315,34 +315,6 @@ class HostRewriter {
 		$scheme      = is_ssl() ? 'https' : 'http';
 
 		return $target === $scheme . '://' . $authority . $request_uri;
-	}
-
-	/**
-	 * Get the canonical authorities: the hosts (plus explicit ports) of the
-	 * home and siteurl options, deduped.
-	 *
-	 * @return array<int, string> Lowercased authorities.
-	 */
-	private function canonical_authorities(): array {
-		$authorities = array();
-
-		foreach ( array( get_option( 'home' ), get_option( 'siteurl' ) ) as $url ) {
-			if ( ! is_string( $url ) || '' === $url ) {
-				continue;
-			}
-
-			$parts = wp_parse_url( $url );
-
-			if ( empty( $parts['host'] ) ) {
-				continue;
-			}
-
-			$authority = strtolower( $parts['host'] ) . ( isset( $parts['port'] ) ? ':' . $parts['port'] : '' );
-
-			$authorities[ $authority ] = true;
-		}
-
-		return array_keys( $authorities );
 	}
 
 	/**

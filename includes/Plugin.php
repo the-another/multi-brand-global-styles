@@ -27,6 +27,7 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\Rest\ReplacementsController;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Cors\CorsHeaders;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\HostCanonicalizer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\HostRewriter;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\RequestHomeUrl;
 
 /**
  * Class Plugin
@@ -194,6 +195,11 @@ class Plugin {
 		$this->container->register(
 			'host_rewriter',
 			fn( Container $c ) => new HostRewriter( $c->get( 'brand_resolver' ), $c->get( 'brand_repository' ) )
+		);
+
+		$this->container->register(
+			'request_home_url',
+			fn( Container $c ) => new RequestHomeUrl( $c->get( 'brand_resolver' ), $c->get( 'brand_repository' ) )
 		);
 
 		$this->container->register(

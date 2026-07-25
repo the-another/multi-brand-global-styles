@@ -10,6 +10,15 @@ declare(strict_types=1);
 require_once dirname( __DIR__, 2 ) . '/vendor/brain/monkey/inc/patchwork-loader.php';
 require_once dirname( __DIR__, 2 ) . '/vendor/autoload.php';
 
+// Plugin files loaded by a plain require rather than through PSR-4 autoloading
+// (includes/api.php) carry WordPress's standard direct-access guard, which
+// Plugin Check requires and which would otherwise exit() the test process.
+// Define the constant the way WordPress would. This is environment, not a
+// stubable WP function — see the note at the bottom of this file.
+if ( ! defined( 'ABSPATH' ) ) {
+	define( 'ABSPATH', dirname( __DIR__, 2 ) . '/' );
+}
+
 if ( ! class_exists( 'WP_Error' ) ) {
 	class WP_Error {
 		public $errors     = array();

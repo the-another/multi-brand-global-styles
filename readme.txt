@@ -4,7 +4,7 @@ Tags: multi-brand, global styles, branding, theme-json, variables
 Requires at least: 6.9
 Tested up to: 7.0
 Requires PHP: 8.3
-Stable tag: 0.3.4
+Stable tag: 0.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -45,12 +45,10 @@ No — registering the exact same rule twice is rejected with an admin notice. O
 
 == Changelog ==
 
-
-
-
-
-
-
+= 0.4.0 - 2026-07-25 =
+* Add: `mbgs_request_home_url()` — a public API function returning the home URL as seen from the Brand domain the visitor is browsing, for server-side output that never passes through the rendered page (emails, external API payloads). Fixes password-reset and registration emails sent from a Brand domain that carried the canonical/origin domain instead. Call it guarded: `function_exists( 'mbgs_request_home_url' ) ? mbgs_request_home_url( home_url() ) : home_url()`.
+* Add: `mbgs_request_home_url` filter — an extension point applied to the value that function returns, for third-party code that needs to override it.
+* Note for integrators: the swap happens only when the browsed domain explicitly matched a configured Brand URL rule with URL rewrite enabled and the passed URL is the site's own home URL — the default-Brand fallback, the admin preview override, and any non-home URL are all returned unchanged, and an `https` URL is never downgraded to `http`. The result derives from the visitor-supplied Host header, so treat it as untrusted beyond link/branding selection.
 
 = 0.3.4 - 2026-07-17 =
 * Fix: content loaded over the REST API on a Brand domain (infinite scroll, AJAX item batches) still linked to the canonical/origin domain. Served REST payloads are now rewritten onto the browsed Brand host — reads only, and never block-editor data, so editing can't save Brand URLs into content.
