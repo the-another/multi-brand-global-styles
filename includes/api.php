@@ -6,6 +6,10 @@
  * @since 0.4.0
  */
 
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
 use TheAnother\Plugin\MultiBrandGlobalStyles\Container;
 
 if ( ! function_exists( 'mbgs_request_home_url' ) ) {
