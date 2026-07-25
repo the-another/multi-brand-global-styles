@@ -13,12 +13,14 @@ use PHPUnit\Framework\TestCase;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandRepository;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandResolver;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandSettings;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\CanonicalAuthority;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\HostRewriter;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\RequestAuthority;
 use WP_REST_Request;
 
 #[CoversClass( HostRewriter::class )]
 #[UsesClass( BrandSettings::class )]
+#[UsesClass( CanonicalAuthority::class )]
 #[UsesClass( RequestAuthority::class )]
 class HostRewriterTest extends TestCase {
 	use MockeryPHPUnitIntegration;

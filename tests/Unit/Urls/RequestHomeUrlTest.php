@@ -13,11 +13,13 @@ use PHPUnit\Framework\TestCase;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandRepository;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandResolver;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandSettings;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\CanonicalAuthority;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\RequestAuthority;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\RequestHomeUrl;
 
 #[CoversClass( RequestHomeUrl::class )]
 #[UsesClass( BrandSettings::class )]
+#[UsesClass( CanonicalAuthority::class )]
 #[UsesClass( RequestAuthority::class )]
 class RequestHomeUrlTest extends TestCase {
 	use MockeryPHPUnitIntegration;
@@ -60,14 +62,18 @@ class RequestHomeUrlTest extends TestCase {
 	 * @param array<string, bool> $url_rewrite url_rewrite settings subarray.
 	 * @param string              $http_host   Current HTTP_HOST.
 	 * @param bool                $ssl         is_ssl() answer.
+	 * @param string              $siteurl     The siteurl option (defaults to the home option).
 	 */
-	private function arrange( array $url_rewrite, string $http_host = 'brand.com', bool $ssl = true ): void {
+	private function arrange( array $url_rewrite, string $http_host = 'brand.com', bool $ssl = true, string $siteurl = 'https://canonical.com' ): void {
 		$this->brand_resolver->shouldReceive( 'resolve_current_request_rule_match' )->andReturn( 5 );
 		$this->brand_repository->shouldReceive( 'get_settings' )
 			->with( 5 )
 			->andReturn( BrandSettings::from_meta( array( 'url_rewrite' => $url_rewrite ) ) );
 
 		Functions\when( 'is_ssl' )->justReturn( $ssl );
+		Functions\when( 'get_option' )->alias(
+			static fn( string $name ): string => 'siteurl' === $name ? $siteurl : 'https://canonical.com'
+		);
 
 		$_SERVER['HTTP_HOST'] = $http_host;
 	}
@@ -139,7 +145,69 @@ class RequestHomeUrlTest extends TestCase {
 	public function test_scheme_matches_current_request_when_not_forced(): void {
 		$this->arrange( array( 'enabled' => true ), ssl: false );
 
-		$this->assertSame( 'http://brand.com', $this->request_home_url->filter( 'https://canonical.com' ) );
+		$this->assertSame( 'http://brand.com', $this->request_home_url->filter( 'http://canonical.com' ) );
+	}
+
+	public function test_https_input_is_never_downgraded_to_http(): void {
+		// The canonical home is https but is_ssl() reads false — the usual
+		// TLS-terminating-proxy case. Emitting http:// here would downgrade a
+		// password-reset link that was correct before the filter ran, so the
+		// input scheme is a floor: force_https/is_ssl can only upgrade it.
+		$this->arrange( array( 'enabled' => true ), ssl: false );
+
+		$this->assertSame( 'https://brand.com/x', $this->request_home_url->filter( 'https://canonical.com/x' ) );
+	}
+
+	public function test_non_canonical_host_is_a_noop(): void {
+		// Only the canonical home/siteurl authority is ever swapped — the
+		// filter is a home-URL bridge, not a blanket URL rewriter. A consumer
+		// passing anything else (a CDN asset, an external callback) must get
+		// it back untouched rather than silently repointed at the Brand host.
+		$this->arrange( array( 'enabled' => true ) );
+
+		$this->assertSame(
+			'https://cdn.example.com/logo.png',
+			$this->request_home_url->filter( 'https://cdn.example.com/logo.png' )
+		);
+	}
+
+	public function test_siteurl_host_is_substituted_too(): void {
+		$this->arrange( array( 'enabled' => true ), siteurl: 'https://wp.canonical.com' );
+
+		$this->assertSame( 'https://brand.com/wp-login.php', $this->request_home_url->filter( 'https://wp.canonical.com/wp-login.php' ) );
+	}
+
+	public function test_protocol_relative_canonical_url_becomes_absolute(): void {
+		// Deliberate divergence from HostRewriter, which preserves the
+		// protocol-relative form: this filter's consumers put the result in
+		// emails and API payloads, where a schemeless URL is unusable.
+		$this->arrange( array( 'enabled' => true ) );
+
+		$this->assertSame( 'https://brand.com/x', $this->request_home_url->filter( '//canonical.com/x' ) );
+	}
+
+	public function test_null_is_passed_through_unchanged(): void {
+		// Public filter: consumers control the value. A non-string must not
+		// fatal — apply_filters( 'mbgs_request_home_url', null ) is a TypeError
+		// against a `string` parameter.
+		$this->arrange( array( 'enabled' => true ) );
+
+		$this->assertNull( $this->request_home_url->filter( null ) );
+	}
+
+	public function test_false_is_not_coerced_to_an_empty_string(): void {
+		// apply_filters() is called from core, which has no strict_types, so a
+		// `string` parameter would silently coerce false to '' and hand the
+		// next filter in the chain a different type than it was given.
+		$this->arrange( array( 'enabled' => true ) );
+
+		$this->assertFalse( $this->request_home_url->filter( false ) );
+	}
+
+	public function test_array_is_passed_through_unchanged(): void {
+		$this->arrange( array( 'enabled' => true ) );
+
+		$this->assertSame( array( 'x' ), $this->request_home_url->filter( array( 'x' ) ) );
 	}
 
 	public function test_force_https_upgrades_scheme(): void {

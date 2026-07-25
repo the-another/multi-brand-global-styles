@@ -25,7 +25,12 @@ Only users with the `edit_theme_options` capability (admins/theme editors) can c
 
 ## Hooks
 
-- `mbgs_request_home_url` (filter) — server-side code that builds URLs outside the rendered page (emails, API payloads) can ask for the home URL as seen from the domain being browsed: `apply_filters( 'mbgs_request_home_url', home_url() )`. The URL's scheme and host are swapped to the browsed domain (path and query preserved, scheme honoring the Brand's force-https setting) only when the request's Host+path explicitly matched a configured Brand URL rule with **URL rewrite** enabled — the default-Brand fallback and the admin preview override never trigger a swap. Otherwise — including when this plugin is inactive — the passed value is returned unchanged. The substituted authority derives from the client-supplied Host header; it is only ever a host that explicitly matched a configured Brand URL rule, but consumers must still treat it as untrusted for anything beyond link/branding selection.
+- `mbgs_request_home_url` (filter) — server-side code that builds URLs outside the rendered page (emails, API payloads) can ask for the home URL as seen from the domain being browsed: `apply_filters( 'mbgs_request_home_url', home_url() )`. The URL's scheme and host are swapped to the browsed domain (path, query and fragment preserved) when **all** of the following hold:
+  - the request's Host+path explicitly matched a configured Brand URL rule — the default-Brand fallback and the admin preview override never trigger a swap;
+  - that Brand has **URL rewrite** enabled;
+  - the passed URL's host is the site's own `home`/`siteurl` host. This is a home-URL bridge, not a general URL rewriter — pass it anything else (a CDN asset, an external callback) and you get it back untouched.
+
+  The scheme honors the Brand's force-https setting and the current request, but is never downgraded below the passed URL's own: an `https://` home URL always comes back `https://`. In every other case — no rule match, rewrite off, a non-home URL, a non-string value, or this plugin being inactive — the passed value is returned unchanged. The substituted authority derives from the client-supplied Host header; it is only ever a host that explicitly matched a configured Brand URL rule, but consumers must still treat it as untrusted for anything beyond link/branding selection.
 
 ## Contributing
 

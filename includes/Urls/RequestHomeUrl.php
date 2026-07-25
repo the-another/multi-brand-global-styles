@@ -65,11 +65,20 @@ class RequestHomeUrl {
 	 * browsed Host+path explicitly matched a Brand URL rule that opted into
 	 * URL rewriting.
 	 *
-	 * @param string $url URL built for the canonical home; path, query and
-	 *                    fragment are preserved.
-	 * @return string Brand-aware URL, or the input unchanged.
+	 * Typed `mixed` rather than `string` because this is a PUBLIC filter:
+	 * the value comes from consumer code, and a `string` parameter would
+	 * fatal on null/array and silently coerce false to '' — neither of which
+	 * is failing open.
+	 *
+	 * @param mixed $url URL built for the canonical home; path, query and
+	 *                   fragment are preserved.
+	 * @return mixed Brand-aware URL, or the input unchanged.
 	 */
-	public function filter( string $url ): string {
+	public function filter( mixed $url ): mixed {
+		if ( ! is_string( $url ) || '' === $url ) {
+			return $url;
+		}
+
 		$authority = RequestAuthority::current();
 		if ( '' === $authority ) {
 			return $url;
@@ -94,7 +103,19 @@ class RequestHomeUrl {
 			return $url;
 		}
 
-		$scheme = $settings->url_rewrite_force_https() || is_ssl() ? 'https' : 'http';
+		// Home URLs only. This is a bridge for home_url()-derived values, not
+		// a blanket URL rewriter: a consumer that passes anything else (a CDN
+		// asset, an external callback) gets it back untouched instead of
+		// silently repointed at the Brand host.
+		if ( ! CanonicalAuthority::matches_host( $parts['host'] ) ) {
+			return $url;
+		}
+
+		// The input scheme is a floor, never a ceiling: force-https and is_ssl
+		// can upgrade http to https, but an https home URL is never downgraded
+		// — behind a TLS-terminating proxy that does not set is_ssl(), doing so
+		// would turn a correct https password-reset link into an http one.
+		$scheme = $settings->url_rewrite_force_https() || is_ssl() || 'https' === ( $parts['scheme'] ?? '' ) ? 'https' : 'http';
 
 		$rebuilt = $scheme . '://' . $authority;
 		if ( isset( $parts['path'] ) ) {
