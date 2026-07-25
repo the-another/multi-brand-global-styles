@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-25
+
 ### Added
 - **`mbgs_request_home_url()` public API function** — server-side consumers (e.g. a plugin sending an `Origin` payload to an external API) can request the home URL as seen from the browsed Brand domain: `function_exists( 'mbgs_request_home_url' ) ? mbgs_request_home_url( home_url() ) : home_url()`. Defined in `includes/api.php`; the same-named `mbgs_request_home_url` filter is applied inside the function to its computed result as a third-party extension point — consumers call the function, they never apply the filter. Substitution requires the request's Host+path to have explicitly matched a configured Brand URL rule with URL rewrite enabled, and the passed URL's host to be the site's own `home`/`siteurl` host — the default-Brand fallback and the admin `?mbgs_preview_brand` override never trigger a swap, since neither reflects an operator-configured rule for the browsed Host, and a non-home URL (a CDN asset, an external callback) is never repointed at the Brand host. The scheme honors force-https and the current request but is never downgraded below the passed URL's own, so an `https://` home URL survives a TLS-terminating proxy that leaves `is_ssl()` false. With no rule match or a non-string value the input passes through unchanged; with the plugin inactive the function does not exist, hence the `function_exists()` guard. The substituted authority derives from the client-supplied Host header; it is only ever a host that explicitly matched a configured Brand URL rule — consumers must still treat it as untrusted for anything beyond link/branding selection. First consumer: aucteeno-nexus, whose password-reset/registration `Origin` previously always carried the canonical host, producing wrong-brand emails from Brand domains.
 
@@ -87,7 +89,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Optional default Brand as the fallback for unmatched requests.
 - Duplicate-rule rejection with an admin notice; overlapping-but-different rules allowed by design.
 
-[Unreleased]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.3.4...HEAD
+[Unreleased]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.3.4...v0.4.0
 [0.3.4]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.3.1...v0.3.2
