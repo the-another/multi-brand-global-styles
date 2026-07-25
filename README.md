@@ -23,6 +23,10 @@ An optional **default Brand** acts as the fallback for requests that match no ru
 
 Only users with the `edit_theme_options` capability (admins/theme editors) can create or edit Brands.
 
+## Hooks
+
+- `mbgs_request_home_url` (filter) — server-side code that builds URLs outside the rendered page (emails, API payloads) can ask for the home URL as seen from the domain being browsed: `apply_filters( 'mbgs_request_home_url', home_url() )`. For Brands with **URL rewrite** enabled, the URL's scheme and host are swapped to the browsed domain (path and query preserved, scheme honoring the Brand's force-https setting); otherwise — including when this plugin is inactive — the passed value is returned unchanged.
+
 ## Contributing
 
 Contributor guidelines, the code architecture, and all development/testing commands live in [`CONTRIBUTORS.md`](CONTRIBUTORS.md). Release history is in [`CHANGELOG.md`](CHANGELOG.md).

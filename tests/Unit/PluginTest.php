@@ -30,6 +30,7 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\Rendering\PageBuffer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Rest\ReplacementsController;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\HostCanonicalizer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\HostRewriter;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\RequestHomeUrl;
 use WP_Post;
 
 // Plugin::start() wires and constructs every real service in the container
@@ -57,6 +58,7 @@ use WP_Post;
 #[UsesClass( EditorAssets::class )]
 #[UsesClass( HostCanonicalizer::class )]
 #[UsesClass( HostRewriter::class )]
+#[UsesClass( RequestHomeUrl::class )]
 class PluginTest extends TestCase {
 	use MockeryPHPUnitIntegration;
 
@@ -105,7 +107,7 @@ class PluginTest extends TestCase {
 
 		$hooks = Container::get_instance()->get_hook_manager()->get_registered_hooks();
 
-		$this->assertCount( 26, $hooks );
+		$this->assertCount( 27, $hooks );
 
 		$actions = array_column( array_filter( $hooks, fn( $h ) => 'action' === $h['type'] ), 'hook' );
 		$filters = array_column( array_filter( $hooks, fn( $h ) => 'filter' === $h['type'] ), 'hook' );
@@ -126,6 +128,7 @@ class PluginTest extends TestCase {
 				'allowed_redirect_hosts',
 				'wp_redirect',
 				'rest_pre_echo_response',
+				'mbgs_request_home_url',
 			),
 			$filters
 		);
@@ -150,6 +153,7 @@ class PluginTest extends TestCase {
 			'attachment_lifecycle',
 			'page_buffer',
 			'host_rewriter',
+			'request_home_url',
 			'host_canonicalizer',
 			'cors_headers',
 			'brand_post_type',

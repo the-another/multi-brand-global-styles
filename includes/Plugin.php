@@ -27,6 +27,7 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\Rest\ReplacementsController;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Cors\CorsHeaders;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\HostCanonicalizer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\HostRewriter;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\RequestHomeUrl;
 
 /**
  * Class Plugin
@@ -130,6 +131,12 @@ class Plugin {
 		$hooks->register_filter( 'wp_redirect', array( $host_rewriter, 'filter_wp_redirect' ) );
 		$hooks->register_filter( 'rest_pre_echo_response', array( $host_rewriter, 'filter_rest_pre_echo_response' ), 10, 3 );
 
+		$request_home_url = $this->container->get( 'request_home_url' );
+
+		// Public bridge filter: brand-aware home URL for server-side
+		// consumers (emails, API payloads) outside the buffered egresses.
+		$hooks->register_filter( 'mbgs_request_home_url', array( $request_home_url, 'filter' ) );
+
 		$admin_notices = $this->container->get( 'admin_notices' );
 		$hooks->register_action( 'admin_notices', array( $admin_notices, 'render' ) );
 
@@ -194,6 +201,11 @@ class Plugin {
 		$this->container->register(
 			'host_rewriter',
 			fn( Container $c ) => new HostRewriter( $c->get( 'brand_resolver' ), $c->get( 'brand_repository' ) )
+		);
+
+		$this->container->register(
+			'request_home_url',
+			fn( Container $c ) => new RequestHomeUrl( $c->get( 'brand_resolver' ), $c->get( 'brand_repository' ) )
 		);
 
 		$this->container->register(

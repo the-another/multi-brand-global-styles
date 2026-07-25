@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- **`mbgs_request_home_url` bridge filter** — server-side consumers (e.g. a plugin sending an `Origin` payload to an external API) can request the home URL as seen from the browsed Brand domain: `apply_filters( 'mbgs_request_home_url', home_url() )`. Gated exactly like the URL-rewrite page pass (Brand resolved + URL rewrite enabled, scheme honors force-https); with the gate closed or the plugin inactive the input passes through unchanged. First consumer: aucteeno-nexus, whose password-reset/registration `Origin` previously always carried the canonical host, producing wrong-brand emails from Brand domains.
+
 ## [0.3.4] - 2026-07-17
 
 ### Fixed
