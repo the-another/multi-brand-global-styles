@@ -62,7 +62,7 @@ class RequestHomeUrlTest extends TestCase {
 	 * @param bool                $ssl         is_ssl() answer.
 	 */
 	private function arrange( array $url_rewrite, string $http_host = 'brand.com', bool $ssl = true ): void {
-		$this->brand_resolver->shouldReceive( 'resolve_current_request' )->andReturn( 5 );
+		$this->brand_resolver->shouldReceive( 'resolve_current_request_rule_match' )->andReturn( 5 );
 		$this->brand_repository->shouldReceive( 'get_settings' )
 			->with( 5 )
 			->andReturn( BrandSettings::from_meta( array( 'url_rewrite' => $url_rewrite ) ) );
@@ -84,9 +84,35 @@ class RequestHomeUrlTest extends TestCase {
 
 	public function test_no_brand_resolved_is_a_noop(): void {
 		$_SERVER['HTTP_HOST'] = 'brand.com';
-		$this->brand_resolver->shouldReceive( 'resolve_current_request' )->andReturn( null );
+		$this->brand_resolver->shouldReceive( 'resolve_current_request_rule_match' )->andReturn( null );
 
 		$this->assertSame( 'https://canonical.com', $this->request_home_url->filter( 'https://canonical.com' ) );
+	}
+
+	public function test_default_brand_fallback_is_a_noop_even_with_rewrite_enabled(): void {
+		// BrandResolver returns null from resolve_current_request_rule_match()
+		// whenever the request's Host+path matched no explicit Brand URL
+		// rule — including when a default Brand exists and would otherwise
+		// be returned by resolve_current_request(). RequestHomeUrl must
+		// treat that the same as "no brand": no substitution, and it must
+		// not even reach get_settings() to check the rewrite flag.
+		$_SERVER['HTTP_HOST'] = 'attacker-supplied-host.example';
+		$this->brand_resolver->shouldReceive( 'resolve_current_request_rule_match' )->andReturn( null );
+		$this->brand_repository->shouldNotReceive( 'get_settings' );
+
+		$this->assertSame( 'https://canonical.com', $this->request_home_url->filter( 'https://canonical.com' ) );
+	}
+
+	public function test_explicit_rule_match_still_substitutes(): void {
+		// Sanity check that a genuine rule match (as opposed to a
+		// default-Brand fallback) still triggers substitution — the gate
+		// only excludes non-matches, it doesn't break the happy path.
+		$this->arrange( array( 'enabled' => true ) );
+
+		$this->assertSame(
+			'https://brand.com',
+			$this->request_home_url->filter( 'https://canonical.com' )
+		);
 	}
 
 	public function test_rewrite_disabled_is_a_noop(): void {

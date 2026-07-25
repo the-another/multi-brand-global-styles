@@ -20,6 +20,12 @@ namespace TheAnother\Plugin\MultiBrandGlobalStyles\Brand;
  * memoized) and memoizes its own rule-map resolution per instance, since
  * this service is a container singleton and later option filters call it
  * many times per request.
+ *
+ * `resolve_current_request_rule_match()` exposes that same memoized
+ * rule-map resolution WITHOUT the default-Brand fallback and WITHOUT the
+ * preview override — for callers (e.g. RequestHomeUrl) that substitute the
+ * client-supplied Host into outbound URLs and must not do so on a Host
+ * that merely fell through to the default Brand or on an admin preview.
  */
 class BrandResolver {
 
@@ -45,11 +51,20 @@ class BrandResolver {
 	private bool $request_resolved = false;
 
 	/**
-	 * Memoized rule-map resolution for the current request.
+	 * Memoized rule-map resolution for the current request, with the
+	 * default-Brand fallback already applied.
 	 *
 	 * @var int|null
 	 */
 	private ?int $request_brand_id = null;
+
+	/**
+	 * Memoized rule-map resolution for the current request, WITHOUT the
+	 * default-Brand fallback: null unless an explicit URL rule matched.
+	 *
+	 * @var int|null
+	 */
+	private ?int $request_rule_matched_brand_id = null;
 
 	/**
 	 * Constructor.
@@ -73,16 +88,31 @@ class BrandResolver {
 			return $preview_brand_id;
 		}
 
-		if ( ! $this->request_resolved ) {
-			$this->request_resolved = true;
-
-			$host = isset( $_SERVER['HTTP_HOST'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_HOST'] ) ) : '';
-			$path = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
-
-			$this->request_brand_id = $this->resolve( $host, $path );
-		}
+		$this->resolve_current_request_if_needed();
 
 		return $this->request_brand_id;
+	}
+
+	/**
+	 * Resolve the current request (HTTP_HOST + REQUEST_URI) to a Brand ID,
+	 * but ONLY when the Host+path explicitly matched a configured Brand URL
+	 * rule.
+	 *
+	 * Unlike resolve_current_request(), this NEVER falls back to the
+	 * default Brand and NEVER honors the `?mbgs_preview_brand` override —
+	 * both apply regardless of what Host the client actually sent, so a
+	 * caller that substitutes the client-supplied authority into outbound
+	 * URLs (e.g. RequestHomeUrl) must not treat either as a match. Reuses
+	 * the same memoized rule-map resolution as resolve_current_request().
+	 *
+	 * @return int|null Brand post ID from an explicit URL rule match, or
+	 *                   null when no rule matched (including the
+	 *                   default-Brand fallback case).
+	 */
+	public function resolve_current_request_rule_match(): ?int {
+		$this->resolve_current_request_if_needed();
+
+		return $this->request_rule_matched_brand_id;
 	}
 
 	/**
@@ -93,16 +123,49 @@ class BrandResolver {
 	 * @return int|null Brand post ID, or null if unmatched with no default.
 	 */
 	public function resolve( string $host, string $path ): ?int {
+		return $this->match_rule( $host, $path ) ?? $this->brand_repository->get_default_brand_id();
+	}
+
+	/**
+	 * Compute and memoize the current request's rule-map resolution (both
+	 * the raw rule match and the default-Brand-applied result), once per
+	 * instance.
+	 *
+	 * @return void
+	 */
+	private function resolve_current_request_if_needed(): void {
+		if ( $this->request_resolved ) {
+			return;
+		}
+
+		$this->request_resolved = true;
+
+		$host = isset( $_SERVER['HTTP_HOST'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_HOST'] ) ) : '';
+		$path = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
+
+		$this->request_rule_matched_brand_id = $this->match_rule( $host, $path );
+		$this->request_brand_id              = $this->request_rule_matched_brand_id ?? $this->brand_repository->get_default_brand_id();
+	}
+
+	/**
+	 * Match a host + path against the URL rule map only — no default-Brand
+	 * fallback.
+	 *
+	 * @param string $host Raw hostname (e.g. from HTTP_HOST).
+	 * @param string $path Raw request path (e.g. from REQUEST_URI; query string is ignored).
+	 * @return int|null Brand post ID from the best-matching rule, or null when nothing matched.
+	 */
+	private function match_rule( string $host, string $path ): ?int {
 		$normalized_host = $this->url_rule_registry->normalize_host( $host );
 
 		if ( '' === $normalized_host ) {
-			return $this->brand_repository->get_default_brand_id();
+			return null;
 		}
 
 		$map = $this->url_rule_registry->get_rule_map();
 
 		if ( ! isset( $map[ $normalized_host ] ) ) {
-			return $this->brand_repository->get_default_brand_id();
+			return null;
 		}
 
 		$normalized_path = $this->url_rule_registry->normalize_path( $path );
@@ -123,7 +186,7 @@ class BrandResolver {
 		}
 
 		if ( null === $best_prefix ) {
-			return $this->brand_repository->get_default_brand_id();
+			return null;
 		}
 
 		return $map[ $normalized_host ][ $best_prefix ];

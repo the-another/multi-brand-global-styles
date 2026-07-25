@@ -25,7 +25,7 @@ Only users with the `edit_theme_options` capability (admins/theme editors) can c
 
 ## Hooks
 
-- `mbgs_request_home_url` (filter) — server-side code that builds URLs outside the rendered page (emails, API payloads) can ask for the home URL as seen from the domain being browsed: `apply_filters( 'mbgs_request_home_url', home_url() )`. For Brands with **URL rewrite** enabled, the URL's scheme and host are swapped to the browsed domain (path and query preserved, scheme honoring the Brand's force-https setting); otherwise — including when this plugin is inactive — the passed value is returned unchanged.
+- `mbgs_request_home_url` (filter) — server-side code that builds URLs outside the rendered page (emails, API payloads) can ask for the home URL as seen from the domain being browsed: `apply_filters( 'mbgs_request_home_url', home_url() )`. The URL's scheme and host are swapped to the browsed domain (path and query preserved, scheme honoring the Brand's force-https setting) only when the request's Host+path explicitly matched a configured Brand URL rule with **URL rewrite** enabled — the default-Brand fallback and the admin preview override never trigger a swap. Otherwise — including when this plugin is inactive — the passed value is returned unchanged. The substituted authority derives from the client-supplied Host header; it is only ever a host that explicitly matched a configured Brand URL rule, but consumers must still treat it as untrusted for anything beyond link/branding selection.
 
 ## Contributing
 

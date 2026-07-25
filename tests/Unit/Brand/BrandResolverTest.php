@@ -226,4 +226,68 @@ class BrandResolverTest extends TestCase {
 		$this->assertSame( 9, $resolver->resolve_current_request() );
 		$this->assertSame( 9, $resolver->resolve_current_request() ); // ->once() above fails if not memoized.
 	}
+
+	public function test_rule_match_returns_null_on_default_brand_fallback(): void {
+		$_SERVER['HTTP_HOST']   = 'unknown.test';
+		$_SERVER['REQUEST_URI'] = '/';
+		Functions\when( 'wp_unslash' )->returnArg();
+		Functions\when( 'sanitize_text_field' )->returnArg();
+
+		// Default Brand (20) would be returned by resolve_current_request(),
+		// but no rule matches 'unknown.test' — the rule-match-only method
+		// must return null, not the default.
+		$resolver = $this->make_resolver( self::MAP, 20 );
+
+		$this->assertSame( 20, $resolver->resolve_current_request() );
+		$this->assertNull( $resolver->resolve_current_request_rule_match() );
+	}
+
+	public function test_rule_match_returns_brand_id_on_explicit_match(): void {
+		$_SERVER['HTTP_HOST']   = 'site.com';
+		$_SERVER['REQUEST_URI'] = '/farm/tractors';
+		Functions\when( 'wp_unslash' )->returnArg();
+		Functions\when( 'sanitize_text_field' )->returnArg();
+
+		$resolver = $this->make_resolver( self::MAP, 20 );
+
+		$this->assertSame( 9, $resolver->resolve_current_request_rule_match() );
+	}
+
+	public function test_rule_match_ignores_preview_override(): void {
+		$_GET['mbgs_preview_brand'] = '42';
+		$_SERVER['HTTP_HOST']       = 'unknown.test';
+		$_SERVER['REQUEST_URI']     = '/';
+		Functions\when( 'wp_unslash' )->returnArg();
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'absint' )->alias( static fn( $v ) => abs( (int) $v ) );
+		Functions\when( 'did_action' )->justReturn( 1 );
+		Functions\when( 'current_user_can' )->justReturn( true );
+		Functions\when( 'get_post' )->justReturn( new WP_Post( 42, 'mbgs_brand' ) );
+
+		$resolver = $this->make_resolver( self::MAP, 20 );
+
+		// resolve_current_request() honors the privileged preview override...
+		$this->assertSame( 42, $resolver->resolve_current_request() );
+		// ...but resolve_current_request_rule_match() must not: no rule
+		// matches 'unknown.test', so it returns null regardless of the
+		// preview override or the default Brand.
+		$this->assertNull( $resolver->resolve_current_request_rule_match() );
+	}
+
+	public function test_rule_match_is_memoized(): void {
+		$_SERVER['HTTP_HOST']   = 'ex.com';
+		$_SERVER['REQUEST_URI'] = '/';
+		Functions\when( 'wp_unslash' )->returnArg();
+		Functions\when( 'sanitize_text_field' )->returnArg();
+
+		$registry = Mockery::mock( UrlRuleRegistry::class );
+		$registry->shouldReceive( 'normalize_host' )->once()->andReturn( 'ex.com' );
+		$registry->shouldReceive( 'get_rule_map' )->once()->andReturn( array( 'ex.com' => array( '' => 9 ) ) );
+		$registry->shouldReceive( 'normalize_path' )->once()->andReturn( '' );
+
+		$resolver = new BrandResolver( $registry, Mockery::mock( BrandRepository::class ) );
+
+		$this->assertSame( 9, $resolver->resolve_current_request_rule_match() );
+		$this->assertSame( 9, $resolver->resolve_current_request_rule_match() ); // ->once() above fails if not memoized.
+	}
 }
