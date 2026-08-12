@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- **Per-Brand webmaster verification** — every host in a published Brand's URL rules is now pushed to The Another SEO through its `taseo_verification_domains` filter, so each Brand domain carries its own Google Search Console, Bing, Yandex, Yahoo and Meta verification codes, its own verification files, and its own GA4 / Tag Manager / Meta Pixel IDs. Previously one set of codes was emitted on every domain, so only one could be verified at all. The hosts come from the existing rule map, which is already normalized and already cached with invalidation on Brand save and trash; ordering, de-duplication and the default domain belong to the SEO plugin. Inert when that plugin is inactive — nothing applies the filter. Path-scoped rules contribute their host only: a webmaster property is per-host, so Brands on `example.com/a` and `example.com/b` share one set of codes.
+
 ## [0.4.0] - 2026-07-25
 
 ### Added

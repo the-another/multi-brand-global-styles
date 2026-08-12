@@ -28,6 +28,7 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\Media\ImageUrlReplacer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Plugin;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Rendering\PageBuffer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Rest\ReplacementsController;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Seo\VerificationDomains;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\HostCanonicalizer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\HostRewriter;
 use WP_Post;
@@ -57,6 +58,7 @@ use WP_Post;
 #[UsesClass( EditorAssets::class )]
 #[UsesClass( HostCanonicalizer::class )]
 #[UsesClass( HostRewriter::class )]
+#[UsesClass( VerificationDomains::class )]
 class PluginTest extends TestCase {
 	use MockeryPHPUnitIntegration;
 
@@ -105,7 +107,7 @@ class PluginTest extends TestCase {
 
 		$hooks = Container::get_instance()->get_hook_manager()->get_registered_hooks();
 
-		$this->assertCount( 26, $hooks );
+		$this->assertCount( 27, $hooks );
 
 		$actions = array_column( array_filter( $hooks, fn( $h ) => 'action' === $h['type'] ), 'hook' );
 		$filters = array_column( array_filter( $hooks, fn( $h ) => 'filter' === $h['type'] ), 'hook' );
@@ -122,6 +124,7 @@ class PluginTest extends TestCase {
 				'pre_option_blogname',
 				'pre_option_blogdescription',
 				'pre_option_site_icon',
+				'taseo_verification_domains',
 				'redirect_canonical',
 				'allowed_redirect_hosts',
 				'wp_redirect',
@@ -153,6 +156,7 @@ class PluginTest extends TestCase {
 			'request_home_url',
 			'host_canonicalizer',
 			'cors_headers',
+			'seo_verification_domains',
 			'brand_post_type',
 			'admin_notices',
 			'replacements_controller',
