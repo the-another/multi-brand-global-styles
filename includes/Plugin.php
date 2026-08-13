@@ -25,6 +25,7 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\Media\ImageMapBuilder;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Rendering\PageBuffer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Rest\ReplacementsController;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Cors\CorsHeaders;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Seo\VerificationDomains;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\HostCanonicalizer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\HostRewriter;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\RequestHomeUrl;
@@ -119,6 +120,9 @@ class Plugin {
 		$cors_headers = $this->container->get( 'cors_headers' );
 		$hooks->register_action( 'send_headers', array( $cors_headers, 'handle' ) );
 
+		$seo_verification_domains = $this->container->get( 'seo_verification_domains' );
+		$hooks->register_filter( 'taseo_verification_domains', array( $seo_verification_domains, 'filter_domains' ) );
+
 		$host_canonicalizer = $this->container->get( 'host_canonicalizer' );
 		$hooks->register_action( 'template_redirect', array( $host_canonicalizer, 'handle' ), 1 );
 
@@ -205,6 +209,11 @@ class Plugin {
 		$this->container->register(
 			'cors_headers',
 			fn( Container $c ) => new CorsHeaders( $c->get( 'url_rule_registry' ) )
+		);
+
+		$this->container->register(
+			'seo_verification_domains',
+			fn( Container $c ) => new VerificationDomains( $c->get( 'url_rule_registry' ) )
 		);
 
 		$this->container->register(
