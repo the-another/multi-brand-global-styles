@@ -4,7 +4,7 @@ Tags: multi-brand, global styles, branding, theme-json, variables
 Requires at least: 6.9
 Tested up to: 7.0
 Requires PHP: 8.3
-Stable tag: 0.4.0
+Stable tag: 0.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -44,6 +44,12 @@ Users with the `edit_theme_options` capability (administrators by default) — t
 No — registering the exact same rule twice is rejected with an admin notice. Overlapping-but-different rules (e.g. `site.com` on one Brand and `site.com/farm` on another) are allowed by design.
 
 == Changelog ==
+
+
+= 0.5.0 - 2026-08-13 =
+* Add: Per-Brand webmaster verification — every host in a published Brand's URL rules is pushed to The Another SEO through its `taseo_verification_domains` filter, so each Brand domain carries its own Google Search Console, Bing, Yandex, Yahoo, and Meta verification codes, its own verification files, and its own GA4 / Tag Manager / Meta Pixel IDs. Previously one set of codes was emitted on every domain, so only one domain could be verified at all. Inert when that plugin is inactive — nothing applies the filter.
+* Note for integrators: the hosts come from the existing rule map, which is already normalised and already cached with invalidation on Brand save and trash — no new query, no new cache. Ordering, de-duplication, and the default domain belong to the SEO plugin; this side only appends. Path-scoped rules contribute their host only: a webmaster property is per-host, so Brands on `example.com/a` and `example.com/b` share one set of codes.
+* Chore: Host normalisation is now pinned against The Another SEO's own implementation by a shared parity table asserted in both plugins' test suites. The two must agree — the SEO plugin matches an incoming request's host against keys pushed from here, so a one-character divergence would silently serve the wrong domain's verification codes.
 
 = 0.4.0 - 2026-07-25 =
 * Add: `mbgs_request_home_url()` — a public API function returning the home URL as seen from the Brand domain the visitor is browsing, for server-side output that never passes through the rendered page (emails, external API payloads). Fixes password-reset and registration emails sent from a Brand domain that carried the canonical/origin domain instead. Call it guarded: `function_exists( 'mbgs_request_home_url' ) ? mbgs_request_home_url( home_url() ) : home_url()`.

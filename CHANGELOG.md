@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-13
+
 ### Added
 - **Per-Brand webmaster verification** — every host in a published Brand's URL rules is now pushed to The Another SEO through its `taseo_verification_domains` filter, so each Brand domain carries its own Google Search Console, Bing, Yandex, Yahoo and Meta verification codes, its own verification files, and its own GA4 / Tag Manager / Meta Pixel IDs. Previously one set of codes was emitted on every domain, so only one could be verified at all. The hosts come from the existing rule map, which is already normalized and already cached with invalidation on Brand save and trash; ordering, de-duplication and the default domain belong to the SEO plugin. Inert when that plugin is inactive — nothing applies the filter. Path-scoped rules contribute their host only: a webmaster property is per-host, so Brands on `example.com/a` and `example.com/b` share one set of codes.
 
@@ -92,7 +94,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Optional default Brand as the fallback for unmatched requests.
 - Duplicate-rule rejection with an admin notice; overlapping-but-different rules allowed by design.
 
-[Unreleased]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.3.4...v0.4.0
 [0.3.4]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.3.2...v0.3.3
