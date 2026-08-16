@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+- **Sitemaps served on a Brand domain listed canonical-host URLs.** The Another SEO serves its sitemap tree on `template_redirect` at priority 0 and exits before the page buffer opens, and its chunk files are pre-built with canonical-host permalinks — so `https://brand.example/sitemap.xml` and every chunk under it listed `https://canonical.example/…` URLs, which the sitemaps.org same-host rule makes crawlers ignore (robots.txt and page HTML were already rewritten, making the sitemap the odd one out). `Urls\HostRewriter` now subscribes to that plugin's new `taseo_sitemap_xml` egress filter (applied to the live root index and to every chunk served through its WP fallback) and applies the same authority rewrite — string-guarded, delegating to `replace()`, so the usual gates (resolved Brand, URL rewrite opted in) apply. Inert when The Another SEO is absent; requires its side of the filter (v1.2.0+), which also host-scopes its Apache static-serve rules so Brand-host chunk requests reach PHP instead of the raw file.
+
 ## [0.5.0] - 2026-08-13
 
 ### Added

@@ -134,6 +134,7 @@ class Plugin {
 		$hooks->register_filter( 'allowed_redirect_hosts', array( $host_rewriter, 'filter_allowed_redirect_hosts' ) );
 		$hooks->register_filter( 'wp_redirect', array( $host_rewriter, 'filter_wp_redirect' ) );
 		$hooks->register_filter( 'rest_pre_echo_response', array( $host_rewriter, 'filter_rest_pre_echo_response' ), 10, 3 );
+		$hooks->register_filter( 'taseo_sitemap_xml', array( $host_rewriter, 'filter_taseo_sitemap_xml' ) );
 
 		$admin_notices = $this->container->get( 'admin_notices' );
 		$hooks->register_action( 'admin_notices', array( $admin_notices, 'render' ) );

@@ -558,6 +558,34 @@ class HostRewriterTest extends TestCase {
 		$this->assertSame( $data, $this->rewriter->filter_rest_pre_echo_response( $data, null, null ) );
 	}
 
+	public function test_sitemap_xml_is_rewritten_to_the_browsed_host(): void {
+		$this->arrange( array( 'enabled' => true ) );
+
+		$xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
+			. '<urlset><url><loc>https://canonical.com/alberta/lot-1.html</loc></url></urlset>';
+
+		$this->assertSame(
+			'<?xml version="1.0" encoding="UTF-8"?>' . "\n"
+			. '<urlset><url><loc>https://brand.com/alberta/lot-1.html</loc></url></urlset>',
+			$this->rewriter->filter_taseo_sitemap_xml( $xml )
+		);
+	}
+
+	public function test_sitemap_xml_untouched_when_no_brand_resolved(): void {
+		$this->brand_resolver->shouldReceive( 'resolve_current_request' )->andReturn( null );
+
+		$xml = '<urlset><url><loc>https://canonical.com/x.html</loc></url></urlset>';
+
+		$this->assertSame( $xml, $this->rewriter->filter_taseo_sitemap_xml( $xml ) );
+	}
+
+	public function test_sitemap_xml_non_string_passes_through(): void {
+		$this->brand_resolver->shouldReceive( 'resolve_current_request' )->never();
+
+		$this->assertNull( $this->rewriter->filter_taseo_sitemap_xml( null ) );
+		$this->assertSame( array( 'x' ), $this->rewriter->filter_taseo_sitemap_xml( array( 'x' ) ) );
+	}
+
 	public function test_redirect_canonical_forces_https_upgrade_redirect(): void {
 		$this->arrange(
 			array(
