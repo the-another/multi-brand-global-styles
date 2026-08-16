@@ -107,7 +107,7 @@ class PluginTest extends TestCase {
 
 		$hooks = Container::get_instance()->get_hook_manager()->get_registered_hooks();
 
-		$this->assertCount( 27, $hooks );
+		$this->assertCount( 28, $hooks );
 
 		$actions = array_column( array_filter( $hooks, fn( $h ) => 'action' === $h['type'] ), 'hook' );
 		$filters = array_column( array_filter( $hooks, fn( $h ) => 'filter' === $h['type'] ), 'hook' );
@@ -129,6 +129,7 @@ class PluginTest extends TestCase {
 				'allowed_redirect_hosts',
 				'wp_redirect',
 				'rest_pre_echo_response',
+				'taseo_sitemap_xml',
 			),
 			$filters
 		);

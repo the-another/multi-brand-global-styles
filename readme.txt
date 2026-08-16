@@ -4,7 +4,7 @@ Tags: multi-brand, global styles, branding, theme-json, variables
 Requires at least: 6.9
 Tested up to: 7.0
 Requires PHP: 8.3
-Stable tag: 0.5.0
+Stable tag: 0.5.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -45,6 +45,10 @@ No — registering the exact same rule twice is rejected with an admin notice. O
 
 == Changelog ==
 
+
+
+= 0.5.1 - 2026-08-16 =
+* Fix: Sitemaps served on a Brand domain listed canonical-host URLs. The Another SEO serves its sitemap tree before the page buffer opens and its chunk files are pre-built with canonical-host permalinks, so a Brand domain's `sitemap.xml` and every chunk under it pointed at the canonical domain — URLs crawlers ignore under the sitemaps.org same-host rule, leaving the Brand domain's sitemap invisible to search engines while robots.txt and page HTML were already rewritten. The host rewriter now subscribes to that plugin's `taseo_sitemap_xml` egress filter and applies the same authority rewrite, under the same gates (resolved Brand, URL rewrite opted in). Inert when The Another SEO is absent; requires The Another SEO 1.2.0+.
 
 = 0.5.0 - 2026-08-13 =
 * Add: Per-Brand webmaster verification — every host in a published Brand's URL rules is pushed to The Another SEO through its `taseo_verification_domains` filter, so each Brand domain carries its own Google Search Console, Bing, Yandex, Yahoo, and Meta verification codes, its own verification files, and its own GA4 / Tag Manager / Meta Pixel IDs. Previously one set of codes was emitted on every domain, so only one domain could be verified at all. Inert when that plugin is inactive — nothing applies the filter.

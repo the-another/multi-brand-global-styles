@@ -253,6 +253,28 @@ class HostRewriter {
 	}
 
 	/**
+	 * Rewrite canonical-host URLs inside a served sitemap document. Hooked to
+	 * The Another SEO's `taseo_sitemap_xml` filter.
+	 *
+	 * Sitemap XML is another egress the PageBuffer never sees: that plugin
+	 * serves its documents on template_redirect at priority 0 and exits before
+	 * the buffer opens, and its chunk files are pre-built with canonical-host
+	 * permalinks. Without this pass a Brand host's sitemap would list
+	 * cross-host URLs, which the sitemaps.org same-host rule makes crawlers
+	 * ignore. Inert when that plugin is absent: nothing applies the filter.
+	 *
+	 * @param mixed $xml Sitemap XML document about to be served.
+	 * @return mixed The (possibly rewritten) document; non-strings pass through.
+	 */
+	public function filter_taseo_sitemap_xml( mixed $xml ): mixed {
+		if ( ! is_string( $xml ) || '' === $xml ) {
+			return $xml;
+		}
+
+		return $this->replace( $xml );
+	}
+
+	/**
 	 * Apply the host rewrite to every string in a response data tree. Arrays
 	 * are walked recursively; objects and other non-string leaves pass through
 	 * untouched.
