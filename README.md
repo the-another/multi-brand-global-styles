@@ -14,7 +14,7 @@ A **Brand** bundles the following and applies them wherever its URL rules match 
 
 - **URL match rules** — whole domains (`auctionbill.com`, `beta.auctionbill.com`) or path sections of one or more sites (`site.com/farm/*`, `site2.com/farm/*`). Most-specific rule wins: host+path beats host-only, longer path prefix beats shorter, and prefixes match on path-segment boundaries.
 - **Global style overrides** — each Brand carries its own theme.json-shaped styles (colors, typography, spacing, per-element and per-block), merged over the active theme at render time via the `wp_theme_json_data_user` filter.
-- **Content variables** — tokens like `%%brand.name%%` in post content, template parts, widgets, or menus are substituted with the matched Brand's values in the rendered HTML.
+- **Content variables** — tokens like `%%brand.name%%` in post content, template parts, widgets, or menus are substituted with the matched Brand's values. Two passes cover this: the rendered HTML, and a block's *attributes* before its render callback runs — the latter is what makes a token usable in a navigation link's URL, which core escapes with `esc_url()` on the way out. Tokens stay literal in the admin and in the editor's block previews, so authors edit the token rather than one Brand's resolved value.
 - **Brand identity** — an optional per-Brand logo, site title, tagline, and favicon.
 - **Image replacements** — swap any image for a per-Brand replacement, from a central meta box on the Brand or from the Image block's inspector panel.
 - **Editor preview** — a block-editor Brand preview sidebar (canvas image/identity swap) plus a frontend preview link for admins.

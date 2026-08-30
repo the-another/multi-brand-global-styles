@@ -16,6 +16,7 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\GlobalStyles\GlobalStylesOverride;
 use TheAnother\Plugin\MultiBrandGlobalStyles\GlobalStyles\GlobalStylesPostService;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Identity\SiteIdentityOverride;
 use TheAnother\Plugin\MultiBrandGlobalStyles\ContentVariables\VariableParser;
+use TheAnother\Plugin\MultiBrandGlobalStyles\ContentVariables\BlockAttributeSubstitutionService;
 use TheAnother\Plugin\MultiBrandGlobalStyles\ContentVariables\VariableSubstitutionService;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Brand\BrandRepository;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Editor\EditorAssets;
@@ -129,6 +130,19 @@ class Plugin {
 		$page_buffer = $this->container->get( 'page_buffer' );
 		$hooks->register_action( 'template_redirect', array( $page_buffer, 'start_buffer' ) );
 
+		// Companion to the PageBuffer pass above: that one rewrites rendered
+		// HTML, which cannot help an attribute a dynamic block escapes on its
+		// way out (see BlockAttributeSubstitutionService).
+		$block_attribute_substitution = $this->container->get( 'block_attribute_substitution_service' );
+		$hooks->register_filter( 'render_block_data', array( $block_attribute_substitution, 'filter_block_data' ) );
+		// core/navigation renders its children itself, bypassing render_block_data
+		// entirely, so its own inner-blocks filter is the only seam that reaches a
+		// navigation link before core escapes its URL.
+		$hooks->register_filter(
+			'block_core_navigation_render_inner_blocks',
+			array( $block_attribute_substitution, 'filter_navigation_inner_blocks' )
+		);
+
 		$host_rewriter = $this->container->get( 'host_rewriter' );
 		$hooks->register_filter( 'redirect_canonical', array( $host_rewriter, 'filter_redirect_canonical' ), 10, 2 );
 		$hooks->register_filter( 'allowed_redirect_hosts', array( $host_rewriter, 'filter_allowed_redirect_hosts' ) );
@@ -185,6 +199,11 @@ class Plugin {
 		$this->container->register(
 			'variable_substitution_service',
 			fn( Container $c ) => new VariableSubstitutionService( $c->get( 'brand_resolver' ), $c->get( 'brand_repository' ) )
+		);
+
+		$this->container->register(
+			'block_attribute_substitution_service',
+			fn( Container $c ) => new BlockAttributeSubstitutionService( $c->get( 'brand_resolver' ), $c->get( 'brand_repository' ) )
 		);
 
 		$this->container->register(

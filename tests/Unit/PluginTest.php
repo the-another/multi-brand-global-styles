@@ -107,7 +107,7 @@ class PluginTest extends TestCase {
 
 		$hooks = Container::get_instance()->get_hook_manager()->get_registered_hooks();
 
-		$this->assertCount( 28, $hooks );
+		$this->assertCount( 30, $hooks );
 
 		$actions = array_column( array_filter( $hooks, fn( $h ) => 'action' === $h['type'] ), 'hook' );
 		$filters = array_column( array_filter( $hooks, fn( $h ) => 'filter' === $h['type'] ), 'hook' );
@@ -125,6 +125,8 @@ class PluginTest extends TestCase {
 				'pre_option_blogdescription',
 				'pre_option_site_icon',
 				'taseo_verification_domains',
+				'render_block_data',
+				'block_core_navigation_render_inner_blocks',
 				'redirect_canonical',
 				'allowed_redirect_hosts',
 				'wp_redirect',
@@ -149,6 +151,7 @@ class PluginTest extends TestCase {
 			'global_styles_override',
 			'site_identity_override',
 			'variable_substitution_service',
+			'block_attribute_substitution_service',
 			'image_url_replacer',
 			'image_map_builder',
 			'attachment_lifecycle',

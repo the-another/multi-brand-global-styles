@@ -12,7 +12,7 @@ A Brand can be scoped to:
 
 Wherever a Brand's rules match the incoming request, five things happen at render time, without touching the theme's `theme.json` or creating a child theme:
 1. **Global-style override** — the Brand's stored styles merge over the active theme via the `wp_theme_json_data_user` filter.
-2. **Content-variable substitution** — `%%brand.name%%`-style tokens in the final HTML are replaced with the Brand's values.
+2. **Content-variable substitution** — `%%brand.name%%`-style tokens are replaced with the Brand's values, in the final HTML *and* in block attributes (before the block's render callback escapes them).
 3. **Site-identity override** — logo, title, tagline, site icon served from the Brand's identity settings.
 4. **Image replacement** — mapped attachment URLs swapped for the Brand's replacements.
 5. **URL host rewrite** (opt-in per Brand) — canonical-host URLs in the final HTML are rewritten to the domain being browsed, and core's canonical redirect is guarded so visitors stay on the Brand domain.
