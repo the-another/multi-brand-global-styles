@@ -4,7 +4,7 @@ Tags: multi-brand, global styles, branding, theme-json, variables
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 8.3
-Stable tag: 0.5.1
+Stable tag: 0.6.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -46,6 +46,12 @@ No — registering the exact same rule twice is rejected with an admin notice. O
 == Changelog ==
 
 
+
+
+= 0.6.0 - 2026-08-30 =
+* Add: `%%brand.*%%` content variables now resolve inside block attributes, not just in rendered HTML. Previously a token was silently unusable in anything a dynamic block escapes on its way out: `core/navigation-link` runs `esc_url()` on its URL, and because a bare token contains no colon `esc_url()` treated it as scheme-less and prepended `http://`, so a Brand's login link rendered as `http://https://dashboard.example.com/login`. Substitution now happens while the attribute is still raw, before any render callback sees it. Values are inserted unescaped on purpose — the block's own callback escapes them for its context, so escaping twice would corrupt a URL's query string. Tokens stay literal in wp-admin, AJAX, feeds, and REST, so authors keep editing the token itself rather than one Brand's resolved value, and the block editor's previews are unaffected. Unknown tokens are still left literal.
+* Add: Navigation menus are covered by the same substitution. The `core/navigation` block renders its children itself, bypassing both places WordPress normally applies the attribute filter, so its links are handled through core's dedicated inner-blocks filter — including items nested inside submenus.
+* Chore: Tested against WordPress 7.1. The end-to-end harness pinned WordPress 7.0 and `readme.txt` advertised the same, which Plugin Check began reporting as an error once 7.1 shipped. Both move together deliberately: bumping only the readme header would advertise compatibility that no test run exercises.
 
 = 0.5.1 - 2026-08-16 =
 * Fix: Sitemaps served on a Brand domain listed canonical-host URLs. The Another SEO serves its sitemap tree before the page buffer opens and its chunk files are pre-built with canonical-host permalinks, so a Brand domain's `sitemap.xml` and every chunk under it pointed at the canonical domain — URLs crawlers ignore under the sitemaps.org same-host rule, leaving the Brand domain's sitemap invisible to search engines while robots.txt and page HTML were already rewritten. The host rewriter now subscribes to that plugin's `taseo_sitemap_xml` egress filter and applies the same authority rewrite, under the same gates (resolved Brand, URL rewrite opted in). Inert when The Another SEO is absent; requires The Another SEO 1.2.0+.

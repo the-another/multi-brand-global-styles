@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-30
+
 ### Changed
 - **Tested against WordPress 7.1.** The e2e harness pinned WordPress 7.0 (`scripts/setup/e2e.sh`) and `readme.txt` advertised the same, which Plugin Check began failing as an error once 7.1 shipped (`outdated_tested_upto_header`) — a plugin whose "Tested up to" trails the current release is dropped from WordPress.org search. Both move together on purpose: bumping only the readme header would advertise compatibility no test run actually exercises.
 
@@ -105,7 +107,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Optional default Brand as the fallback for unmatched requests.
 - Duplicate-rule rejection with an admin notice; overlapping-but-different rules allowed by design.
 
-[Unreleased]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/theanother/the-another-multi-brand-global-styles/compare/v0.3.4...v0.4.0
