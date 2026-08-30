@@ -2,7 +2,7 @@
 Contributors: theanother, ziontrooper
 Tags: multi-brand, global styles, branding, theme-json, variables
 Requires at least: 6.9
-Tested up to: 7.0
+Tested up to: 7.1
 Requires PHP: 8.3
 Stable tag: 0.5.1
 License: GPLv2 or later
