@@ -558,6 +558,49 @@ class HostRewriterTest extends TestCase {
 		$this->assertSame( $data, $this->rewriter->filter_rest_pre_echo_response( $data, null, null ) );
 	}
 
+	public function test_would_rewrite_is_false_when_no_brand_resolved(): void {
+		$this->brand_resolver->shouldReceive( 'resolve_current_request' )->andReturn( null );
+
+		$this->assertFalse( $this->rewriter->would_rewrite() );
+	}
+
+	public function test_would_rewrite_is_false_when_the_option_is_disabled(): void {
+		$this->arrange( array() );
+
+		$this->assertFalse( $this->rewriter->would_rewrite() );
+	}
+
+	public function test_would_rewrite_is_false_without_a_usable_request_host(): void {
+		$this->arrange( array( 'enabled' => true ), http_host: 'not a host' );
+
+		$this->assertFalse( $this->rewriter->would_rewrite() );
+	}
+
+	public function test_would_rewrite_is_false_on_the_canonical_host(): void {
+		$this->arrange( array( 'enabled' => true ), http_host: 'canonical.com' );
+
+		$this->assertFalse( $this->rewriter->would_rewrite() );
+	}
+
+	public function test_would_rewrite_is_true_on_a_brand_host(): void {
+		$this->arrange( array( 'enabled' => true ), http_host: 'brand.com' );
+
+		$this->assertTrue( $this->rewriter->would_rewrite() );
+	}
+
+	public function test_would_rewrite_is_true_on_the_canonical_host_when_force_https_upgrades_it(): void {
+		$this->arrange(
+			array(
+				'enabled'     => true,
+				'force_https' => true,
+			),
+			http_host: 'canonical.com',
+			ssl: false
+		);
+
+		$this->assertTrue( $this->rewriter->would_rewrite() );
+	}
+
 	public function test_sitemap_xml_is_rewritten_to_the_browsed_host(): void {
 		$this->arrange( array( 'enabled' => true ) );
 

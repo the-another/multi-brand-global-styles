@@ -26,6 +26,7 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\Media\ImageMapBuilder;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Rendering\PageBuffer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Rest\ReplacementsController;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Cors\CorsHeaders;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Seo\SitemapXmlSubscription;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Seo\VerificationDomains;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\HostCanonicalizer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\HostRewriter;
@@ -148,7 +149,13 @@ class Plugin {
 		$hooks->register_filter( 'allowed_redirect_hosts', array( $host_rewriter, 'filter_allowed_redirect_hosts' ) );
 		$hooks->register_filter( 'wp_redirect', array( $host_rewriter, 'filter_wp_redirect' ) );
 		$hooks->register_filter( 'rest_pre_echo_response', array( $host_rewriter, 'filter_rest_pre_echo_response' ), 10, 3 );
-		$hooks->register_filter( 'taseo_sitemap_xml', array( $host_rewriter, 'filter_taseo_sitemap_xml' ) );
+
+		// Sitemap XML is a fourth buffer-blind egress, but subscribing to it is
+		// not free: The Another SEO stops streaming a chunk file the moment
+		// that filter has any subscriber at all. Decide per request, at the
+		// last moment before it serves on template_redirect priority 0.
+		$sitemap_xml_subscription = $this->container->get( 'sitemap_xml_subscription' );
+		$hooks->register_action( 'template_redirect', array( $sitemap_xml_subscription, 'maybe_subscribe' ), -1 );
 
 		$admin_notices = $this->container->get( 'admin_notices' );
 		$hooks->register_action( 'admin_notices', array( $admin_notices, 'render' ) );
@@ -234,6 +241,11 @@ class Plugin {
 		$this->container->register(
 			'seo_verification_domains',
 			fn( Container $c ) => new VerificationDomains( $c->get( 'url_rule_registry' ) )
+		);
+
+		$this->container->register(
+			'sitemap_xml_subscription',
+			fn( Container $c ) => new SitemapXmlSubscription( $c->get_hook_manager(), $c->get( 'host_rewriter' ) )
 		);
 
 		$this->container->register(

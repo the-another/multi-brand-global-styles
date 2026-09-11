@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+- **Activating this plugin made The Another SEO stop streaming sitemap files, on every sitemap request, whether or not anything needed rewriting.** That plugin serves a sitemap chunk by streaming the pre-built file, but abandons streaming for a full read-into-memory whenever `has_filter( 'taseo_sitemap_xml' )` is true — and `Plugin::start()` subscribed unconditionally, so merely having this plugin active bought the expensive mode site-wide. `has_filter()` is checked *before* the callback runs, so the existing gates inside `filter_taseo_sitemap_xml()` could never recover the streaming path: by the time they said "nothing to do", the file was already in memory. The cost was paid on installs where no Brand has URL rewrite enabled at all, and on canonical-host requests where the rewrite is a no-op by definition. The subscription now happens per request, from the new `Seo\SitemapXmlSubscription` on `template_redirect` at priority -1 — the last moment before the SEO plugin serves at priority 0 — and only when `HostRewriter::would_rewrite()` says this request has something to rewrite (a Brand resolved, URL rewrite opted in, and a browsed authority that actually differs from the canonical one, or `force_https` upgrading it). Canonical-host crawls keep streaming; Brand-host requests are unchanged and still get their rewrite. `would_rewrite()` and `replace()` share one private `rewrite_plan()`, so the predicate cannot drift from the transform it predicts. Note the exposure was narrower than it looks on Apache/LiteSpeed: the SEO plugin's static-serve rewrite rules are host-scoped to the canonical host, so canonical-host chunk requests never reach PHP there — the installs that paid in full are the ones without those rules in play (nginx, or files not yet written).
+
+
 ## [0.6.0] - 2026-08-30
 
 ### Changed
