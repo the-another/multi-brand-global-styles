@@ -4,7 +4,7 @@ Tags: multi-brand, global styles, branding, theme-json, variables
 Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 8.3
-Stable tag: 0.6.0
+Stable tag: 0.6.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -45,8 +45,8 @@ No — registering the exact same rule twice is rejected with an admin notice. O
 
 == Changelog ==
 
-
-
+= 0.6.1 - 2026-09-11 =
+* Fix: Sitemaps are served efficiently again on sites that also run The Another SEO. Activating this plugin made that plugin stop streaming its sitemap files and read each one fully into memory instead — on every sitemap request, whether or not the domain being served needed any URL rewriting at all. The rewrite is now requested only on requests that actually have something to rewrite: a domain served by a Brand with URL rewriting switched on. Requests on the site's own canonical domain, and sites where no Brand uses URL rewriting, go back to the cheaper path. Sitemap contents are unchanged on every domain.
 
 = 0.6.0 - 2026-08-30 =
 * Add: `%%brand.*%%` content variables now resolve inside block attributes, not just in rendered HTML. Previously a token was silently unusable in anything a dynamic block escapes on its way out: `core/navigation-link` runs `esc_url()` on its URL, and because a bare token contains no colon `esc_url()` treated it as scheme-less and prepended `http://`, so a Brand's login link rendered as `http://https://dashboard.example.com/login`. Substitution now happens while the attribute is still raw, before any render callback sees it. Values are inserted unescaped on purpose — the block's own callback escapes them for its context, so escaping twice would corrupt a URL's query string. Tokens stay literal in wp-admin, AJAX, feeds, and REST, so authors keep editing the token itself rather than one Brand's resolved value, and the block editor's previews are unaffected. Unknown tokens are still left literal.
