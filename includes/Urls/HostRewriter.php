@@ -66,28 +66,64 @@ class HostRewriter {
 	 * @return string HTML with canonical authorities rewritten.
 	 */
 	public function replace( string $html ): string {
+		$plan = $this->rewrite_plan();
+
+		if ( null === $plan ) {
+			return $html;
+		}
+
+		return $this->rewrite_hosts( $html, $plan['hosts'], $plan['authority'], $plan['scheme'] );
+	}
+
+	/**
+	 * Whether this request would have anything to rewrite.
+	 *
+	 * Same decision `replace()` makes, asked before any output exists. The
+	 * `taseo_sitemap_xml` subscription is registered through this: The Another
+	 * SEO abandons streaming and buffers a whole chunk file whenever that
+	 * filter has ANY subscriber, and `has_filter()` is checked before the
+	 * callback runs, so an early return inside the callback cannot recover the
+	 * streaming path — the cost is committed at registration time. Asking here
+	 * keeps the canonical host streaming while a Brand host still gets its
+	 * rewrite. See Seo\SitemapXmlSubscription.
+	 *
+	 * @since 0.6.1
+	 *
+	 * @return bool True when a rewrite would change something.
+	 */
+	public function would_rewrite(): bool {
+		return null !== $this->rewrite_plan();
+	}
+
+	/**
+	 * Resolve what this request's rewrite would do, or null when it would do
+	 * nothing. Fails closed: any condition it cannot interpret yields null.
+	 *
+	 * @since 0.6.1
+	 *
+	 * @return array{authority: string, hosts: array<int, string>, scheme: string}|null Plan, or null.
+	 */
+	private function rewrite_plan(): ?array {
 		$brand_id = $this->brand_resolver->resolve_current_request();
 
 		if ( null === $brand_id ) {
-			return $html;
+			return null;
 		}
 
 		$settings = $this->brand_repository->get_settings( $brand_id );
 
 		if ( ! $settings->url_rewrite_enabled() ) {
-			return $html;
+			return null;
 		}
 
 		$current_authority = RequestAuthority::current();
 
 		if ( '' === $current_authority ) {
-			return $html;
+			return null;
 		}
 
 		$force_https = $settings->url_rewrite_force_https();
-		$scheme      = $force_https || is_ssl() ? 'https' : 'http';
-
-		$hosts = array();
+		$hosts       = array();
 
 		foreach ( CanonicalAuthority::all() as $authority ) {
 			if ( ! $force_https && $authority === $current_authority ) {
@@ -100,10 +136,14 @@ class HostRewriter {
 		}
 
 		if ( empty( $hosts ) ) {
-			return $html;
+			return null;
 		}
 
-		return $this->rewrite_hosts( $html, array_keys( $hosts ), $current_authority, $scheme );
+		return array(
+			'authority' => $current_authority,
+			'hosts'     => array_keys( $hosts ),
+			'scheme'    => $force_https || is_ssl() ? 'https' : 'http',
+		);
 	}
 
 	/**

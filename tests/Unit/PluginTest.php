@@ -28,6 +28,7 @@ use TheAnother\Plugin\MultiBrandGlobalStyles\Media\ImageUrlReplacer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Plugin;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Rendering\PageBuffer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Rest\ReplacementsController;
+use TheAnother\Plugin\MultiBrandGlobalStyles\Seo\SitemapXmlSubscription;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Seo\VerificationDomains;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\HostCanonicalizer;
 use TheAnother\Plugin\MultiBrandGlobalStyles\Urls\HostRewriter;
@@ -113,7 +114,7 @@ class PluginTest extends TestCase {
 		$filters = array_column( array_filter( $hooks, fn( $h ) => 'filter' === $h['type'] ), 'hook' );
 
 		$this->assertSame(
-			array( 'init', 'add_meta_boxes', 'save_post_mbgs_brand', 'admin_enqueue_scripts', 'save_post_mbgs_brand', 'deleted_post', 'save_post_mbgs_brand', 'send_headers', 'template_redirect', 'template_redirect', 'admin_notices', 'added_post_meta', 'updated_post_meta', 'delete_attachment', 'rest_api_init', 'enqueue_block_editor_assets' ),
+			array( 'init', 'add_meta_boxes', 'save_post_mbgs_brand', 'admin_enqueue_scripts', 'save_post_mbgs_brand', 'deleted_post', 'save_post_mbgs_brand', 'send_headers', 'template_redirect', 'template_redirect', 'template_redirect', 'admin_notices', 'added_post_meta', 'updated_post_meta', 'delete_attachment', 'rest_api_init', 'enqueue_block_editor_assets' ),
 			$actions
 		);
 		$this->assertSame(
@@ -131,7 +132,6 @@ class PluginTest extends TestCase {
 				'allowed_redirect_hosts',
 				'wp_redirect',
 				'rest_pre_echo_response',
-				'taseo_sitemap_xml',
 			),
 			$filters
 		);
@@ -161,6 +161,7 @@ class PluginTest extends TestCase {
 			'host_canonicalizer',
 			'cors_headers',
 			'seo_verification_domains',
+			'sitemap_xml_subscription',
 			'brand_post_type',
 			'admin_notices',
 			'replacements_controller',
@@ -196,7 +197,7 @@ class PluginTest extends TestCase {
 		$hooks   = Container::get_instance()->get_hook_manager()->get_registered_hooks();
 		$matches = array_values( array_filter( $hooks, fn( $h ) => 'template_redirect' === $h['hook'] ) );
 
-		$this->assertCount( 2, $matches );
+		$this->assertCount( 3, $matches );
 
 		$by_method = array();
 		foreach ( $matches as $match ) {
@@ -213,6 +214,27 @@ class PluginTest extends TestCase {
 			$by_method['start_buffer']['priority'],
 			$by_method['handle']['priority'],
 			'HostCanonicalizer must run before PageBuffer on template_redirect: the canonicalization redirect must precede the output buffer.'
+		);
+	}
+
+	public function test_sitemap_xml_subscription_precedes_the_seo_plugin_sitemap_serve(): void {
+		Plugin::get_instance()->start();
+
+		$hooks   = Container::get_instance()->get_hook_manager()->get_registered_hooks();
+		$matches = array_values(
+			array_filter(
+				$hooks,
+				fn( $h ) => 'template_redirect' === $h['hook'] && 'maybe_subscribe' === $h['callback'][1]
+			)
+		);
+
+		$this->assertCount( 1, $matches );
+		$this->assertInstanceOf( SitemapXmlSubscription::class, $matches[0]['callback'][0] );
+
+		$this->assertLessThan(
+			0,
+			$matches[0]['priority'],
+			'The Another SEO serves sitemaps on template_redirect at priority 0 and exits; the subscription must be decided before that.'
 		);
 	}
 
